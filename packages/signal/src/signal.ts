@@ -1,6 +1,6 @@
 import { QueueItem } from 'bobe-shared';
 import { dfs } from './dfs';
-import { dirtyLeafs, DirtyState, G, ScopeExecuted, State } from './global';
+import { DirtyState, G, ScopeExecuted, State } from './global';
 import { Line } from './line';
 import { _scheduler } from './schedule';
 import { runWithPulling, unlinkRecWithScope } from './scope';
@@ -89,12 +89,15 @@ export class Signal<T = any> implements Vertex {
     private customPull?: () => T
   ) {}
 
-  static create<T>(nextValue: T, { customPull, isScope, immediate, ...rest }: SignalOpt<T>) {
+  static create<T>(nextValue: T, { customPull, isScope, scope, immediate, ...rest }: SignalOpt<T>) {
     const s = new Signal(nextValue, customPull);
     s.pull = s.customPull || s.DEFAULT_PULL;
     Object.assign(s, rest);
     if (isScope) {
       s.state |= State.IsScope;
+    }
+    if(scope !== undefined) {
+      s.scope = scope;
     }
     return s;
   }

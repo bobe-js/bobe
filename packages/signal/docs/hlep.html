@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.5.26/dist/vue.global.js"></script>
+</head>
+
+<body>
+  <div id="app">
+    <input type="text" v-model="value">
+    <div v-for="(item, index) in arr" >
+      {{ item }}
+    </div>
+  </div>
+</body>
+<script>
+  const { createApp, ref, reactive, watch, unref, onMounted, computed } = Vue;
+  function getBitValues (n) {
+    const values = [];
+    let weight = 1; // 初始权重 2^0 = 1
+
+    let tempN = n;
+    while (tempN > 0) {
+      // 检查当前最低位是否为 1
+      if ((tempN & 1) === 1) {
+        values.push(weight);
+      }
+      // tempN 右移一位，丢弃已处理的位
+      tempN >>>= 1;
+      // weight 左移一位，权重翻倍 (1 -> 2 -> 4 -> 8...)
+      weight <<= 1;
+    }
+
+    return values;
+  }
+  createApp({
+    setup () {
+      const value = ref(0);
+      const arr = computed(() => {
+        const num = Number(value.value);
+        if (isNaN(num)) {
+          return arr.value
+        }
+        return getBitValues(num)
+      })
+
+      return {
+        value,
+        arr
+      }
+    }
+  }).mount('#app');
+</script>
+
+</html>

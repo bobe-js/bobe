@@ -5,7 +5,7 @@ import { Signal } from './signal';
 import { Keys } from './type';
 import { toRaw } from './util';
 
-export const deepSignal = <T>(target: T, deep = true) => {
+export const deepSignal = <T>(target: T, scope: Signal, deep = true) => {
   const isObj = typeof target === 'object' && target !== null;
   // 1. 不是对象则返回原始值
   if (!isObj || target[Keys.Raw]) return target;
@@ -14,6 +14,7 @@ export const deepSignal = <T>(target: T, deep = true) => {
 
   // 每个对象维护自己的 cells 闭包
   const cells = new Map<any, Signal>();
+  const targetIsArray = Array.isArray(target);
 
   const proxy = new Proxy(target, {
     get(obj, prop, receiver) {
@@ -22,8 +23,22 @@ export const deepSignal = <T>(target: T, deep = true) => {
           return target;
         case Keys.Deep:
           return deep;
+        case Keys.Scope:
+          return scope;
         default:
           break;
+      }
+
+      // 创建 Signal
+      const value = Reflect.get(obj, prop, receiver);
+
+      const valueIsFn = typeof value === 'function';
+      if (valueIsFn) {
+        if (targetIsArray) {
+          return arrayMethodReWrites[prop] || value;
+        } else {
+          return value;
+        }
       }
 
       // 已有对应 Signal
@@ -31,12 +46,11 @@ export const deepSignal = <T>(target: T, deep = true) => {
         return cells.get(prop).v;
       }
 
-      // 创建 Signal
-      const value = Reflect.get(obj, prop, receiver);
-      const wrappedValue = deep ? deepSignal(value) : value;
+      const wrappedValue = deep ? deepSignal(value, scope) : value;
       const s = Signal.create(wrappedValue, {
         scheduler: Scheduler.Sync,
-        isScope: false
+        isScope: false,
+        scope
       });
       cells.set(prop, s);
       return s.v;
@@ -46,7 +60,7 @@ export const deepSignal = <T>(target: T, deep = true) => {
       // 已有对应 Signal，更新 signal 值
       if (cells.has(prop)) {
         const cell = cells.get(prop);
-        cell.v = deep ? deepSignal(value) : value;
+        cell.v = deep ? deepSignal(value, scope) : value;
       }
       // 保持原始对象干净
       return Reflect.set(obj, prop, value, receiver);
@@ -59,6 +73,16 @@ export const deepSignal = <T>(target: T, deep = true) => {
         cells.delete(prop);
       }
       return Reflect.deleteProperty(obj, prop);
+    },
+
+    ownKeys(obj) {
+      if (targetIsArray) {
+        // @ts-ignore
+        proxy.length;
+      } else {
+        proxy[Keys.Iterator];
+      }
+      return Reflect.ownKeys(obj);
     }
   });
 
@@ -72,7 +96,7 @@ const arrayMethodReWrites: any = {};
   arrayMethodReWrites[key] = function (...args: any[]) {
     const fn = Array.prototype[key];
     const res = runWithPulling(() => fn.call(this, ...args), null);
-    this[Keys.Iterator] = this[Keys.Raw][Keys.Iterator] + 1;
+    this[Keys.Iterator] = (this[Keys.Raw][Keys.Iterator] || 0) + 1;
     return res;
   };
 });
@@ -109,6 +133,7 @@ const arrayMethodReWrites: any = {};
     const fn = Array.prototype[key];
     const rawArray = toRaw(this);
     const iter = fn.call(rawArray, ...args);
+    const scope = this[Keys.Scope];
     const isDeep = this[Keys.Deep];
     // 深度代理需要将 iter.next 返回值转 proxy
     if (isDeep) {
@@ -117,9 +142,9 @@ const arrayMethodReWrites: any = {};
         const result = rawNext();
         if (!result.done) {
           if (isEntries) {
-            result.value[1] = deepSignal(result.value[1]);
+            result.value[1] = deepSignal(result.value[1], scope);
           } else {
-            result.value = deepSignal(result.value);
+            result.value = deepSignal(result.value, scope);
           }
         }
         return result;
@@ -136,6 +161,7 @@ const arrayMethodReWrites: any = {};
  * filter 函数的实现
  */
 arrayMethodReWrites.filter = function (callback, thisArg) {
+  const scope = this[Keys.Scope];
   const isDeep = this[Keys.Deep];
   const that = toRaw(this);
   const result = [];
@@ -148,7 +174,7 @@ arrayMethodReWrites.filter = function (callback, thisArg) {
     // 使用 in 操作符检查索引是否存在
     // 原生 filter 会跳过空洞（比如 [1, , 3] 中的 index 1）
     if (i in that) {
-      const value = isDeep ? deepSignal(that[i]) : that[i];
+      const value = isDeep ? deepSignal(that[i], scope) : that[i];
       // 性能点 3：直接调用回调，避免使用多余的包装
       if (callback.call(userThis, value, i, userThis)) {
         // 性能点 4：直接通过索引赋值，通常比 push() 略快
@@ -161,7 +187,9 @@ arrayMethodReWrites.filter = function (callback, thisArg) {
 };
 
 arrayMethodReWrites.slice = function (start, end) {
+  const scope = this[Keys.Scope];
   const isDeep = this[Keys.Deep];
+
   const that = toRaw(this);
   const len = that.length;
 
@@ -192,7 +220,7 @@ arrayMethodReWrites.slice = function (start, end) {
   for (let i = 0; i < count; i++) {
     // 确保处理稀疏数组的情况，保持与原生行为一致
     if (i + k in that) {
-      result[i] = isDeep ? deepSignal(that[i + k]) : that[i + k];
+      result[i] = isDeep ? deepSignal(that[i + k], scope) : that[i + k];
     }
   }
   this[Keys.Iterator];
@@ -200,6 +228,7 @@ arrayMethodReWrites.slice = function (start, end) {
 };
 
 arrayMethodReWrites.toReversed = function () {
+  const scope = this[Keys.Scope];
   const isDeep = this[Keys.Deep];
   const that = toRaw(this);
 
@@ -217,7 +246,7 @@ arrayMethodReWrites.toReversed = function () {
   while (k < len) {
     // 根据规范，toReversed 会读取索引值，如果索引不存在则为 undefined
     // 这会自动将稀疏数组的 hole 转为 undefined
-    result[k] = isDeep ? deepSignal(that[len - 1 - k]) : that[len - 1 - k];
+    result[k] = isDeep ? deepSignal(that[len - 1 - k], scope) : that[len - 1 - k];
     k++;
   }
 
@@ -227,6 +256,7 @@ arrayMethodReWrites.toReversed = function () {
 };
 
 arrayMethodReWrites.toSpliced = function (start, deleteCount, ...items) {
+  const scope = this[Keys.Scope];
   const isDeep = this[Keys.Deep];
   const that = toRaw(this);
 
@@ -256,19 +286,19 @@ arrayMethodReWrites.toSpliced = function (start, deleteCount, ...items) {
 
   // 第一段：保留起始点之前的元素
   for (let i = 0; i < actualStart; i++) {
-    result[i] = isDeep ? deepSignal(that[i]) : that[i];
+    result[i] = isDeep ? deepSignal(that[i], scope) : that[i];
   }
 
   // 第二段：插入新元素
   for (let i = 0; i < insertCount; i++) {
-    result[actualStart + i] = isDeep ? deepSignal(items[i]) : items[i];
+    result[actualStart + i] = isDeep ? deepSignal(items[i], scope) : items[i];
   }
 
   // 第三段：保留被删除部分之后的剩余元素
   const remainingStart = actualStart + actualDeleteCount;
   const resultOffset = actualStart + insertCount;
   for (let i = 0; i < len - remainingStart; i++) {
-    result[resultOffset + i] = isDeep ? deepSignal(that[remainingStart + i]) : that[remainingStart + i];
+    result[resultOffset + i] = isDeep ? deepSignal(that[remainingStart + i], scope) : that[remainingStart + i];
   }
 
   this[Keys.Iterator];
@@ -276,6 +306,7 @@ arrayMethodReWrites.toSpliced = function (start, deleteCount, ...items) {
 };
 
 arrayMethodReWrites.with = function (index, value) {
+  const scope = this[Keys.Scope];
   const isDeep = this[Keys.Deep];
   const that = toRaw(this);
 
@@ -300,9 +331,9 @@ arrayMethodReWrites.with = function (index, value) {
 
   for (let i = 0; i < len; i++) {
     if (i === actualIndex) {
-      result[i] = isDeep ? deepSignal(value) : value;
+      result[i] = isDeep ? deepSignal(value, scope) : value;
     } else {
-      result[i] = isDeep ? deepSignal(that[i]) : that[i];
+      result[i] = isDeep ? deepSignal(that[i], scope) : that[i];
     }
   }
   this[Keys.Iterator];
@@ -310,6 +341,7 @@ arrayMethodReWrites.with = function (index, value) {
 };
 
 arrayMethodReWrites.concat = function (...items) {
+  const scope = this[Keys.Scope];
   const isDeep = this[Keys.Deep];
   const that = toRaw(this);
   const selfLen = that.length; // 确保长度为正整数
@@ -333,7 +365,7 @@ arrayMethodReWrites.concat = function (...items) {
   // 4. 填充原数组数据
   for (; k < selfLen; k++) {
     if (k in that) {
-      result[k] = isDeep ? deepSignal(that[k]) : that[k];
+      result[k] = isDeep ? deepSignal(that[k], scope) : that[k];
     }
   }
 
@@ -343,12 +375,12 @@ arrayMethodReWrites.concat = function (...items) {
     if (Array.isArray(item)) {
       for (let j = 0; j < item.length; j++) {
         if (j in item) {
-          result[k] = isDeep ? deepSignal(item[j]) : item[j];
+          result[k] = isDeep ? deepSignal(item[j], scope) : item[j];
         }
         k++;
       }
     } else {
-      result[k] = isDeep ? deepSignal(item) : item;
+      result[k] = isDeep ? deepSignal(item, scope) : item;
       k++;
     }
   }
@@ -408,14 +440,15 @@ const GetMethodConf = {
   }
 ].forEach(({ key, wrapReturn, wrapArgs }) => {
   arrayMethodReWrites[key] = function (...args: any[]) {
+    const scope = this[Keys.Scope];
     const fn = Array.prototype[key];
     const isDeep = this[Keys.Deep];
     const that = toRaw(this);
-    warpCallbackArgs(isDeep, args, wrapArgs);
+    warpCallbackArgs(isDeep, args, scope, wrapArgs);
     // 遍历函数不收集数组属性
     let result = fn.call(that, ...args);
     if (wrapReturn && isDeep) {
-      result = deepSignal(result);
+      result = deepSignal(result, scope);
     }
     this[Keys.Iterator];
     return result;
@@ -425,12 +458,13 @@ const GetMethodConf = {
 // TODO: 考虑是否基于 js 实现以提高性能
 arrayMethodReWrites.toSorted = function (...args: any[]) {
   const fn = Array.prototype['toSorted'];
+  const scope = this[Keys.Scope];
   const isDeep = this[Keys.Deep];
   const that = toRaw(this);
-  warpCallbackArgs(isDeep, args, 0b11);
+  warpCallbackArgs(isDeep, args, scope, 0b11);
   let result = fn.call(that, ...args);
   this[Keys.Iterator];
-  return isDeep ? result.map(it => deepSignal(it)) : result;
+  return isDeep ? result.map(it => deepSignal(it, scope)) : result;
 };
 
 /*----------------- 转换方法 仅收集 仅收集 __Iterator Get -----------------*/
@@ -444,12 +478,12 @@ arrayMethodReWrites.toSorted = function (...args: any[]) {
   };
 });
 
-function warpCallbackArgs(isDeep: boolean, args: any[], wrapArgs: number = 0b01) {
+function warpCallbackArgs(isDeep: boolean, args: any[], scope: Signal, wrapArgs: number = 0b01) {
   const callback = args[0];
   const wrapCb = function (this: any, ...cbArgs: any[]) {
     if (isDeep) {
-      if (wrapArgs & 1) cbArgs[0] = deepSignal(cbArgs[0]);
-      if (wrapArgs & 2) cbArgs[1] = deepSignal(cbArgs[1]);
+      if (wrapArgs & 0b01) cbArgs[0] = deepSignal(cbArgs[0], scope);
+      if (wrapArgs & 0b10) cbArgs[1] = deepSignal(cbArgs[1], scope);
     }
     // 遍历函数不收集数组属性，但是回调函数需要收集用户的 get
     return callback.call(this, ...cbArgs);

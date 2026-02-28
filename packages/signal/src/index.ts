@@ -1,4 +1,4 @@
-import { State } from './global';
+import { G, State } from './global';
 import { Scheduler } from './schedule';
 import { dispose } from './scope';
 import { Signal } from './signal';
@@ -42,7 +42,7 @@ export const $: CreateSignal = (init?: unknown, opt: CustomSignalOpt = {}) => {
     intiValue = null;
     customPull = init as Getter;
   } else if (opt.mode !== 'ref' && typeof init === 'object' && init !== null) {
-    return deepSignal(init, opt.deep);
+    return deepSignal(init, G.PullingSignal, opt.deep);
   } else {
     intiValue = init;
   }

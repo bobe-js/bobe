@@ -9,6 +9,7 @@ export enum Keys {
   Iterator = '__AOYE_ITERATOR',
   Raw = '__AOYE_RAW',
   Deep = '__AOYE_DEEP',
+  Scope = '__AOYE_SCOPE',
 }
 
 export type TaskControlReturn = {
@@ -32,6 +33,7 @@ export type SignalOpt<T> = {
   customPull?: () => T;
   scheduler?: string;
   isScope?: boolean;
+  scope?: Signal;
   immediate?: boolean;
 };
 

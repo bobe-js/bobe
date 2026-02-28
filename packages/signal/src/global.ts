@@ -15,8 +15,6 @@ export const G = {
   PullingRecurseDeep: 0
 };
 
-export const dirtyLeafs = new SortMap<Signal>();
-
 export enum State {
   Clean = 0,
   /** watch 节点执行 watcher 时只连接 scope */
