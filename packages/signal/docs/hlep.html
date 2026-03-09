@@ -11,7 +11,7 @@
 <body>
   <div id="app">
     <input type="text" v-model="value">
-    <div v-for="(item, index) in arr" >
+    <div v-for="(item, index) in arr">
       {{ item }}
     </div>
   </div>
@@ -22,18 +22,37 @@
     const values = [];
     let weight = 1; // 初始权重 2^0 = 1
 
+    const vMap = new Map([
+      [0b0000_0000_0000_0000_0000_0001_0000_0000, 'LinkScopeOnly'],
+      /** 仅用于 scope 节点是否 abort */
+      [0b0000_0000_0000_0000_0000_0000_1000_0000, 'ScopeAbort'],
+      /** 仅用于 scope 节点是否 ready */
+      [0b0000_0000_0000_0000_0000_0000_0100_0000, 'ScopeReady'],
+      /** 当前节点是 scope 节点 */
+      [0b0000_0000_0000_0000_0000_0000_0010_0000, 'IsScope'],
+      /** 当前节点正在 pull 递归中标记为 dirty, 保证 pulling 过程中不影响 dirty 传播 */
+      [0b0000_0000_0000_0000_0000_0000_0001_0000, 'PullingDirty'],
+      /** 当前节点正在 pull 递归中标记为 unknown, 保证 pulling 过程中不影响 dirty 传播 */
+      [0b0000_0000_0000_0000_0000_0000_0000_1000, 'PullingUnknown'],
+      /** 当前节点可能变化 */
+      [0b0000_0000_0000_0000_0000_0000_0000_0100, 'Unknown'],
+      /** 当前节点有变化 */
+      [0b0000_0000_0000_0000_0000_0000_0000_0010, 'Dirty'],
+      /** 当前节点正在进行 pull 预检处理 */
+      [0b0000_0000_0000_0000_0000_0000_0000_0001, 'Pulling'],
+    ])
+
     let tempN = n;
     while (tempN > 0) {
       // 检查当前最低位是否为 1
       if ((tempN & 1) === 1) {
-        values.push(weight);
+        values.push(vMap.get(weight));
       }
       // tempN 右移一位，丢弃已处理的位
       tempN >>>= 1;
       // weight 左移一位，权重翻倍 (1 -> 2 -> 4 -> 8...)
       weight <<= 1;
     }
-
     return values;
   }
   createApp({

@@ -34,6 +34,8 @@ export const deepSignal = <T>(target: T, scope: Signal, deep = true) => {
           break;
       }
 
+      if (prop === Symbol.unscopables) return Reflect.get(obj, prop, receiver);
+
       if (targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) {
         return Reflect.get(obj, prop, receiver);
       }
@@ -74,7 +76,7 @@ export const deepSignal = <T>(target: T, scope: Signal, deep = true) => {
     },
 
     set(obj, prop, value, receiver) {
-      if (targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) {
+      if ((targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) || typeof value === 'function') {
         return Reflect.set(obj, prop, value, receiver);
       }
       // 数组项 set 可能出现 Iterator 设置，用 batch 避免 effect 多次执行
@@ -98,7 +100,7 @@ export const deepSignal = <T>(target: T, scope: Signal, deep = true) => {
 
     // 【核心修改】拦截 delete 操作
     deleteProperty(obj, prop) {
-      if (targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) {
+      if ((targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) || typeof obj[prop] === 'function') {
         return Reflect.deleteProperty(obj, prop);
       }
       if (cells.has(prop)) {

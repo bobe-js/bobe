@@ -309,6 +309,9 @@ describe('signal 基础功能测试', () => {
     b.v = 10;
     expect(c.v).toBe(13); // c=b.v+3=10+3=13
     log.toBe('c计算'); // 只有 c 需要重新计算，因为 b 的值被直接设置了
+    depStr.depIs(`
+      a -> b -> c
+    `);
 
     a.v = 2;
     expect(c.v).toBe(7);
@@ -329,5 +332,44 @@ describe('signal 基础功能测试', () => {
     log.toBe('Set 2');
     a.v = 3;
     log.toBe('Set 4');
-  })
+  });
+
+  it('pullDeep 在 pullRecurse 中应该正确处理依赖关系', () => {
+    const log = new Log();
+    const a = $(1);
+    const b = $(() => a.v * 2);
+
+    const e1 = effect(() => {
+      log.call(`e1-${a.v}`);
+    });
+    const e2 = effect(() => {
+      log.call(`e2-${b.v}`);
+    });
+
+    a.v = 2;
+    expect(e2.ins.recEnd.upstream).toBe(b);
+    /**
+     * 以下是整体状态执行流程
+     * a -> Dirty
+     * b -> unknown
+     * e1 -> unknown
+     * e2 -> unknown
+     *
+     * 执行 e1 pullDeep
+     * a -> Clean
+     * b -> Dirty
+     * e1 -> Dirty
+     * 执行 e1 pullRecurse
+     * 执行 a pullRecurse
+     * e1 -> Clean
+     *
+     * 执行 e2 pullDeep
+     * 当前 b -> Dirty
+     * 执行 b pullRecurse
+     * b -> Clean
+     * e2 -> Dirty
+     * 执行 e2 pullRecurse e2.recEnd = null
+     * 执行 b pullDeep，因为有上游节点，但是 b Clean，此处应该增加 b -> e2 ！！！
+     */
+  });
 });
