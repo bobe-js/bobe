@@ -171,33 +171,34 @@ describe('watch 功能测试', () => {
     log.toBe(); // 没有新的执行
   });
 
-  it('使用不同调度器的 watch', done => {
-    const log = new Log();
-    const signal = $(1);
+  it('使用不同调度器的 watch', () =>
+    new Promise(done => {
+      const log = new Log();
+      const signal = $(1);
 
-    effect(
-      () => {
-        log.call('async watcher执行');
-      },
-      [signal],
-      { immediate: false, scheduler: Scheduler.Micro }
-    );
+      effect(
+        () => {
+          log.call('async watcher执行');
+        },
+        [signal],
+        { immediate: false, scheduler: Scheduler.Micro }
+      );
 
-    // 初始化不应执行
-    log.toBe();
+      // 初始化不应执行
+      log.toBe();
 
-    // 改变信号，但因为使用 Micro 调度器，需要等待
-    signal.v = 2;
-    log.toBe(); // 还没有执行
+      // 改变信号，但因为使用 Micro 调度器，需要等待
+      signal.v = 2;
+      log.toBe(); // 还没有执行
 
-    // 等待微任务执行
-    Promise.resolve().then(() => {
-      log.toBe('async watcher执行');
-      done();
-    });
-  });
+      // 等待微任务执行
+      Promise.resolve().then(() => {
+        log.toBe('async watcher执行');
+        done(1);
+      });
+    }));
 
-  it('使用 scope 取消监听', done => {
+  it('使用 scope 取消监听', () => new Promise(done => {
     const log = new Log();
     const signal = $(1);
     let watcher: any;
@@ -233,9 +234,9 @@ describe('watch 功能测试', () => {
     // 通过 scope 嫩自动找出外部依赖并断开
     ide(() => {
       str.depIs(`watcher -> dispose`);
-      done();
+      done(1);
     });
-  });
+  }));
 
   it(' dispose 功能测试', () => {
     const log = new Log();
@@ -305,7 +306,7 @@ describe('watch 功能测试', () => {
     log.toBe('新值=[100,20], 旧值=[10,20]', '新值=[100,200], 旧值=[100,20]');
   });
 
-  it('stop 功能对微任务 watcher 的停止', done => {
+  it('stop 功能对微任务 watcher 的停止', () => new Promise (done => {
     const log = new Log();
     const signal = $(1);
 
@@ -324,9 +325,9 @@ describe('watch 功能测试', () => {
 
     Promise.resolve().then(() => {
       log.toBe(); // 因为停止了，所以没有执行
-      done();
+      done(1);
     });
-  });
+  }));
 
   it('两层 watch 嵌套 - 第一层监听全局 signal，在回调中嵌套第二层 watch 监听内部 signal', () => {
     const log = new Log();

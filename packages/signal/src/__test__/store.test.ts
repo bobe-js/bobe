@@ -2,7 +2,7 @@ import { effect, IsStore, Store, StoreIgnoreKeys } from '#/index'; // 假设使�
 describe('Store 测试', () => {
   let fn;
   beforeEach(() => {
-    fn = jest.fn();
+    fn = vi.fn();
   });
 
   describe('Store 基础功能测试', () => {

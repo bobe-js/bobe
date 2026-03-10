@@ -1,13 +1,14 @@
 import { $, effect } from '#/index';
+import { Mock } from 'vitest';
 
 describe('Array methods effect tests', () => {
   let arr: any[];
-  let effectSpy: jest.Mock;
+  let effectSpy: Mock;
 
   beforeEach(() => {
     // 初始化数组数据
     arr = $([1, 2, 3, 'test']);
-    effectSpy = jest.fn();
+    effectSpy = vi.fn();
   });
 
   describe('Set - 修改数组并触发 iterator 更新', () => {

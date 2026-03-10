@@ -14,8 +14,7 @@
   "scripts": {
     "build": "rm -rf ./dist && rollup -c",
     "dev": "rollup -c -w",
-    "t": "jest",
-    "tw": "jest --coverage --watch"
+    "tw": "vitest"
   },
   "files": [
     "dist"

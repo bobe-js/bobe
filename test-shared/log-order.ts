@@ -7,7 +7,7 @@ export class Log {
     if (this.fnMap.has(name)) {
       return this.fnMap.get(name);
     }
-    const fn = jest.fn(() => {
+    const fn = vi.fn(() => {
       this.order.push(name);
     });
     this.fnMap.set(name, fn);
