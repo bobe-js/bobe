@@ -47,12 +47,6 @@ jobs:
 
       - name: Bump Version and Publish
         run: |
-          # 动态写入 .npmrc 配置，让 npm/pnpm 知道去哪里找 Token
-          # 注意：这里的 //registry.npmjs.org/:_authToken 是固定格式
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > .npmrc
-
-          pnpm log
-
           # 1. 更新版本（使用 -r 对所有子包生效，--no-git-tag-version 防止重复生成 tag）
           pnpm -r exec npm version ${{ github.event.inputs.release_type }} --no-git-tag-version
           # 2. 获取更新后的主包版本号（用于后续 commit 信息）
@@ -64,7 +58,7 @@ jobs:
           # --access public 如果是作用域包 (@scope/xxx) 必须加这个
           pnpm pub
         env:
-          NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Commit and Push Changes
         run: |
