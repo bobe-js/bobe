@@ -62,7 +62,7 @@ jobs:
           # --access public 如果是作用域包 (@scope/xxx) 必须加这个
           pnpm pub
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Commit and Push Changes
         run: |
