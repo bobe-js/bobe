@@ -24,9 +24,9 @@ jobs:
           fetch-depth: 0 # 获取完整历史以方便提交
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4.2.0
         with:
-          version: 8 # 或者你使用的具体版本
+          version: 10.26.0 # 或者你使用的具体版本
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
