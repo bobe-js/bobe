@@ -1,7 +1,7 @@
 import { Dispose, Signal, Store } from 'aoye';
 import type { Tokenizer } from './tokenizer';
 import type { Interpreter } from './terp';
-import type { TypedStack } from './typed-stack';
+import { MultiTypeStack } from './typed';
 
 export enum TokenType {
   NewLine = 0b0000_0000_0000_0000_0000_0000_0000_0001,
@@ -14,26 +14,33 @@ export enum TokenType {
   InsertionExp = 0b0000_0000_0000_0000_0000_0000_1000_0000
 }
 
-export enum LogicType {
+export enum FakeType {
   If = 0b0000_0000_0000_0000_0000_0000_0000_0001,
   Fail = 0b0000_0000_0000_0000_0000_0000_0000_0010,
   Else = 0b0000_0000_0000_0000_0000_0000_0000_0100,
   For = 0b0000_0000_0000_0000_0000_0000_0000_1000,
   Component = 0b0000_0000_0000_0000_0000_0000_0001_0000,
   Fragment = 0b0000_0000_0000_0000_0000_0000_0010_0000,
-  Root = 0b0000_0000_0000_0000_0000_0000_0100_0000,
-  // 仅占位
-  Real = 0b0000_0000_0000_0000_0000_0000_1000_0000
+  ForItem = 0b0000_0000_0000_0000_0000_0000_0100_0000,
 }
 
-export const Logical = LogicType.If | LogicType.Fail | LogicType.Else | LogicType.For;
 
-export const CondType = LogicType.If | LogicType.Fail | LogicType.Else;
-
-export enum NodeType {
-  Logic = Logical,
-  Real = LogicType.Real,
-  Component = LogicType.Component
+export const CondBit = FakeType.If | FakeType.Fail | FakeType.Else;
+export const LogicalBit = FakeType.If | FakeType.Fail | FakeType.Else | FakeType.For | FakeType.ForItem;
+export const CtxProviderBit = FakeType.Component | FakeType.Fragment | FakeType.ForItem;
+export type NodeSortBit = number;
+/**
+ * 按不同维度分类，分类不互斥
+ */
+export enum NodeSort {
+  /** 逻辑类型 包含 if else fail for */
+  Logic = 0b0000_0000_0000_0000_0000_0000_0000_0001,
+  /** 真实节点 */
+  Real = 0b0000_0000_0000_0000_0000_0000_0000_0010,
+  /** 组件 */
+  Component = 0b0000_0000_0000_0000_0000_0000_0000_0100,
+  /** 包含 1.组件 2.片段 3.for item */
+  CtxProvider = 0b0000_0000_0000_0000_0000_0000_0000_1000,
 }
 
 export enum TerpEvt {
@@ -86,7 +93,7 @@ export type Hook = (props: HookProps) => any;
 export type HookType = 'dynamic' | 'static';
 
 export type ProgramCtx = {
-  stack: TypedStack<any, NodeType>;
+  stack: MultiTypeStack<any>;
   prevSibling: any;
   realParent: any;
   current: any;
@@ -118,7 +125,7 @@ export type IfNode = LogicNode & {
 };
 
 export type LogicNode = {
-  __logicType: LogicType;
+  __logicType: FakeType;
   realParent: any;
   realBefore?: any;
   realAfter?: any;

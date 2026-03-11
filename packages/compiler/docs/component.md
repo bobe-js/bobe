@@ -53,12 +53,12 @@ function customRender(option) {
 // 1. render
 // 2. const ins = App.new()
 // 3. return ins.ui => program;
-//		3.1 bobe
-//		3.2 const terp = new Interpreter()
-//		3.3 const componentNode = terp.program()  // 此节点需要考虑 after，其余节点 after = null
-//				3.3.1 Component 节点
+// 		3.1 bobe
+// 		3.2 const terp = new Interpreter()
+// 		3.3 const componentNode = terp.program()  // 此节点需要考虑 after，其余节点 after = null
+// 				3.3.1 Component 节点
 //        3.3.2 const ins = Component.new()
-//				... 递归执行 3.
+// 				... 递归执行 3.
 //        3.3.3 将 component 所有子节点挂载到 realParent 上
 
 

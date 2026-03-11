@@ -10,6 +10,7 @@ export function bobe(fragments: TemplateStringsArray, ...values: any[]) {
     Object.assign(cmp, valueOpt);
     // 初始化
     cmp.config({
+      // 由 tokenizer 接管
       hook({ i }) {
         return values[i];
       },

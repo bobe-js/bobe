@@ -3,7 +3,8 @@ import { $, effect, getPulling, Keys, runWithPulling, setPulling, shareSignal, S
 import {
   BobeUI,
   ComponentNode,
-  CondType,
+  CondBit,
+  CtxProviderBit,
   CustomRenderConf,
   FragmentNode,
   Hook,
@@ -11,10 +12,10 @@ import {
   HookType,
   IfNode,
   IsAnchor,
-  Logical,
+  LogicalBit,
   LogicNode,
-  LogicType,
-  NodeType,
+  FakeType,
+  NodeSort,
   ProgramCtx,
   StackItem,
   TerpConf,
@@ -23,7 +24,7 @@ import {
   TokenType
 } from './type';
 import { BaseEvent } from 'bobe-shared';
-import { TypedStack } from './typed-stack';
+import { MultiTypeStack } from './typed';
 const tap = new BaseEvent();
 
 export class Interpreter {
@@ -36,18 +37,18 @@ export class Interpreter {
   opt: TerpConf;
   constructor(private tokenizer: Tokenizer) {}
   isLogicNode(node: any) {
-    return node && node.__logicType & Logical;
+    return node && node.__logicType & LogicalBit;
   }
 
   program(root: any, before?: any) {
     const componentNode: ComponentNode = {
-      __logicType: LogicType.Component,
+      __logicType: FakeType.Component,
       realParent: root,
       store: new Store()
     };
     this.tokenizer.consume();
-    const stack = new TypedStack<StackItem, NodeType>();
-    stack.push({ node: root, prev: null }, NodeType.Real);
+    const stack = new MultiTypeStack<StackItem>();
+    stack.push({ node: root, prev: null }, NodeSort.Real);
 
     const ctx: ProgramCtx = {
       realParent: root,
@@ -75,7 +76,10 @@ export class Interpreter {
             node: ctx.current,
             prev: ctx.prevSibling
           },
-          ctx.current.__logicType ? (isLogicNode ? NodeType.Logic : NodeType.Component) : NodeType.Real
+          !ctx.current.__logicType
+            ? NodeSort.Real
+            : (LogicalBit & ctx.current.__logicType ? NodeSort.Logic : 0) |
+                (CtxProviderBit & ctx.current.__logicType ? NodeSort.CtxProvider : 0)
         );
         if (ctx.current.__logicType) {
           // 父节点是逻辑节点
@@ -105,18 +109,18 @@ export class Interpreter {
       // 下一个 token 是 Dedent
       if (this.tokenizer.token.type & TokenType.Dedent) {
         const DEDENT = this.tokenizer.consume();
-        const { node: parent, prev } = stack.peek();
+        const [{ node: parent, prev }, sort] = stack.pop();
         // 弹出原生节点，找最近的 ctx.realParent
         if (!parent.__logicType) {
-          const prevSameType = stack.getPrevSameType();
+          const prevSameType = stack.peekByType(NodeSort.Real);
           ctx.realParent = prevSameType?.node || root;
         }
-        // 弹出逻辑节点，
+        // 弹出非原生节点
         else {
           // 考虑 if, for 等获取最后一个插入节点
-          if (this.isLogicNode(parent)) {
+          if (sort & NodeSort.Logic) {
             // 找最近的 if for
-            const parentLogic = stack.getPrevSameType()?.node;
+            const parentLogic = stack.peekByType(NodeSort.Logic)?.node;
             if (parentLogic) {
               setPulling(parentLogic.effect.ins);
             } else {
@@ -124,7 +128,6 @@ export class Interpreter {
             }
           }
         }
-        stack.pop();
         ctx.prevSibling = prev;
         ctx.current = parent;
       }
@@ -245,7 +248,7 @@ export class Interpreter {
     this.tokenizer.consume();
     this.headerLine(_node);
     this.extensionLines(_node);
-    if (_node.__logicType === LogicType.Component) {
+    if (_node.__logicType === FakeType.Component) {
       tap.once(TerpEvt.HandledComponentNode, node => (_node = node));
       tap.emit(TerpEvt.AllAttrGot);
     }
@@ -255,7 +258,7 @@ export class Interpreter {
   // TODO: 指定挂载位置
   fragmentDeclaration(renderFragment: BobeUI) {
     const fragmentNode: FragmentNode = {
-      __logicType: LogicType.Fragment,
+      __logicType: FakeType.Fragment,
       realParent: null
     };
     renderFragment.call(this.data, this.opt, { data: this.data, root: '', anchor: '' });
@@ -326,7 +329,7 @@ export class Interpreter {
       componentNode.realAfter = afterAnchor;
       tap.emit(TerpEvt.HandledComponentNode, componentNode);
     });
-    return { __logicType: LogicType.Component };
+    return { __logicType: FakeType.Component };
   }
   // TODO: 优化代码逻辑，拆分 if elseif else
   condDeclaration(ctx: ProgramCtx) {
@@ -338,11 +341,11 @@ export class Interpreter {
     const [hookType, value] = this._hook({});
     const isElse = keyWord.value === 'else';
     const isIf = keyWord.value === 'if';
-    const preIsCond = prevSibling?.__logicType & CondType;
+    const preIsCond = prevSibling?.__logicType & CondBit;
     // 需要和前一个节点的 condition 合并计算
     const needCalcWithPrevIf = isElse && preIsCond;
     const ifNode: IfNode = {
-      __logicType: isElse ? LogicType.Else : isIf ? LogicType.If : LogicType.Fail,
+      __logicType: isElse ? FakeType.Else : isIf ? FakeType.If : FakeType.Fail,
       snapshot: noSelfCond ? snapbackUp : this.tokenizer.snapshot(),
       condition: null,
       realParent: null,
@@ -362,7 +365,7 @@ export class Interpreter {
               return false;
             }
             // else 的条件判断应该停止在第一个访问到的 if 节点
-            if (point.__logicType === LogicType.If) {
+            if (point.__logicType === FakeType.If) {
               break;
             }
             point = point.preCond;
@@ -404,7 +407,7 @@ export class Interpreter {
                 return false;
               }
               // else 的条件判断应该停止在第一个访问到的 if 节点
-              if (point.__logicType === LogicType.If) {
+              if (point.__logicType === FakeType.If) {
                 break;
               }
               point = point.preCond;
