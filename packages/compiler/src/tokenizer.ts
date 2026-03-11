@@ -7,7 +7,7 @@ export class Tokenizer {
   /** 缩进字符 */
   Tab = Array.from({ length: this.TabSize }, () => ' ').join('');
   /** 匹配标识符 */
-  IdExp = /[\d\w\/]/;
+  static IdExp = /[\d\w\/]/;
   /** Eof 标识符的值 */
   static EofId = `__EOF__${Date.now()}`;
 
@@ -23,6 +23,7 @@ export class Tokenizer {
   dentStack: number[] = [0];
   /** 当前字符 index */
   i = 0;
+  // TODO: 生产环境不需要这个，导致不必要的内存占用
   handledTokens: Token[] = [];
   /**
    * 有些标识符能产生多个 token
@@ -172,7 +173,7 @@ export class Tokenizer {
 
   private testId(value: string) {
     if (typeof value !== 'string') return false;
-    return this.IdExp.test(value);
+    return Tokenizer.IdExp.test(value);
   }
 
   private nextToken() {

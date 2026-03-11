@@ -33,7 +33,6 @@ export class Interpreter {
   data: Record<any, any> = {};
   /** 模板字符串动态节点索引 */
   hookI = 0;
-  lastInserted;
   opt: TerpConf;
   constructor(private tokenizer: Tokenizer) {}
   isLogicNode(node: any) {
@@ -271,8 +270,10 @@ export class Interpreter {
    *
    * mapKey 映射, 对应子组件的属性
    *  */
-  onePropParsed(node: any, key: string, value: any, valueIsMapKey: boolean, hookI?: number) {
-    if (typeof value === 'function') {
+  onePropParsed(node: any, key: string, value: any, valueIsMapKey: boolean, isFn: boolean, hookI?: number) {
+    if (isFn) {
+      this.setProp(node, key, value, hookI);
+    } else if (typeof value === 'function') {
       effect(() => {
         const res = value();
         this.setProp(node, key, res, hookI);
@@ -294,9 +295,12 @@ export class Interpreter {
     // 必须等待 attr 解析完毕
     const child = Component.new();
     const prevOnePropParsed = this.onePropParsed;
-    this.onePropParsed = (node, key, value, valueIsMapKey, hookI) => {
+    this.onePropParsed = (node, key, value, valueIsMapKey, isFn, hookI) => {
+      if (isFn) {
+        this.data[Keys.Raw][key] = value;
+      }
       // key 映射
-      if (valueIsMapKey) {
+      else if (valueIsMapKey) {
         shareSignal(this.data, value, child, key);
       }
       // 动态值内置 computed 处理
@@ -458,7 +462,7 @@ export class Interpreter {
           // 更新渲染，删除所有节点
           else {
             const { realBefore, realAfter, realParent } = ifNode;
-            let point = realBefore ? this.nextSib(realBefore) : this.kid(realParent);
+            let point = realBefore ? this.nextSib(realBefore) : this.firstChild(realParent);
             while (point !== realAfter) {
               const next = this.nextSib(point);
               this.remove(point, realParent, realBefore);
@@ -529,21 +533,25 @@ export class Interpreter {
       // 取 value
       else {
         const [hookType, value] = this._hook({});
+        const rawVal = Reflect.get(this.data[Keys.Raw], value);
+        const isFn = typeof rawVal === 'function';
         // 动态的要做成函数
         if (hookType === 'dynamic') {
           const valueIsMapKey = Reflect.has(this.data[Keys.Raw], value);
-          const fn = valueIsMapKey
-            ? value
-            : new Function('data', `let v;with(data){v=${value}};return v;`).bind(undefined, this.data);
-          this.onePropParsed(_node, key, fn, valueIsMapKey, this.hookI);
+          const fn = isFn
+            ? rawVal
+            : valueIsMapKey
+              ? value
+              : new Function('data', `let v;with(data){v=${value}};return v;`).bind(undefined, this.data);
+          this.onePropParsed(_node, key, fn, valueIsMapKey, isFn, this.hookI);
         }
         // 静态
         else if (hookType === 'static') {
-          this.onePropParsed(_node, key, value, false, this.hookI);
+          this.onePropParsed(_node, key, value, false, isFn, this.hookI);
         }
         // 基础数据字面量
         else {
-          this.onePropParsed(_node, key, value, false, this.hookI);
+          this.onePropParsed(_node, key, value, false, isFn, this.hookI);
         }
         key = null;
         eq = null;
@@ -568,7 +576,7 @@ export class Interpreter {
     return node.nextSibling;
   }
 
-  kid(node: any) {
+  firstChild(node: any) {
     return node.firstChild;
   }
 
@@ -643,6 +651,7 @@ export class Interpreter {
         HookId: this.HookId,
         i: hookI
       });
+      // TODO: 去除 this.hookI, hookI 由本函数返回
       this.hookI++;
       return [hookType, res];
     }

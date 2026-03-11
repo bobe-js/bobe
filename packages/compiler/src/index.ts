@@ -10,13 +10,13 @@ export function bobe(fragments: TemplateStringsArray, ...values: any[]) {
     Object.assign(cmp, valueOpt);
     // 初始化
     cmp.config({
-      ...options,
       hook({ i }) {
         return values[i];
       },
       setProp(node: any, key: string, value: any, hookI?: number) {
         node.props[key] = value;
-      }
+      },
+      ...options
     });
     cmp.init(Array.from(fragments));
     return cmp.program(root, before);
@@ -33,4 +33,3 @@ export function customRender(option: CustomRenderConf) {
     return [store['ui'](option, { data: store }, root), store];
   };
 }
-

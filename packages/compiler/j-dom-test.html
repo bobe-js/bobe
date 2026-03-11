@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bobe</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "aoye": "./node_modules/aoye/dist/aoye.esm.js",
+      "bobe-shared": "./node_modules/bobe-shared/dist/bobe-shared.esm.js",
+      "bobe": "./dist/bobe.esm.js"
+    }
+  }
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <div id="root2"></div>
+</body>
+<script type="module">
+  import { bobe, Store, customRender } from 'bobe';
+  // 指定版本号以确保 API 兼容性
+  // import { Bench } from 'https://esm.sh/tinybench@2.9.0';
+  const render = customRender({
+    createNode (name) {
+      return document.createElement(name);
+    },
+    setProp (node, key, value, hookI) {
+      if (key === 'text') {
+        node.textContent = value;
+      } else if (key.startsWith('on')) {
+        node.addEventListener(key.slice(2), value);
+      } else {
+        node.setAttribute(key, value);
+      }
+    },
+    insertAfter (parent, node, prev) {
+      parent.insertBefore(node, prev?.nextSibling)
+    },
+    createAnchor () {
+      return document.createComment('aoye');
+    },
+    remove (node) {
+      node.remove();
+    },
+    firstChild (node) {
+      return node.firstChild;
+    },
+    nextSib (node) {
+      return node.nextSibling;
+    },
+  });
+
+  class B extends Store {
+    v = 1;
+    name = '😁';
+    updateName = () => {
+      this.name = '🤡';
+    };
+    ui = bobe`
+      div text={v}
+      div text={name}
+    `;
+  }
+
+  class App extends Store {
+    show1 = true;
+    show2 = true;
+    name = '米龙';
+
+    update = () => {
+      this.show1 = !this.show1;
+    }
+    update2 = () => {
+      this.show2 = !this.show2;
+    }
+
+    ui = bobe`
+      header
+        button text="按钮1" onclick={update}
+        button text="按钮2" onclick={update2}
+        if {show1}
+          div text="show1"
+        if {show2}
+          div text="show2"
+        else
+          ${B} v={999}
+        nav
+          ul
+            li
+              a href="#home" text="首页"
+            li
+              a href="#services" text="服务"
+            li
+              a href="#contact" text="联系我们"
+      main
+        section id="home"
+          h2 text="欢迎来到我们的页面"
+          p text="这是一个纯 HTML 结构的示例，不包含任何 CSS 样式。"
+        section id="services"
+          h2 text="我们的服务"
+          ul
+            li text="网页设计"
+            li text="后端开发"
+            li text="数据分析"
+        section id="contact"
+          h2 text="联系我们"
+          form action="/submit" method="post"
+            label for="name" text="姓名："
+            input type="text" id="name" name="name" required=true
+            br
+            label for="email" text="邮箱："
+            input type="email" id="email" name="email"
+            br
+            label for="message" text="留言："
+            textarea id="message" name="message"
+            br
+            button type="submit" text="提交表单"
+      footer
+        p text="© 2026 示例公司. 保留所有权利。"
+    `;
+  };
+  const root2 = document.getElementById('root2')
+  // console.time('bobe');
+  render(App, root2)
+  // console.timeEnd('bobe');
+
+  // const template = document.createElement('template');
+  // template.innerHTML = `
+  // <header>
+  //   <h1>网站标题</h1>
+  //   <nav>
+  //     <ul>
+  //       <li><a href="#home">首页</a></li>
+  //       <li><a href="#services">服务</a></li>
+  //       <li><a href="#contact">联系我们</a></li>
+  //     </ul>
+  //   </nav>
+  // </header>
+  // <main>
+  //   <section id="home">
+  //     <h2>欢迎来到我们的页面</h2>
+  //     <p>这是一个纯 HTML 结构的示例，不包含任何 CSS 样式。</p>
+  //   </section>
+
+  //   <section id="services">
+  //     <h2>我们的服务</h2>
+  //     <ul>
+  //       <li>网页设计</li>
+  //       <li>后端开发</li>
+  //       <li>数据分析</li>
+  //     </ul>
+  //   </section>
+
+  //   <section id="contact">
+  //     <h2>联系我们</h2>
+  //     <form action="/submit" method="post">
+  //       <label for="name">姓名：</label>
+  //       <input type="text" id="name" name="name" required>
+  //       <br>
+  //       <label for="email">邮箱：</label>
+  //       <input type="email" id="email" name="email">
+  //       <br>
+  //       <label for="message">留言：</label>
+  //       <textarea id="message" name="message"></textarea>
+  //       <br>
+  //       <button type="submit">提交表单</button>
+  //     </form>
+  //   </section>
+  // </main>
+  // <footer>
+  //   <p>© 2026 示例公司. 保留所有权利。</p>
+  // </footer>
+  // `;
+
+
+  // const root = document.getElementById('root')
+
+  // console.time('template');
+  // const clone = template.content.cloneNode(true);
+  // root.appendChild(clone);
+  // console.timeEnd('template');
+
+  // async function runTest () {
+  //   const bench = new Bench({ iterations: 1 });
+  //   bench
+  //     .add('bobe', () => {
+  //     })
+  //     .add('template', () => {
+
+  //     })
+
+
+  //   await bench.warmup();
+
+  //   await bench.run();
+
+  //   console.table(bench.table());
+  // }
+
+  // runTest().catch(console.error);
+  // const size = 100_0000;
+
+
+</script>
+
+</html>

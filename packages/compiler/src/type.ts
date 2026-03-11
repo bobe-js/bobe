@@ -62,9 +62,24 @@ export type HookProps = {
 };
 
 export type TerpConf = Partial<
-  Pick<Interpreter, 'createNode' | 'setProp' | 'nextSib' | 'createAnchor' | 'insertAfter' | 'hook' | 'HookId' | 'data'>
+  Pick<
+    Interpreter,
+    | 'createNode'
+    | 'setProp'
+    | 'insertAfter'
+    | 'remove'
+    | 'createAnchor'
+    | 'firstChild'
+    | 'nextSib'
+    | 'hook'
+    | 'HookId'
+    | 'data'
+  >
 >;
-export type CustomRenderConf = Pick<TerpConf, 'createNode' | 'setProp' | 'nextSib' | 'createAnchor' | 'insertAfter'>;
+export type CustomRenderConf = Pick<
+  TerpConf,
+  'createNode' | 'setProp' | 'insertAfter' | 'remove' | 'createAnchor' | 'firstChild' | 'nextSib'
+>;
 
 export type Hook = (props: HookProps) => any;
 

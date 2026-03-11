@@ -1,14 +1,14 @@
 /**
  * 节点包装单元的内部结构
  */
-interface StackNode<T, K extends string|number> {
+interface StackNode<T, K extends string | number> {
   data: T;
   type: K;
   prev: StackNode<T, K> | null; // 基础栈指向
   prevSameType: StackNode<T, K> | null; // 指向同类型的前一个包装单元
 }
 
-export class TypedStack<T, K extends string|number> {
+export class TypedStack<T, K extends string | number> {
   private top: StackNode<T, K> | null = null;
 
   // 存储每种类型最近一次出现的包装单元引用
@@ -52,11 +52,11 @@ export class TypedStack<T, K extends string|number> {
   /**
    * O(1) 获取栈顶节点的前一个同类型节点
    */
-  getPrevSameType(): T | null {
-    if (!this.top || !this.top.prevSameType) {
-      return null;
+  getPrevSameType(type?: K): T | null {
+    if (!type) {
+      return this.top?.prevSameType?.data;
     }
-    return this.top.prevSameType.data;
+    return this.lastNodes[type]?.prevSameType?.data;
   }
 
   findPrevSameType(cb: (node: T) => boolean): T | null {
@@ -76,13 +76,17 @@ export class TypedStack<T, K extends string|number> {
   /**
    * 获取当前栈顶的类型
    */
-  get peekType(): K | null {
-    return this.top ? this.top.type : null;
+  peekType(): K | null {
+    return this.top?.type;
   }
   /**
    * 获取栈顶元素
    */
   peek() {
     return this.top.data;
+  }
+
+  peekByType(type: K) {
+    return this.lastNodes[type]?.data;
   }
 }
