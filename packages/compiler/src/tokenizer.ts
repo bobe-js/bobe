@@ -1,5 +1,5 @@
 import { isNum, Queue } from 'bobe-shared';
-import { BaseType, Token, TokenType } from './type';
+import { BaseType, Hook, HookProps, HookType, Token, TokenType } from './type';
 
 export class Tokenizer {
   /** 缩进大小 默认 2 */
@@ -10,6 +10,7 @@ export class Tokenizer {
   static IdExp = /[\d\w\/]/;
   /** Eof 标识符的值 */
   static EofId = `__EOF__${Date.now()}`;
+  static DedentId = `__DEDENT__${Date.now()}`;
 
   /** 当前 token */
   token!: Token;
@@ -35,7 +36,20 @@ export class Tokenizer {
    */
   waitingTokens = new Queue<Token>();
 
-  constructor() {}
+  constructor(
+    private hook: Hook,
+    public isSubToken: boolean
+  ) {
+    if (isSubToken) {
+      this.setToken(TokenType.Indent, '');
+      this.isFirstToken = true;
+      // this.waitingTokens.push({
+      //   type: TokenType.Indent,
+      //   typeName: TokenType[TokenType.Indent],
+      //   value: ''
+      // })
+    }
+  }
   consume() {
     const token = this.token;
     this.nextToken();
@@ -452,13 +466,26 @@ export class Tokenizer {
     const yes = this.dentStack.length === 1;
     if (yes) {
       if (!this.token) {
-        this.setToken(TokenType.Identifier, Tokenizer.EofId);
+        // 子 tokenizer 使用 Dedent 推出 component 节点后，将 tokenizer 切换为 上一个 TokenSwitcher 的 tkr
+        if (this.isSubToken) {
+          this.setToken(TokenType.Dedent, '');
+        } else {
+          this.setToken(TokenType.Identifier, Tokenizer.EofId);
+        }
       } else {
-        this.waitingTokens.push({
-          type: TokenType.Identifier,
-          typeName: TokenType[TokenType.Identifier],
-          value: Tokenizer.EofId
-        });
+        if (this.isSubToken) {
+          this.waitingTokens.push({
+            type: TokenType.Dedent,
+            typeName: TokenType[TokenType.Dedent],
+            value: ''
+          });
+        } else {
+          this.waitingTokens.push({
+            type: TokenType.Identifier,
+            typeName: TokenType[TokenType.Identifier],
+            value: Tokenizer.EofId
+          });
+        }
       }
     }
     return yes;
@@ -475,6 +502,11 @@ export class Tokenizer {
       value += nextC;
       this.next();
     }
+    if (value === Tokenizer.EofId && this.isSubToken) {
+      this.setToken(TokenType.Dedent, '');
+      return;
+    }
+
     let realValue =
       value === 'null'
         ? null
@@ -525,5 +557,45 @@ export class Tokenizer {
   }
   private eof() {
     this.setToken(TokenType.Eof, 'End Of File');
+  }
+  /** 模板字符串动态节点的占位符 */
+  HookId = '_h_o_o_k_';
+  /** 模板字符串动态节点索引 */
+  hookI = 0;
+  _hook = (props: Partial<HookProps>): [HookType | undefined, any, hookI?: any] => {
+    const value = this.token.value;
+    const isDynamicHook = this.token.type & TokenType.InsertionExp;
+    const isStaticHook = typeof value === 'string' && value.indexOf(this.HookId) === 0;
+    const hookType: HookType = isDynamicHook ? 'dynamic' : isStaticHook ? 'static' : undefined;
+    // 静态插值 `${xxx}`
+    if (this.hook && isStaticHook) {
+      const hookI = Number(value.slice(this.HookId.length));
+      const res = this.hook({
+        ...props,
+        HookId: this.HookId,
+        i: hookI
+      });
+      // TODO: 去除 this.hookI, hookI 由本函数返回
+      return [hookType, res, hookI];
+    }
+    // 动态插值 `{xxx}`
+    else if (isDynamicHook) {
+      return [hookType, value];
+    }
+    // 普通值
+    return [hookType, value];
+  };
+
+  init(fragments: string | string[]) {
+    if (typeof fragments === 'string') {
+      this.setCode(fragments);
+    } else {
+      let code = '';
+      for (let i = 0; i < fragments.length - 1; i++) {
+        const fragment = fragments[i];
+        code += fragment + `${this.HookId}${i}`;
+      }
+      this.setCode(code + fragments[fragments.length - 1]);
+    }
   }
 }

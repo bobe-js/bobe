@@ -39,12 +39,11 @@
     };
     ui = bobe`
       if {show}
-        show
-      if {show2}
-        show2
-        ${B} v={10}
-      fail
-        ${B} v={99}
+        node1 k1=10
+      else  
+        ${B} kb={10}
+      node2 k2=10
+        node2_1 k2_1=20
     `;
   }
 

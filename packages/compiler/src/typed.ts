@@ -1,4 +1,4 @@
-import { NodeSortBit } from './type';
+import { NodeSort, NodeSortBit, StackItem } from './type';
 
 // 1. 定义类别枚举
 type Type = 'A' | 'B' | 'C';
@@ -98,12 +98,12 @@ export class MultiTypeStack<T> {
    * 1. 全局向前遍历 (不分类)
    * 从栈顶开始，沿着全局链条向栈底遍历
    */
-  forEach(callback: (value: T) => boolean): void {
+  forEach(callback: (value: T, types: number) => any): void {
     let current = this.top;
 
     while (current !== null) {
       // 执行回调，如果返回 false 则立即停止
-      const shouldBreak = callback(current.value);
+      const shouldBreak = callback(current.value, current.types);
       if (shouldBreak) break;
 
       current = current.prevGlobal;
@@ -114,7 +114,7 @@ export class MultiTypeStack<T> {
    * 2. 按类别向前遍历
    * 仅遍历属于指定类别 cat 的节点
    */
-  forEachByType(cat: number, callback: (value: T) => boolean): void {
+  forEachByType(cat: number, callback: (value: T) => any): void {
     // 从该类别的当前“顶端”节点开始
     let current = this.typeTops[cat];
 
@@ -127,4 +127,17 @@ export class MultiTypeStack<T> {
       current = current.prevByType[cat];
     }
   }
+}
+
+export function forkCxt(old: MultiTypeStack<StackItem>) {
+  const stack = new MultiTypeStack<StackItem>();
+  const temp: any[] = [];
+  old.forEach((item, types) => {
+    temp.push([item, types]);
+    if (types & NodeSort.Component) return true;
+  });
+  temp.forEach(args => {
+    stack.push.apply(stack, args);
+  });
+  return stack;
 }

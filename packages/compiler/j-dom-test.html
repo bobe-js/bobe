@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,7 +14,6 @@
   }
   </script>
 </head>
-
 <body>
   <div id="root"></div>
   <div id="root2"></div>
@@ -66,6 +64,15 @@
     `;
   }
 
+  class Deep extends Store {
+    deep = 10
+    ui = bobe`
+      div text={deep}
+      if {deep > 0}
+        ${Deep} deep={deep - 1}
+    `;
+  }
+
   class App extends Store {
     show1 = true;
     show2 = true;
@@ -80,14 +87,8 @@
 
     ui = bobe`
       header
-        button text="按钮1" onclick={() => update()}
-        button text="按钮2" onclick={update2}
-        if {show1}
-          div text="show1"
-        if {show2}
-          div text="show2"
-        else
-          ${B} v={999}
+        ${Deep} deep=100     
+        h1 text={name}
         nav
           ul
             li
