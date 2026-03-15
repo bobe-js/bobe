@@ -333,16 +333,19 @@ export class Interpreter {
         shareSignal(data, value, child, key);
       }
       // 动态值内置 computed 处理
-      else if (typeof value === 'function') {
+      else {
         const meta = child[Keys.Meta];
         const cells: Map<string, Signal> = meta.cells;
-        const computed = $(value);
-        cells.set(key, computed);
-        child[Keys.Raw][key] = undefined;
-      }
-      // 静态值
-      else {
-        child[Keys.Raw][key] = value;
+        if (typeof value === 'function') {
+          const computed = $(value);
+          cells.set(key, computed);
+          child[Keys.Raw][key] = undefined;
+        }
+        // 静态数据
+        else {
+          cells.set(key, { v: value } as Signal);
+          child[Keys.Raw][key] = value;
+        }
       }
     };
     node.realAfter = this.insertAfterAnchor(ctx);
