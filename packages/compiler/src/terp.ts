@@ -220,6 +220,7 @@ export class Interpreter {
     if (value === 'if' || value === 'else' || value === 'fail') {
       return this.condDeclaration(ctx);
     } else if (hookType) {
+      const data = this.getData();
       // 静态 1. Component，2. bobe 返回的 render 方法
       if (hookType === 'static') {
         // 传组件 class 或 片段
@@ -238,7 +239,19 @@ export class Interpreter {
       // 3. 返回  片段
       // TODO: 后续考虑动态组件
       else {
-        _node = this.componentOrFragmentDeclaration(value, ctx);
+        const valueIsMapKey = Reflect.has(data[Keys.Raw], value);
+        const val = data[Keys.Raw][value];
+        if (typeof val === 'function') {
+          _node = this.componentOrFragmentDeclaration(val, ctx);
+        }
+        // 字符
+        else {
+          const str = valueIsMapKey
+            ? value
+            : new Function('data', `let v;with(data){v=${value}};return v;`).bind(undefined, data);
+          _node = this.createNode('text');
+          this.onePropParsed(data, _node, 'text', str, valueIsMapKey, false);
+        }
       }
     } else {
       _node = this.createNode(value);
@@ -296,15 +309,10 @@ export class Interpreter {
 
   oneRealPropParsed: Interpreter['onePropParsed'] = this.onePropParsed.bind(this);
 
-  componentOrFragmentDeclaration(ComponentOrRender: BobeUI | typeof Store | string, ctx: ProgramCtx) {
+  componentOrFragmentDeclaration(ComponentOrRender: BobeUI | typeof Store, ctx: ProgramCtx) {
     // 先进行 attr 映射，或建立 signal 连接，才能开始 render
     // 必须等待 attr 解析完毕
     let Component: typeof Store, render: BobeUI, child: any;
-    const data = this.getData();
-    // 如果是字符串，就去 父中取动态的 Component
-    if (typeof ComponentOrRender === 'string') {
-      ComponentOrRender = data[ComponentOrRender];
-    }
 
     const isCC = (ComponentOrRender as any).prototype instanceof Store;
     if (isCC) {

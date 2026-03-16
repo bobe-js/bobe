@@ -26,6 +26,9 @@
   // import { Bench } from 'https://esm.sh/tinybench@2.9.0';
   const render = customRender({
     createNode (name) {
+      if (name === 'text') {
+        return document.createTextNode('');
+      }
       return document.createElement(name);
     },
     setProp (node, key, value, hookI) {
@@ -75,7 +78,7 @@
     deep = 10
     ui = bobe`
       div text={deep}
-      if {deep > 0}
+      if deep > 0
         ${Deep} deep={deep - 1}
     `;
   }
@@ -93,7 +96,7 @@
     }
     renderDeep = bobe`
       div text={deep}
-      if {deep > 0}
+      if deep > 0
         {renderDeep} deep={deep - 1}
     `;
 
@@ -141,15 +144,24 @@
   class Tf extends Store {
     show1 = true;
     show2 = true;
+    fragment = bobe`
+      div text={deep}
+      if deep > 0
+        {fragment} deep={deep - 1}
+    `;
     ui = bobe`
-      button text={"切换1:" + show1} onclick={() => show1 = !show1}
-      button text={"切换2:" + show2} onclick={() => show2 = !show2}
+      button onclick={() => show1 = !show1}
+        {"切换1:" + show1}
+      button onclick={() => show2 = !show2}
+        {show2}
       if show1
+        {fragment} deep=10
         h1 text="show1"
       if show2 
         h2 text="show2"
       else 
         h1 text="else back"  
+      ${Deep} deep=20
     `
   }
 
