@@ -137,10 +137,24 @@
         p text="© 2026 示例公司. 保留所有权利。"
     `;
   };
+
+  class Tf extends Store {
+    show1 = true;
+    show2 = true;
+    ui = bobe`
+      button text={"切换1:" + show1} onclick={() => show1 = !show1}
+      button text={"切换2:" + show2} onclick={() => show2 = !show2}
+      if show1
+        h1 text="show1"
+      if show2 
+        h2 text="show2"
+      else 
+        h1 text="else back"  
+    `
+  }
+
   const root2 = document.getElementById('root2')
-  // console.time('bobe');
-  render(App, root2)
-  // console.timeEnd('bobe');
+  render(Tf, root2)
 
   // const template = document.createElement('template');
   // template.innerHTML = `

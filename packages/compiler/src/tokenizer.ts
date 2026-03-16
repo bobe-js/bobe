@@ -239,6 +239,60 @@ export class Tokenizer {
     }
   }
 
+  condExp() {
+    let value = '';
+    this.token = null;
+    while (1) {
+      const char = this.code[this.i];
+      if (char === '\n') {
+        break;
+      }
+      value += char;
+      this.i++;
+    }
+    value = value.trim();
+    this.setToken(TokenType.Identifier, value || true);
+    return this.token;
+  }
+
+  /**
+   * 解析到 for 时使用这个方法获取 for 后方的子表达式
+   * 表达式通过 “;” 分割
+   * // 最多可有三个表达式
+   * for arr ; item index; item.key
+   * @returns {boolean} 是否含有 key
+   */
+  public forLoopSubExp() {
+    this.token = null;
+    let value = '';
+    let count = 0;
+    while (1) {
+      const char = this.code[this.i];
+      const isSemicolon = char === ';';
+      if (isSemicolon || char === '\n') {
+        if (!this.token) {
+          this.setToken(TokenType.Identifier, value);
+        } else {
+          this.waitingTokens.push({
+            type: TokenType.Identifier,
+            typeName: TokenType[TokenType.Identifier],
+            value
+          });
+        }
+        value = '';
+        count++;
+        if (count > 3) {
+          throw SyntaxError(`for 循环最多可包含三个表达式, 分别为 arr ; item index [; key]`);
+        }
+        // 匹配到回车退出
+        if (!isSemicolon) return count === 3;
+      } else {
+        value += char;
+      }
+      this.i++;
+    }
+  }
+
   private assignment() {
     this.setToken(TokenType.Assign, '=');
   }

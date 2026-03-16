@@ -354,22 +354,21 @@ export class Interpreter {
   // TODO: 优化代码逻辑，拆分 if elseif else
   condDeclaration(ctx: ProgramCtx) {
     const { prevSibling } = ctx;
-    const snapbackUp = this.tokenizer.snapshot();
     const keyWord = this.tokenizer.token;
-    this.tokenizer.nextToken(); // keyWord
-    const noSelfCond = this.tokenizer.token.type === TokenType.NewLine;
-
-    const [hookType, value] = this.tokenizer._hook({});
+    const expToken = this.tokenizer.condExp(); // keyWord => exp
+    const value = expToken.value as string | number;
     const isElse = keyWord.value === 'else';
     const isIf = keyWord.value === 'if';
     const preIsCond = prevSibling?.__logicType & CondBit;
-    // 需要和前一个节点的 condition 合并计算
-    const needCalcWithPrevIf = isElse && preIsCond;
     const data = this.getData();
+    // @ts-ignore
+    const noCond = value === true;
+    const valueIsMapKey = !noCond && Reflect.has(data[Keys.Raw], value);
     const owner = ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node;
     const ifNode: IfNode = {
       __logicType: isElse ? FakeType.Else : isIf ? FakeType.If : FakeType.Fail,
-      snapshot: noSelfCond ? snapbackUp : this.tokenizer.snapshot(),
+      // 此时 token 是 exp, 下次解析 从 \n 开始
+      snapshot: this.tokenizer.snapshot(),
       condition: null,
       realParent: null,
       preCond: preIsCond ? prevSibling : null,
@@ -379,51 +378,23 @@ export class Interpreter {
     };
     let signal: Signal;
 
-    // 纯 else 节点，一定要前置节点的取反
-    if (noSelfCond) {
-      if (isElse) {
-        signal = $(() => {
-          let point = ifNode.preCond;
-          while (point) {
-            if (point.condition.v) {
-              return false;
-            }
-            // else 的条件判断应该停止在第一个访问到的 if 节点
-            if (point.__logicType === FakeType.If) {
-              break;
-            }
-            point = point.preCond;
-          }
-          return true;
-        });
-      }
-      // default
-      else {
-        signal = $(() => {
-          let point = ifNode.preCond;
-          while (point) {
-            if (point.condition.v) {
-              return false;
-            }
-            point = point.preCond;
-          }
-          return true;
-        });
-      }
-    } else {
-      const valueIsMapKey = Reflect.has(data[Keys.Raw], value);
-      // 为键映射
-      if (valueIsMapKey && !needCalcWithPrevIf) {
-        // 确保 signal 已生成
-        runWithPulling(() => data[value], null);
-        // 拿到 signal
-        const { cells } = data[Keys.Meta];
-        signal = cells.get(value);
-      }
-      // 通过前置条件 和 computed 计算出
-      else {
-        const fn = new Function('data', `let v;with(data){v=${value}};return v;`).bind(undefined, data);
-        if (needCalcWithPrevIf) {
+    switch (keyWord.value) {
+      case 'if':
+        if (valueIsMapKey) {
+          // 确保 signal 已生成
+          runWithPulling(() => data[value], null);
+          // 拿到 signal
+          const { cells } = data[Keys.Meta];
+          signal = cells.get(value);
+        } else {
+          const fn = new Function('data', `let v;with(data){v=${value}};return v;`).bind(undefined, data);
+          // 是 getter 使用 computed 计算出一个 signal
+          signal = $(fn);
+        }
+        break;
+      case 'else':
+        // 纯 else
+        if (noCond) {
           signal = $(() => {
             let point = ifNode.preCond;
             while (point) {
@@ -436,13 +407,44 @@ export class Interpreter {
               }
               point = point.preCond;
             }
-            return fn();
+            return true;
           });
-        } else {
-          // 是 getter 使用 computed 计算出一个 signal
-          signal = $(fn);
         }
-      }
+        // else if xxx
+        else {
+          const fn = valueIsMapKey
+            ? null
+            : new Function('data', `let v;with(data){v=${value}};return v;`).bind(undefined, data);
+          signal = $(() => {
+            let point = ifNode.preCond;
+            while (point) {
+              if (point.condition.v) {
+                return false;
+              }
+              // else 的条件判断应该停止在第一个访问到的 if 节点
+              if (point.__logicType === FakeType.If) {
+                break;
+              }
+              point = point.preCond;
+            }
+            return valueIsMapKey ? data[value] : fn();
+          });
+        }
+        break;
+      case 'fail':
+        signal = $(() => {
+          let point = ifNode.preCond;
+          while (point) {
+            if (point.condition.v) {
+              return false;
+            }
+            point = point.preCond;
+          }
+          return true;
+        });
+        break;
+      default:
+        break;
     }
 
     ifNode.condition = signal;
@@ -454,9 +456,7 @@ export class Interpreter {
         // 如果值是 true 则直接放行让下面的节点自然执行插入
         if (val) {
           if (ifNode.isFirstRender) {
-            if (!noSelfCond) {
-              this.tokenizer.nextToken(); // condition
-            }
+            this.tokenizer.nextToken(); // condition
             this.tokenizer.nextToken(); // NEWLINE
           }
           // 更新渲染
@@ -464,12 +464,11 @@ export class Interpreter {
             // 切换到对应 Switcher 的 tokenizer
             this.tokenizer = ifNode.owner.tokenizer;
             /**
-             *  condition 在首屏对应的是 当前 token, resume 时被设置为空
-             *  newLine 被用于判断起始缩进所消耗
+             * resume 后 token = null, 下个字符是 \n
              */
             this.tokenizer.resume(ifNode.snapshot);
 
-            // TODO: 由于首屏渲染直接放行，导致 if 子节点首屏产生的 effect 不能被管理
+            // 由于首屏渲染直接放行，导致 if 子节点首屏产生的 effect 不能被管理
             // 在 effect 中创建的子组件 sub effect 能被管理
             // 当 if = false 时，不需要执行销毁子 effect 操作
             // 因为当外部 effect 重新执行时，上次尝试的 sub effect 自动销毁
@@ -480,12 +479,7 @@ export class Interpreter {
         // 删除逻辑块
         else {
           if (ifNode.isFirstRender) {
-            if (noSelfCond) {
-              // 让 '/n‘ 能被 skip 处理
-              this.tokenizer.i = this.tokenizer.i - 1;
-              // else 时消费了一个 \n 导致 needDent 被置为 true
-              this.tokenizer.needIndent = false;
-            }
+            // 此时 token 是 condition， i => \n
             this.tokenizer.skip(); // skipStr
           }
           // 更新渲染，删除所有节点

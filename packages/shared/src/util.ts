@@ -18,7 +18,7 @@ export class Queue<T> {
     return this.insetAfter(it, this._last);
   }
 
-  insetAfter(it: T, anchor: QueueItem<T>) {
+  insetAfter(it: T, anchor?: QueueItem<T>) {
     const item = { v: it, prev: null, next: null } as QueueItem<T>;
     const prev = anchor || this._first?.prev;
     const after = prev ? prev.next : this._first;

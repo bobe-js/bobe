@@ -49,26 +49,29 @@
 
 ​       3.3.3 将 component 所有子节点挂载到 realParent 上
 
-# 需要变动
+# For 逻辑
 
-1. hook 由 tokenizer 管理, _hook 增加一个 hookI 返回值
-2. init 由 tokenizer 管理
-3. 
+1. 解析出  arr 对应响应式值
+1. 存储 index = 0
+1. 生成第 0 项 data  ForNode.data = ` $({ item, index })`
+1. 放行逻辑 让 第 0 项模板被遍历
+5. 解析到 Dedent 时对比 ForNode 中 index 和 length
+   1. index < length 继续执行
+   2. 完成渲染
+
+
+
+
+# 一个 for item
 
 ```js
-for val ; item i ; key={}
-// 1. 将 { a } => { a: data.a }
-// 2. 将 { a:b } => { a: data.b }
-// 3. 将 { a: {c:d} } => { a: { c:data.d } }
-// 4. 将 { ...rest } => { ...rest: data.rest}
+for arr ; item i ; key={}
+// 1. 使用 item, i 声明
+const itemData = $({ item, i });
 
-function(data, item) {
-  with(data){
-		const 解构表达式 = item;
-    const key = xxx
-  }
-  return []
-}
+Object.sePrototype(itemData, parentData);
+
+// 2.
 
 ```
 
