@@ -11,7 +11,8 @@ export enum TokenType {
   Assign = 0b0000_0000_0000_0000_0000_0000_0001_0000,
   Pipe = 0b0000_0000_0000_0000_0000_0000_0010_0000,
   Eof = 0b0000_0000_0000_0000_0000_0000_0100_0000,
-  InsertionExp = 0b0000_0000_0000_0000_0000_0000_1000_0000
+  InsertionExp = 0b0000_0000_0000_0000_0000_0000_1000_0000,
+  Semicolon = 0b0000_0000_0000_0000_0000_0001_0000_0000
 }
 
 export enum FakeType {
@@ -117,7 +118,27 @@ export type LogicNode = {
   realParent: any;
   realBefore?: any;
   realAfter?: any;
-  lastInserted?: any;
+};
+
+export type ForNode = LogicNode & {
+  children: ForItemNode[];
+  snapshot: ReturnType<Tokenizer['snapshot']>;
+  itemExp: string | ((value: any) => any);
+  indexName?: string;
+  getKey?: (data: any) => any;
+  arr: any[];
+  effect: Dispose;
+  i: number;
+  owner: ComponentNode | FragmentNode;
+  prevSibling: any;
+};
+
+export type ForItemNode = LogicNode & {
+  id: number;
+  forNode: ForNode;
+  data: any;
+  effect: Dispose;
+  key?: any;
 };
 
 export type IfNode = LogicNode & {

@@ -36,9 +36,9 @@ export class Tokenizer {
 
   constructor(
     private hook: Hook,
-    public isSubToken: boolean
+    public useDedentAsEof: boolean
   ) {
-    if (isSubToken) {
+    if (useDedentAsEof) {
       this.setToken(TokenType.Indent, '');
       this.isFirstToken = true;
       // this.waitingTokens.push({
@@ -61,11 +61,20 @@ export class Tokenizer {
     this.dentStack = [0];
     Object.assign(this, _snapshot);
   }
-  snapshot() {
-    return {
+  snapshot(keys?: (keyof Tokenizer)[]): Partial<Tokenizer> {
+    const snap = {
       i: this.i,
       waitingTokens: this.waitingTokens.clone()
     };
+    if (keys) {
+      for (const k of keys) {
+        snap[k] = this[k];
+        if (k === 'dentStack') {
+          snap[k] = this[k].slice();
+        }
+      }
+    }
+    return snap;
   }
 
   skip() {
@@ -206,11 +215,15 @@ export class Tokenizer {
               this.str(char);
               break;
             case '{':
-              this.brace();
+              const braceToken = this.brace();
+              this.setToken(TokenType.InsertionExp, braceToken);
               break;
             case '$':
               const handled = this.dynamic(char);
               if (handled) break;
+            case ';':
+              this.setToken(TokenType.Semicolon, ';');
+              break;
             default:
               if (isNum(char)) {
                 this.number(char);
@@ -270,6 +283,7 @@ export class Tokenizer {
       const char = this.code[this.i];
       const isSemicolon = char === ';';
       if (isSemicolon || char === '\n') {
+        value = value.trim();
         if (!this.token) {
           this.setToken(TokenType.Identifier, value);
         } else {
@@ -376,8 +390,7 @@ export class Tokenizer {
       }
 
       if (count === 0 && inString == null && inComment == null) {
-        this.setToken(TokenType.InsertionExp, value.slice(1));
-        return;
+        return value.slice(1);
       }
       value += this.code[this.i];
       this.i++;
@@ -501,13 +514,13 @@ export class Tokenizer {
     if (yes) {
       if (!this.token) {
         // 子 tokenizer 使用 Dedent 推出 component 节点后，将 tokenizer 切换为 上一个 TokenSwitcher 的 tkr
-        if (this.isSubToken) {
+        if (this.useDedentAsEof) {
           this.setToken(TokenType.Dedent, '');
         } else {
           this.setToken(TokenType.Identifier, Tokenizer.EofId);
         }
       } else {
-        if (this.isSubToken) {
+        if (this.useDedentAsEof) {
           this.waitingTokens.push({
             type: TokenType.Dedent,
             typeName: TokenType[TokenType.Dedent],
@@ -536,7 +549,7 @@ export class Tokenizer {
       value += nextC;
       this.i++;
     }
-    if (value === Tokenizer.EofId && this.isSubToken) {
+    if (value === Tokenizer.EofId && this.useDedentAsEof) {
       this.setToken(TokenType.Dedent, '');
       return;
     }

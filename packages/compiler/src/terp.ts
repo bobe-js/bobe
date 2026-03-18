@@ -1,5 +1,18 @@
 import { Tokenizer } from './tokenizer';
-import { $, deepSignal, effect, getPulling, Keys, runWithPulling, setPulling, shareSignal, Signal, Store } from 'aoye';
+import {
+  $,
+  deepSignal,
+  effect,
+  getPulling,
+  Keys,
+  runWithPulling,
+  scope,
+  setPulling,
+  shareSignal,
+  Signal,
+  Store,
+  toRaw
+} from 'aoye';
 import {
   BobeUI,
   ComponentNode,
@@ -16,9 +29,12 @@ import {
   TerpConf,
   TerpEvt,
   TokenType,
-  TokenizerSwitcherBit
+  TokenizerSwitcherBit,
+  ForNode,
+  ForItemNode,
+  Token
 } from './type';
-import { BaseEvent } from 'bobe-shared';
+import { BaseEvent, jsVarRegexp } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
 const tap = new BaseEvent();
 
@@ -32,7 +48,7 @@ export class Interpreter {
   ctx: ProgramCtx;
   rootComponent: ComponentNode | null = null;
 
-  program(root: any, componentNode?: ComponentNode, before?: any) {
+  program(root: any, componentNode?: ComponentNode, before?: any, ctxProvider?: any) {
     // 首屏渲 app 组件需要创建对象
     this.rootComponent = componentNode;
 
@@ -43,6 +59,12 @@ export class Interpreter {
       { node: componentNode, prev: null },
       NodeSort.Component | NodeSort.CtxProvider | NodeSort.TokenizerSwitcher
     );
+    if (ctxProvider) {
+      stack.push(
+        { node: ctxProvider, prev: null },
+        (ctxProvider.__logicType & LogicalBit ? NodeSort.Logic : 0) | NodeSort.CtxProvider
+      );
+    }
 
     const ctx = (this.ctx = {
       realParent: root,
@@ -64,7 +86,7 @@ export class Interpreter {
       const token = this.tokenizer.token;
       // 下沉，创建 child0
       if (token.type & TokenType.Indent) {
-        this.tokenizer.nextToken(); // INDENT
+        this.tokenizer.nextToken(); // token = ID
         const isLogicNode = this.isLogicNode(ctx.current);
         stack.push(
           {
@@ -105,7 +127,7 @@ export class Interpreter {
       }
       // 下一个 token 是 Dedent
       if (this.tokenizer.token.type & TokenType.Dedent) {
-        this.tokenizer.nextToken(); // DEDENT
+        this.tokenizer.nextToken(); // token = ID | DEDENT
         const [{ node: parent, prev }, sort] = stack.pop();
         // 弹出原生节点，找最近的 ctx.realParent
         if (!parent.__logicType) {
@@ -129,6 +151,25 @@ export class Interpreter {
             const switcher = stack.peekByType(NodeSort.TokenizerSwitcher)?.node;
             this.tokenizer = switcher.tokenizer;
           }
+
+          // 弹出 forItem
+          if (parent.__logicType === FakeType.ForItem) {
+            const { forNode } = parent as ForItemNode;
+            const { i, arr, snapshot } = forNode;
+            if (i + 1 < arr.length) {
+              // 恢复后 token null, 下一个是 \n, Indent
+              this.tokenizer.resume(snapshot);
+              this.tokenizer.nextToken(); // token = \n
+              this.tokenizer.nextToken(); // token = Indent
+              ctx.prevSibling = parent;
+              ctx.current = forNode.children[++forNode.i];
+              continue;
+            }
+            // 正常弹出 current = for node
+            ctx.prevSibling = forNode.prevSibling;
+            ctx.current = forNode;
+            continue;
+          }
         }
         ctx.prevSibling = prev;
         ctx.current = parent;
@@ -142,16 +183,11 @@ export class Interpreter {
     return componentNode;
   }
 
-  switcherIsRootComponent() {
-    const currentSwitcher = this.ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node;
-    return currentSwitcher === this.rootComponent;
-  }
-
-  insertAfterAnchor(ctx: ProgramCtx) {
-    const { realParent, prevSibling, stack, before } = ctx;
+  insertAfterAnchor(name = 'anchor') {
+    const { realParent, prevSibling, stack, before } = this.ctx;
     // 先将 after 插入
-    const afterAnchor = this.createAnchor();
-    ctx.prevSibling = stack.length === 2 && !prevSibling ? before : prevSibling;
+    const afterAnchor = this.createAnchor(name);
+    this.ctx.prevSibling = stack.length === 2 && !prevSibling ? before : prevSibling;
     this.handleInsert(realParent, afterAnchor, prevSibling);
     return afterAnchor;
   }
@@ -185,7 +221,8 @@ export class Interpreter {
       childCmp.realParent = parent;
       // 前置 -> 逻辑节点
       if (prev?.__logicType) {
-        childCmp.realBefore = prev.realAfter;
+        // forItem 应该使用 forNode 的 after
+        childCmp.realBefore = prev.forNode ? prev.forNode.realAfter : prev.realAfter;
       }
       // 前置 -> 普通节点
       else {
@@ -219,6 +256,8 @@ export class Interpreter {
     let _node: any;
     if (value === 'if' || value === 'else' || value === 'fail') {
       return this.condDeclaration(ctx);
+    } else if (value === 'for') {
+      return this.forDeclaration();
     } else if (hookType) {
       const data = this.getData();
       // 静态 1. Component，2. bobe 返回的 render 方法
@@ -246,9 +285,7 @@ export class Interpreter {
         }
         // 字符
         else {
-          const str = valueIsMapKey
-            ? value
-            : new Function('data', `let v;with(data){v=${value}};return v;`).bind(undefined, data);
+          const str = valueIsMapKey ? value : this.getFn(data, value);
           _node = this.createNode('text');
           this.onePropParsed(data, _node, 'text', str, valueIsMapKey, false);
         }
@@ -256,7 +293,7 @@ export class Interpreter {
     } else {
       _node = this.createNode(value);
     }
-    this.tokenizer.nextToken();
+    this.tokenizer.nextToken(); // 跳过 node 本身，token -> id
     this.headerLine(_node);
     this.extensionLines(_node);
     // 组件用完，切换回 真实node 的方法
@@ -266,6 +303,232 @@ export class Interpreter {
     }
     return _node;
   }
+
+  forDeclaration() {
+    const arrExp = this.tokenizer.nextToken().value as string;
+    this.tokenizer.nextToken(); // 分号
+    const itemToken = this.tokenizer.nextToken(); // item 表达式
+    const isDestruct = itemToken.type === TokenType.InsertionExp;
+    let itemExp: string | ((value: any) => any) = itemToken.value as string;
+    if (isDestruct) {
+      itemExp = '{' + itemExp + '}';
+      const vars = itemExp.match(jsVarRegexp).join(',');
+      itemExp = new Function('item', `let ${vars}; (${itemExp}=item); return {${vars}};`) as any;
+    }
+    let indexName: string, keyExp: string;
+    while (this.tokenizer.code[this.tokenizer.i] !== '\n') {
+      const next = this.tokenizer.nextToken();
+      if (next.type !== TokenType.Semicolon) {
+        if (!indexName) {
+          indexName = next.value as string;
+        } else {
+          keyExp = next.value as string;
+        }
+      }
+    }
+    const owner = this.ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node;
+    const prevSibling = this.ctx.prevSibling;
+    const forNode: ForNode = {
+      __logicType: FakeType.For,
+      snapshot: this.tokenizer.snapshot(['dentStack', 'isFirstToken']),
+      realParent: this.ctx.realParent,
+      prevSibling,
+      realBefore: prevSibling?.realAfter || prevSibling,
+      realAfter: null,
+      arr: null,
+      itemExp,
+      indexName,
+      getKey: null,
+      children: [],
+      effect: null,
+      owner,
+      i: 0
+    };
+    if (keyExp) {
+      forNode.getKey = new Function('data', `let v;with(data){v=${keyExp}};return v;`) as any;
+    }
+    window['for1'] = forNode;
+
+    const data = this.getData();
+
+    const cells = data[Keys.Meta].cells;
+    const hasArrExpKey = Reflect.has(data[Keys.Raw], arrExp);
+    const arrSignal = hasArrExpKey
+      ? // 有 key 直接拿
+        (data[arrExp], cells.get(arrExp))
+      : // 无key
+        $(this.getFn(data, arrExp));
+
+    // 由于此处 snapshot 多配置了2个属性，更新渲染时 应该忽略这个两个属性
+    forNode.realAfter = this.insertAfterAnchor('for-after');
+
+    // 去除 dentStack 和 isFirstToken
+    const { dentStack, isFirstToken, ...snapshotForUpdate } = forNode.snapshot;
+
+    // TODO: 更新逻辑
+    let isFirstRender = true;
+    // TODO: effect 重新执行时，内部的 effect 自动销毁，包括 dom setProps 无法生效了
+    forNode.effect = effect(() => {
+      let arr: any[] = (forNode.arr = arrSignal.v);
+      // 订阅 iter
+      arr[Keys.Iterator];
+      // 使用原始数组避免 index 依赖
+      arr = toRaw(arr);
+      const children = forNode.children;
+      // 首屏渲染
+      if (isFirstRender) {
+        const len = arr.length;
+        for (let i = len; i--; ) {
+          const nextItem = children[i + 1];
+          const item = this.createForItem(forNode, i, data);
+          const anchor = this.insertAfterAnchor('for-item-after');
+          item.realAfter = anchor;
+          if (nextItem) {
+            nextItem.realBefore = anchor;
+          }
+          item.realParent = forNode.realParent;
+          children[i] = item;
+        }
+        const firstInsert = children[0];
+        // 有子项进行计算
+        if (firstInsert) {
+          firstInsert.realBefore = forNode.realBefore;
+          this.tokenizer.nextToken(); // 是 NewLine
+          this.tokenizer.nextToken(); // 是 Indent
+        }
+        // 没有子项，跳过
+        else {
+          this.tokenizer.skip();
+        }
+      }
+      // 更新渲染
+      else {
+        const oldLen = children.length;
+        const newLen = arr.length;
+        const minLen = Math.min(oldLen, newLen);
+        const newChildren: ForItemNode[] = [];
+        if (!forNode.getKey) {
+          // 删除
+          if (newLen < oldLen) {
+            for (let i = oldLen - 1; i >= newLen; i--) {
+              const child = children[i];
+              this.removeLogicNode(child);
+              this.remove(child.realAfter);
+              // 释放删除项 effect
+              child.effect();
+            }
+          }
+          // 新增
+          if (oldLen < newLen) {
+            const lastAfter = children.at(-1)?.realAfter || forNode.realBefore;
+            for (let i = newLen - 1; i >= oldLen; i--) {
+              const item = this.createForItem(forNode, i, data);
+              newChildren[i] = item;
+              const nextItem = newChildren[i + 1];
+              const anchor = this.createAnchor('for-item-after');
+              this.insertAfter(forNode.realParent, anchor, lastAfter);
+              item.realAfter = anchor;
+              if (nextItem) {
+                nextItem.realBefore = anchor;
+              }
+              item.realParent = forNode.realParent;
+              this.tokenizer = owner.tokenizer;
+              /**
+               * resume 后 token = null, 下个字符是 \n
+               */
+              this.tokenizer.resume(snapshotForUpdate);
+              // 解析到缩进小于 base 时自动 eof
+              this.tokenizer.useDedentAsEof = false;
+              runWithPulling(() => {
+                this.program(forNode.realParent, forNode.owner, lastAfter, item);
+              }, item.effect.ins);
+            }
+            const firstInsert = newChildren[oldLen];
+            if (firstInsert) {
+              firstInsert.realBefore = lastAfter;
+            }
+          }
+          for (let i = minLen; i--; ) {
+            const child = children[i];
+            newChildren[i] = child;
+            if (typeof itemExp === 'string') {
+              child.data[itemExp] = arr[i];
+            } else {
+              Object.assign(child.data, itemExp(arr[i]));
+            }
+          }
+          forNode.children = newChildren;
+        }
+      }
+      isFirstRender = false;
+    });
+    return forNode.children[0] || forNode;
+  }
+
+  forItemId = 0;
+  createForItem(forNode: ForNode, i: number, parentData: any) {
+    let forItemNode: ForItemNode;
+    /**
+     * 考虑到 effect 是嵌套的，这种情况每次 forNodeEffect 更新会导致上次产生的内部 setPropsEffect 被自动释放
+     * 这是响应式 effect 嵌套的默认特性
+     * forNodeEffect(() => {
+     *    这里通过 setPulling 模拟嵌套 effect
+     *    setPropsEffect(() => {
+     *    })
+     * })
+     * 因此我们需要让情况变成这样，内部的 effect 交由 forItemNode.effect 接管
+     * 这个 scope 是全局的，即指定了参数 parentScope = null
+     * 这样外部的 effect 不再自动释放 setPropsEffect
+     * 这么的目的是我们能在 diff 过程中手动控制释放 forItemNode.effect
+     * globalScope(() => {
+     *    setPropsEffect(() => {
+     *    })
+     * })
+     *
+     * 1. runWithPulling 避免 scope 被 effect 收集
+     * 2. scope 保证 signal 被 scope 管理
+     */
+    const effect = scope(() => {}, null);
+
+    // 考虑到生成每项数据需要依赖原始数组，因此无法放在 scope 里
+    const { arr, itemExp, indexName, getKey } = forNode;
+    let data: Record<any, any>;
+    if (typeof itemExp === 'string') {
+      data = $<Record<any, any>>(
+        indexName
+          ? {
+              [itemExp]: arr[i],
+              [indexName]: i
+            }
+          : {
+              [itemExp]: arr[i]
+            }
+      );
+    } else {
+      const rawData = itemExp(arr[i]);
+      if (indexName) {
+        rawData[indexName] = i;
+      }
+      data = $<Record<any, any>>(rawData);
+    }
+
+    Object.setPrototypeOf(data, parentData);
+
+    forItemNode = {
+      id: this.forItemId++,
+      __logicType: FakeType.ForItem,
+      realParent: null,
+      realBefore: null,
+      realAfter: null,
+      forNode,
+      key: getKey?.(data),
+      effect: null,
+      data
+    };
+    forItemNode.effect = effect;
+    return forItemNode;
+  }
+
   getData() {
     const { node } = this.ctx.stack.peekByType(NodeSort.CtxProvider);
     return node.data || node.owner.data;
@@ -329,6 +592,8 @@ export class Interpreter {
     const node: ComponentNode = {
       __logicType: isCC ? FakeType.Component : FakeType.Fragment,
       realParent: ctx.realParent,
+      realBefore: null,
+      realAfter: null,
       data: child,
       tokenizer: render ? render(true) : (child['ui'] as BobeUI)(true)
     };
@@ -356,8 +621,11 @@ export class Interpreter {
         }
       }
     };
-    node.realAfter = this.insertAfterAnchor(ctx);
+    node.realAfter = this.insertAfterAnchor('component-after');
     return node;
+  }
+  getFn(data: any, expression: string | number) {
+    return new Function('data', `let v;with(data){v=${expression}};return v;`).bind(undefined, data);
   }
   // TODO: 优化代码逻辑，拆分 if elseif else
   condDeclaration(ctx: ProgramCtx) {
@@ -377,8 +645,10 @@ export class Interpreter {
       __logicType: isElse ? FakeType.Else : isIf ? FakeType.If : FakeType.Fail,
       // 此时 token 是 exp, 下次解析 从 \n 开始
       snapshot: this.tokenizer.snapshot(),
-      condition: null,
       realParent: null,
+      realBefore: null,
+      realAfter: null,
+      condition: null,
       preCond: preIsCond ? prevSibling : null,
       isFirstRender: true,
       effect: null,
@@ -395,7 +665,7 @@ export class Interpreter {
           const { cells } = data[Keys.Meta];
           signal = cells.get(value);
         } else {
-          const fn = new Function('data', `let v;with(data){v=${value}};return v;`).bind(undefined, data);
+          const fn = this.getFn(data, value);
           // 是 getter 使用 computed 计算出一个 signal
           signal = $(fn);
         }
@@ -420,9 +690,7 @@ export class Interpreter {
         }
         // else if xxx
         else {
-          const fn = valueIsMapKey
-            ? null
-            : new Function('data', `let v;with(data){v=${value}};return v;`).bind(undefined, data);
+          const fn = valueIsMapKey ? null : this.getFn(data, value);
           signal = $(() => {
             let point = ifNode.preCond;
             while (point) {
@@ -457,15 +725,15 @@ export class Interpreter {
 
     ifNode.condition = signal;
     // 不论是否执行 if 都应该插入 anchor 节点用于后续
-    ifNode.realAfter = this.insertAfterAnchor(ctx);
+    ifNode.realAfter = this.insertAfterAnchor(`${keyWord.value}-after`);
 
     ifNode.effect = effect(
       ({ val }) => {
         // 如果值是 true 则直接放行让下面的节点自然执行插入
         if (val) {
           if (ifNode.isFirstRender) {
-            this.tokenizer.nextToken(); // condition
-            this.tokenizer.nextToken(); // NEWLINE
+            this.tokenizer.nextToken(); // token = NEWLINE
+            this.tokenizer.nextToken(); // token = ID
           }
           // 更新渲染
           else {
@@ -475,13 +743,14 @@ export class Interpreter {
              * resume 后 token = null, 下个字符是 \n
              */
             this.tokenizer.resume(ifNode.snapshot);
+            this.tokenizer.useDedentAsEof = false;
 
             // 由于首屏渲染直接放行，导致 if 子节点首屏产生的 effect 不能被管理
             // 在 effect 中创建的子组件 sub effect 能被管理
             // 当 if = false 时，不需要执行销毁子 effect 操作
             // 因为当外部 effect 重新执行时，上次尝试的 sub effect 自动销毁
             // 前提是 sub effect 是嵌套执行的
-            this.program(ifNode.realParent, ifNode.owner, ifNode.realBefore);
+            this.program(ifNode.realParent, ifNode.owner, ifNode.realBefore, ifNode);
           }
         }
         // 删除逻辑块
@@ -492,13 +761,7 @@ export class Interpreter {
           }
           // 更新渲染，删除所有节点
           else {
-            const { realBefore, realAfter, realParent } = ifNode;
-            let point = realBefore ? this.nextSib(realBefore) : this.firstChild(realParent);
-            while (point !== realAfter) {
-              const next = this.nextSib(point);
-              this.remove(point, realParent, realBefore);
-              point = next;
-            }
+            this.removeLogicNode(ifNode);
           }
         }
         ifNode.isFirstRender = false;
@@ -508,6 +771,15 @@ export class Interpreter {
     return ifNode;
   }
 
+  removeLogicNode(node: LogicNode) {
+    const { realBefore, realAfter, realParent } = node;
+    let point = realBefore ? this.nextSib(realBefore) : this.firstChild(realParent);
+    while (point !== realAfter) {
+      const next = this.nextSib(point);
+      this.remove(point, realParent, realBefore);
+      point = next;
+    }
+  }
   /**
    * <extensionLines> ::= PIPE <attributeList> NEWLINE <extensionLines>
    *                    | ε
@@ -570,11 +842,7 @@ export class Interpreter {
         // 动态的要做成函数
         if (hookType === 'dynamic') {
           const valueIsMapKey = Reflect.has(data[Keys.Raw], value);
-          const fn = isFn
-            ? rawVal
-            : valueIsMapKey
-              ? value
-              : new Function('data', `let v;with(data){v=${value}};return v;`).bind(undefined, data);
+          const fn = isFn ? rawVal : valueIsMapKey ? value : this.getFn(data, value);
           this.onePropParsed(data, _node, key, fn, valueIsMapKey, isFn, hookI);
         }
         // 静态
@@ -612,14 +880,9 @@ export class Interpreter {
     return node.firstChild;
   }
 
-  _createAnchor() {
-    const anchor = this.createAnchor();
-    anchor[IsAnchor] = true;
-    return anchor;
-  }
-  createAnchor() {
+  createAnchor(name: string) {
     return {
-      name: 'anchor',
+      name,
       nextSibling: null
     };
   }

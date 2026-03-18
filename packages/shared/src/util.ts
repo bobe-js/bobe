@@ -198,6 +198,8 @@ export const matchIdStart2 = (char: string, i: number) => {
   return mask[code] === 1;
 };
 
+export const jsVarRegexp = /\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g;
+
 // const queue = new Queue([1,2,3,4]);
 // queue.shift()
 // queue.pop()

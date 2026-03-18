@@ -27,6 +27,31 @@
    3. 渲染的代码片段
 
 
+
+在 Vapor 编译 `v-for` 时，它会为每个项生成类似下面的伪代码逻辑：
+
+JavaScript
+
+```
+// Vapor 编译后的伪代码思路
+function renderItem(ctx) {
+  const el = createElement('div')
+  
+  // 建立一个 Effect，追踪当前 ctx.item 的变化
+  renderEffect(() => {
+    setText(el, ctx.item.value) 
+  })
+  
+  return el
+}
+```
+
+- **关键点**：当旧的 `key: 'a'` 被替换为新的 `key: 'a'` 时，Vapor 会更新该 DOM 节点对应的上下文（Context）中的 `item` 引用。
+- **触发响应**：由于 `renderEffect` 依赖了 `item` 这个数据源，当数据源引用发生替换时，Effect 会被重新触发。
+- **结果**：DOM 没动（没有 `removeChild` 再 `appendChild`），但是里面的文本内容（`setText`）被精准地更新为了新对象的值。
+
+
+
 # 目前逻辑
 
 首屏 渲染执行流程
@@ -51,144 +76,62 @@
 
 # For 逻辑
 
+## 首屏
+
 1. 解析出  arr 对应响应式值
-1. 存储 index = 0
-1. 生成第 0 项 data  ForNode.data = ` $({ item, index })`
-1. 放行逻辑 让 第 0 项模板被遍历
-5. 解析到 Dedent 时对比 ForNode 中 index 和 length
-   1. index < length 继续执行
-   2. 完成渲染
+2. 存储 index = 0
+3. effect 创建每个 item：
+   1. data  ForNode.data = ` $({ item, index })` extends parentData
+   2. 创建 forItemScope 用于在 item 被删除时删除其内部的 setProps effects
+
+4. 使用 item 0 代替 for 入栈
+5. 插入 for after
+6. 插入 item0 after
+7. 把渲染项按顺序插入
+8. ......
+9. 解析到 Dedent 时
+   10. 将 item0 出栈,
+   11. 对比 ForNode 中 index 和 length
+
+       1. index < length 继续执行,
+          1. 设置 prevSibling = item0, current= item1
+          2. resume 到 for 条件下面的片段，相当于再次从 for 开始进栈
+          3. 重复 2 ~ 7
+
+       2. 循环完成，prevSibling = forNode,prevSibling, current = forNode
 
 
+## 更新
+
+1. 如何在 item 跟新，但 内容没跟新，如 从后端重新取数据，不触发 dom 更新
+   1. 更新 foritem.data[itemKey] 
+   2. setProp effect 采用 data[itemKey] xxx 进行绑定，这样itemKey 跟新了， 会重新获取 新数据.xxx
+   3. setProp effect 采用 data[itemKey] 进行绑定，若新 item 值相同，effect 不会触发
+2. 替换 tokenizer 为 owner tokenizer.useDedentAsEof = true;
+3. 无 key , 将数组中的数据更新到 foritem.data 中
 
 
 # 一个 for item
 
-```js
+```ts
+type ForNode = {
+  realParent: any;
+  realBefore?: any;
+  realAfter?: any;
+}
+
+// 最长
+
 for arr ; item i ; key={}
 // 1. 使用 item, i 声明
 const itemData = $({ item, i });
 
 Object.sePrototype(itemData, parentData);
 
-// 2.
+// 2. 处理 item 解构
+为解构表达式中每一个值创建 computed
+通过computed 能获取 item 对应的数据
 
 ```
 
-
-
-
-
-```ts
-// 1. 定义类别枚举
-type Category = 'A' | 'B' | 'C';
-
-// 2. 定义节点结构
-interface StackNode<T, C extends string> {
-  value: T;
-  categories: C[];
-  prevGlobal: StackNode<T, C> | null;
-  // 核心：记录在该节点加入时，各个类别的上一个节点是谁
-  prevByCategory: Partial<Record<C, StackNode<T, C>>>;
-}
-
-class MultiCategoryStack<T, C extends string> {
-  // 记录全局栈顶
-  private top: StackNode<T, C> | null = null;
-  
-  // 记录每个类别的当前最新节点（各分类的“栈顶”）
-  private categoryTops: Partial<Record<C, StackNode<T, C>>> = {};
-
-  /**
-   * 入栈操作
-   * @param value 数据
-   * @param categories 该节点所属的类别数组
-   */
-  push(value: T, categories: C[]): void {
-    const newNode: StackNode<T, C> = {
-      value,
-      categories,
-      prevGlobal: this.top,
-      prevByCategory: {},
-    };
-
-    // 为该节点分配每个类别的“上一个节点”指针
-    for (const cat of categories) {
-      newNode.prevByCategory[cat] = this.categoryTops[cat] || undefined;
-      // 更新该类别的最新指向为当前节点
-      this.categoryTops[cat] = newNode;
-    }
-
-    // 更新全局栈顶
-    this.top = newNode;
-  }
-
-  /**
-   * 出栈操作
-   */
-  pop(): T | undefined {
-    if (!this.top) return undefined;
-
-    const poppedNode = this.top;
-
-    // 回溯：将受影响类别的顶部指针恢复到该节点记录的 prevByCategory
-    for (const cat of poppedNode.categories) {
-      this.categoryTops[cat] = poppedNode.prevByCategory[cat];
-    }
-
-    // 更新全局栈顶
-    this.top = poppedNode.prevGlobal;
-
-    return poppedNode.value;
-  }
-
-  /**
-   * 获取某个类别的当前“顶部”元素
-   */
-  peekCategory(cat: C): T | undefined {
-    return this.categoryTops[cat]?.value;
-  }
-
-  /**
-   * 获取全局栈顶
-   */
-  peek(): T | undefined {
-    return this.top?.value;
-  }
-  
-  /**
-   * 1. 全局向前遍历 (不分类)
-   * 从栈顶开始，沿着全局链条向栈底遍历
-   */
-  forEach(callback: (value: T) => boolean): void {
-    let current = this.top;
-    
-    while (current !== null) {
-      // 执行回调，如果返回 false 则立即停止
-      const shouldContinue = callback(current.value);
-      if (!shouldContinue) break;
-      
-      current = current.prevGlobal;
-    }
-  }
-
-  /**
-   * 2. 按类别向前遍历
-   * 仅遍历属于指定类别 cat 的节点
-   */
-  forEachByCategory(cat: C, callback: (value: T) => boolean): void {
-    // 从该类别的当前“顶端”节点开始
-    let current = this.categoryTops[cat];
-
-    while (current) {
-      const shouldContinue = callback(current.value);
-      if (!shouldContinue) break;
-
-      // 关键点：直接跳向该节点记录的“上一个同类节点”
-      // 这比遍历全局栈再筛选类别要快得多 (O(m) vs O(n))
-      current = current.prevByCategory[cat];
-    }
-  }
-}
-```
-
+6. 

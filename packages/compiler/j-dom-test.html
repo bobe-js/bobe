@@ -18,7 +18,6 @@
 
 <body>
   <div id="root"></div>
-  <div id="root2"></div>
 </body>
 <script type="module">
   import { bobe, Store, customRender } from 'bobe';
@@ -36,7 +35,11 @@
         node.textContent = value;
       } else if (key.startsWith('on')) {
         node.addEventListener(key.slice(2), value);
-      } else {
+      } else if (node.tagName === 'INPUT' && key === 'value') {
+        node.value = value;
+      }
+
+      else {
         node.setAttribute(key, value);
       }
     },
@@ -48,8 +51,8 @@
         parent.insertBefore(node, prev.nextSibling)
       }
     },
-    createAnchor () {
-      return document.createComment('aoye');
+    createAnchor (name) {
+      return document.createComment(name);
     },
     remove (node) {
       node.remove();
@@ -141,7 +144,7 @@
     `;
   };
 
-  class Tf extends Store {
+  class TestIf extends Store {
     show1 = true;
     show2 = true;
     fragment = bobe`
@@ -165,84 +168,92 @@
     `
   }
 
-  const root2 = document.getElementById('root2')
-  render(Tf, root2)
 
-  // const template = document.createElement('template');
-  // template.innerHTML = `
-  // <header>
-  //   <h1>网站标题</h1>
-  //   <nav>
-  //     <ul>
-  //       <li><a href="#home">首页</a></li>
-  //       <li><a href="#services">服务</a></li>
-  //       <li><a href="#contact">联系我们</a></li>
-  //     </ul>
-  //   </nav>
-  // </header>
-  // <main>
-  //   <section id="home">
-  //     <h2>欢迎来到我们的页面</h2>
-  //     <p>这是一个纯 HTML 结构的示例，不包含任何 CSS 样式。</p>
-  //   </section>
+  class TestFor extends Store {
+    arr = [
+      1,
+      2,
+      3
+    ]
+    show = true
+    value = ''
+    onkeyup = (e) => {
+      if (e.keyCode === 13) {
+        this.arr.push(this.value)
+        this.value = ''
+      }
+    }
+    oninput = (e) => {
+      this.value = e.target.value
+    }
 
-  //   <section id="services">
-  //     <h2>我们的服务</h2>
-  //     <ul>
-  //       <li>网页设计</li>
-  //       <li>后端开发</li>
-  //       <li>数据分析</li>
-  //     </ul>
-  //   </section>
+    delItem = (i) => {
+      this.arr.splice(i, 1)
+    }
 
-  //   <section id="contact">
-  //     <h2>联系我们</h2>
-  //     <form action="/submit" method="post">
-  //       <label for="name">姓名：</label>
-  //       <input type="text" id="name" name="name" required>
-  //       <br>
-  //       <label for="email">邮箱：</label>
-  //       <input type="email" id="email" name="email">
-  //       <br>
-  //       <label for="message">留言：</label>
-  //       <textarea id="message" name="message"></textarea>
-  //       <br>
-  //       <button type="submit">提交表单</button>
-  //     </form>
-  //   </section>
-  // </main>
-  // <footer>
-  //   <p>© 2026 示例公司. 保留所有权利。</p>
-  // </footer>
-  // `;
+    updateItem = (i, value) => {
+      this.arr[i] = value
+    }
 
+    ui = bobe`
+      h2 text="测试"
+      input value={value} oninput={oninput} onkeyup={onkeyup}
+      for arr; item i
+        div style="display: flex; align-items: center;"
+          h1 onclick={() => delItem(i)}
+            {item}
+          input type="text"  oninput={(e) => updateItem(i, e.target.value)} 
+      if show    
+        div
+          {'哈哈哈'}  
+    `
+  }
+  class TestFor2 extends Store {
+    arr = [
+      { value: 1, id: 1 },
+      { value: 2, id: 2 },
+      { value: 3, id: 3 },
+    ]
+    show = true
+    value = ''
+    onkeyup = (e) => {
+      if (e.keyCode === 13) {
+        this.arr.push({ value: this.value })
+        this.value = ''
+      }
+    }
+    oninput = (e) => {
+      this.value = e.target.value
+    }
 
-  // const root = document.getElementById('root')
+    delItem = (i) => {
+      this.arr.splice(i, 1)
+    }
 
-  // console.time('template');
-  // const clone = template.content.cloneNode(true);
-  // root.appendChild(clone);
-  // console.timeEnd('template');
+    updateItem = (i, value) => {
+      this.arr[i].value = value
+    }
 
-  // async function runTest () {
-  //   const bench = new Bench({ iterations: 1 });
-  //   bench
-  //     .add('bobe', () => {
-  //     })
-  //     .add('template', () => {
+    ui = bobe`
+      h2 text="测试"
+      input value={value} oninput={oninput} onkeyup={onkeyup}
+      for arr; {value} i
+        div style="display: flex; align-items: center;"
+          h1 onclick={() => delItem(i)}
+            {value}
+          input type="text"  oninput={(e) => updateItem(i, e.target.value)} 
+      if show    
+        div
+          {'哈哈哈'}  
+    `
+  }
 
-  //     })
-
-
-  //   await bench.warmup();
-
-  //   await bench.run();
-
-  //   console.table(bench.table());
-  // }
-
-  // runTest().catch(console.error);
-  // const size = 100_0000;
+  const root2 = document.getElementById('root')
+  render(TestFor, root2)
+  window.cel = (obj, key) => {
+    const cells = obj['__AOYE_META'].cells;
+    return cells.get(key);
+  }
 
 
 </script>
