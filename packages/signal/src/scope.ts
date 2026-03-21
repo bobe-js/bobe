@@ -44,27 +44,80 @@ export function unlinkSingleLine(line: Line) {
 
 export function unlinkSingleRefedNode(delRoot: Signal) {
   let toUnlink: Line;
-  dfs(delRoot, {
-    isUp: true,
-    begin: ({ node }) => {
+
+  let node: Signal = delRoot,
+    i = -1,
+    parent: Signal;
+  const stack: Line[] = [];
+  outer: do {
+    let noGoDeep = false;
+    // begin
+    doUnlink(toUnlink);
+    toUnlink = null;
+    // 1.节点不止一个引用
+    noGoDeep = node.emitStart !== node.emitEnd;
+    const recStart = node.recStart;
+
+    if (recStart && !noGoDeep) {
+      // 下潜：记录来时的路
+      stack[++i] = recStart;
+      parent = node;
+      node = recStart.upstream as Signal;
+      continue;
+    }
+
+    while (true) {
       doUnlink(toUnlink);
       toUnlink = null;
-      // 1.节点不止一个引用
-      if (node.emitStart !== node.emitEnd) {
-        return true;
-      }
-    },
-    complete: ({ node, notGoDeep }) => {
-      doUnlink(toUnlink);
-      toUnlink = null;
-      const isSingleRefed = !notGoDeep;
-      // 先记录，离开这个节点后执行 unlink
-      if (isSingleRefed) {
+      // noGoDeep 表示非单引用节点，这里表示单引用节点需要 unlink
+      if (!noGoDeep) {
         toUnlink = node.emitStart;
       }
+
+      noGoDeep = false;
+      if (i === -1) {
+        break outer;
+      }
+      const backLine = stack[i];
+      const nextLine = backLine.nextRecLine;
+      // 兄弟节点，父节点不变
+      if (nextLine) {
+        node = nextLine.upstream as Signal;
+        stack[i] = nextLine;
+        break;
+      } else {
+        // 回溯到父节点继续上浮循环
+        node = parent;
+        if (--i !== -1) {
+          parent = stack[i].downstream;
+        }
+      }
     }
-  });
+  } while (true);
+
   doUnlink(toUnlink);
+
+  // dfs(delRoot, {
+  //   isUp: true,
+  //   begin: ({ node }) => {
+  //     doUnlink(toUnlink);
+  //     toUnlink = null;
+  //     // 1.节点不止一个引用
+  //     if (node.emitStart !== node.emitEnd) {
+  //       return true;
+  //     }
+  //   },
+  //   complete: ({ node, notGoDeep }) => {
+  //     doUnlink(toUnlink);
+  //     toUnlink = null;
+  //     const isSingleRefed = !notGoDeep;
+  //     // 先记录，离开这个节点后执行 unlink
+  //     if (isSingleRefed) {
+  //       toUnlink = node.emitStart;
+  //     }
+  //   }
+  // });
+  // doUnlink(toUnlink);
 }
 
 function doUnlink(line: Line) {
@@ -83,20 +136,65 @@ export function dispose(this: Signal) {
     const upstream = toDel.upstream as Signal;
     // 的上游是 scope，交给 dfs 处理
     if (upstream.state & State.IsScope) {
-      dfs(upstream, {
-        isUp: true,
-        begin: ({ node }) => {
-          // 1. 不是 scope 直接忽略
-          // 2. 已完成标记 或 清理
-          if ((node.state & State.IsScope) === 0 || node.state & ScopeAbort) return true;
-        },
-        complete: ({ node: scope, notGoDeep }) => {
-          const shouldAbort = !notGoDeep;
-          if (shouldAbort) {
-            releaseScope(scope);
+      let node: Signal = upstream,
+        i = -1,
+        parent: Signal;
+      const stack: Line[] = [];
+      outer: do {
+        // 1. 不是 scope 直接忽略
+        // 2. 已完成标记 或 清理
+        let noGoDeep = ((node.state & State.IsScope) === 0 || node.state & ScopeAbort) as unknown as boolean;
+        const recStart = node.recStart;
+
+        if (recStart && !noGoDeep) {
+          // 下潜：记录来时的路
+          stack[++i] = recStart;
+          parent = node;
+          node = recStart.upstream as Signal;
+
+          continue;
+        }
+
+        while (true) {
+          // 是需处理 scope 节点
+          if (!noGoDeep) {
+            releaseScope(node);
+          }
+          noGoDeep = false;
+          if (i === -1) {
+            break outer;
+          }
+          const backLine = stack[i];
+          const nextLine = backLine.nextRecLine;
+          // 兄弟节点，父节点不变
+          if (nextLine) {
+            node = nextLine.upstream as Signal;
+            stack[i] = nextLine;
+            break;
+          } else {
+            // 回溯到父节点继续上浮循环
+            node = parent;
+            if (--i !== -1) {
+              parent = stack[i].downstream;
+            }
           }
         }
-      });
+      } while (true);
+
+      // dfs(upstream, {
+      //   isUp: true,
+      //   begin: ({ node }) => {
+      //     // 1. 不是 scope 直接忽略
+      //     // 2. 已完成标记 或 清理
+      //     if ((node.state & State.IsScope) === 0 || node.state & ScopeAbort) return true;
+      //   },
+      //   complete: ({ node: scope, notGoDeep }) => {
+      //     const shouldAbort = !notGoDeep;
+      //     if (shouldAbort) {
+      //       releaseScope(scope);
+      //     }
+      //   }
+      // });
     }
     // 删除的上游是 signal
     else {
