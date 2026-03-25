@@ -28,11 +28,19 @@ export function link(
       nextRecLine: null
     };
     // 加入 up 的链表
-    if (!prevEmitLine) up.emitHead = line;
+    if (prevEmitLine) {
+      prevEmitLine.nextEmitLine = line;
+    } else {
+      up.emitHead = line;
+    }
     up.emitTail = line;
 
     // 加入 down 的链表
-    if (!recHead) down.recHead = line;
+    if (recTail) {
+      recTail.nextRecLine = line;
+    } else {
+      down.recHead = line;
+    }
     down.recTail = line;
     return;
   }
@@ -54,12 +62,21 @@ export function link(
     nextRecLine: nextRec
   };
   // 加入 up 的链表
-  if (!prevEmitLine) up.emitHead = line;
+  if (prevEmitLine) {
+    prevEmitLine.nextEmitLine = line;
+  } else {
+    up.emitHead = line;
+  }
   up.emitTail = line;
 
   // 加入 down 链表, 一定不是尾插，只考虑是否头插
-  if (!recHead) down.recHead = line;
-
+  if (recHead) {
+    recTail.nextRecLine = line;
+  } else {
+    down.recHead = line;
+  }
+  // 移动 recTail
+  down.recTail = line;
   // tail <-> line <-> nextRec
   if (recTail) recTail.nextRecLine = line;
   nextRec.prevRecLine = line;
@@ -90,8 +107,20 @@ export function outLink(
     };
 
     // 加入 up 的链表
-    if (!prevEmitLine) up.emitHead = line;
+    if (prevEmitLine) {
+      prevEmitLine.nextEmitLine = line;
+    } else {
+      up.emitHead = line;
+    }
     up.emitTail = line;
+
+    // 加入 down 的链表
+    if (recTail) {
+      recTail.nextRecLine = line;
+    } else {
+      down.recHead = line;
+    }
+    down.recTail = line;
     // if (scopeDown && scopeDown !== scopeUp && (up.state & State.IsScope) == 0)
     makeOutLink(scopeDown, line);
     return;
@@ -115,12 +144,21 @@ export function outLink(
     prevOutLink: null
   };
   // 加入 up 的链表
-  if (!prevEmitLine) up.emitHead = line;
+  if (prevEmitLine) {
+    prevEmitLine.nextEmitLine = line;
+  } else {
+    up.emitHead = line;
+  }
   up.emitTail = line;
 
   // 加入 down 链表, 一定不是尾插，只考虑是否头插
-  if (!recHead) down.recHead = line;
-
+  if (recHead) {
+    recTail.nextRecLine = line;
+  } else {
+    down.recHead = line;
+  }
+  // 移动 recTail
+  down.recTail = line;
   // tail <-> line <-> nextRec
   if (recTail) recTail.nextRecLine = line;
   nextRec.prevRecLine = line;

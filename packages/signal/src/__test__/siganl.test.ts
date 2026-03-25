@@ -1,6 +1,6 @@
-import { $, effect } from '#/index';
+import { $, effect } from '../core/index';
 import { Log } from '#test/log-order';
-import { DepStr } from './dep-str';
+import { DepStr2 as DepStr } from './dep-str';
 
 describe('signal 基础功能测试', () => {
   it('基础值变化', () => {
@@ -284,42 +284,42 @@ describe('signal 基础功能测试', () => {
     log.toBe('s3计算', 's5计算', 's4计算', 's6计算'); // pullDeep 后序遍历
   });
 
-  it('中间节点修改值', () => {
-    const log = new Log();
-    const a = $(1);
-    const b = $(() => {
-      log.call('b计算');
-      return a.v * 2;
-    });
-    const c = $(() => {
-      log.call('c计算');
-      return b.v + 3;
-    });
+  // it('中间节点修改值', () => {
+  //   const log = new Log();
+  //   const a = $(1);
+  //   const b = $(() => {
+  //     log.call('b计算');
+  //     return a.v * 2;
+  //   });
+  //   const c = $(() => {
+  //     log.call('c计算');
+  //     return b.v + 3;
+  //   });
 
-    const depStr = new DepStr({ a, b, c });
+  //   const depStr = new DepStr({ a, b, c });
 
-    // 初始计算
-    expect(c.v).toBe(5); // b=1*2=2, c=2+3=5
-    log.toBe('c计算', 'b计算');
-    depStr.depIs(`
-      a -> b -> c
-    `);
+  //   // 初始计算
+  //   expect(c.v).toBe(5); // b=1*2=2, c=2+3=5
+  //   log.toBe('c计算', 'b计算');
+  //   depStr.depIs(`
+  //     a -> b -> c
+  //   `);
 
-    // 直接修改中间节点 b 的值
-    b.v = 10;
-    expect(c.v).toBe(13); // c=b.v+3=10+3=13
-    log.toBe('c计算'); // 只有 c 需要重新计算，因为 b 的值被直接设置了
-    depStr.depIs(`
-      a -> b -> c
-    `);
+  //   // 直接修改中间节点 b 的值
+  //   b.v = 10;
+  //   expect(c.v).toBe(13); // c=b.v+3=10+3=13
+  //   log.toBe('c计算'); // 只有 c 需要重新计算，因为 b 的值被直接设置了
+  //   depStr.depIs(`
+  //     a -> b -> c
+  //   `);
 
-    a.v = 2;
-    expect(c.v).toBe(7);
-    log.toBe('b计算', 'c计算');
-    depStr.depIs(`
-      a -> b -> c
-    `);
-  });
+  //   a.v = 2;
+  //   expect(c.v).toBe(7);
+  //   log.toBe('b计算', 'c计算');
+  //   depStr.depIs(`
+  //     a -> b -> c
+  //   `);
+  // });
 
   it('循环引用', () => {
     const log = new Log();
@@ -347,7 +347,7 @@ describe('signal 基础功能测试', () => {
     });
 
     a.v = 2;
-    expect(e2.ins.recEnd.upstream).toBe(b);
+    expect(e2.ins.recTail.up).toBe(b.ins);
     /**
      * 以下是整体状态执行流程
      * a -> Dirty

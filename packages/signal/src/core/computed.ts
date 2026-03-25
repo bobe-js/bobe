@@ -1,8 +1,8 @@
 import { setPulling, getPulling, execIdInc } from './global';
 import { Effect } from './effect';
 import { Scope } from './scope';
-import { State, Link, DirtyState } from './type';
-import { transferDirtyState, pullDeep } from './operate';
+import { State, Link, DirtyState, OutLink } from './type';
+import { transferDirtyState, pullDeep, unlink } from './operate';
 import { link } from './line';
 
 export class Computed<T = any> {
@@ -15,7 +15,8 @@ export class Computed<T = any> {
   value: T = null;
   constructor(public callback: () => T) {}
   get(shouldLink = true, notForceUpdate = true) {
-    if (this.scope && this.scope.state & State.ScopeAbort) return this.value;
+    const { scope } = this;
+    if (scope && scope.state & State.ScopeAbort) return this.value;
     const down = getPulling();
     if (this.recHead && notForceUpdate) {
       if (this.state & DirtyState) {
@@ -27,11 +28,16 @@ export class Computed<T = any> {
       this.recTail = null;
       execIdInc();
       this.value = this.callback();
-      // TODO: 清理依赖
       this.state &= ~State.PullLock;
       setPulling(down);
       // Unknown 转换
       transferDirtyState(this, this.state);
+      let line = this.recTail?.nextRecLine;
+      while (line) {
+        const nextLine = line.nextRecLine;
+        unlink(line as OutLink, true);
+        line = nextLine;
+      }
     }
 
     // link 连接

@@ -1,7 +1,18 @@
 import { setPulling, getPulling } from './global';
 import { Effect } from './effect';
 import { Signal } from './signal';
-import { Link, PullingOrScopeExecuted, UnknownOrScopeExecuted, SideEffect, State, DirtyState } from './type';
+import {
+  Link,
+  PullingOrScopeExecuted,
+  UnknownOrScopeExecuted,
+  SideEffect,
+  State,
+  DirtyState,
+  OutLink,
+  SignalNode,
+  ScopeAbort
+} from './type';
+import { Scope } from './scope';
 
 export function mark(signal: Signal) {
   let line = signal.emitHead;
@@ -12,9 +23,10 @@ export function mark(signal: Signal) {
     // }
     if (scope && scope.state & State.ScopeAbort) {
     } else {
-      down.state |= state & State.PullLock ? State.PullingNeedCompute : State.NeedCompute;
+      const notLocked = (state & State.PullLock) === 0;
+      down.state |= notLocked? State.NeedCompute :  State.PullingNeedCompute;
       if (state & State.IsScope) {
-        if (state & State.IsEffect) {
+        if (notLocked && state & State.IsEffect) {
           addEffect(down as Effect);
         }
       } else if (emitHead) {
@@ -39,16 +51,17 @@ function markUnknownDeep(initialLine: Link) {
       const { down, up } = line;
       const { state, scope } = down;
       // 判定逻辑
-      const noSkip = !(
-        (scope && scope.state & State.ScopeAbort) ||
-        down === up.scope ||
-        state & UnknownOrScopeExecuted
-      );
+      // const noSkip = !(
+      //   (scope && scope.state & State.ScopeAbort) ||
+      //   down === up.scope ||
+      //   state & UnknownOrScopeExecuted
+      // );
       if (scope && scope.state & State.ScopeAbort) {
       } else {
-        down.state |= state & State.PullLock ? State.PullingUnknown : State.Unknown;
+        const notLocked = (state & State.PullLock) === 0;
+        down.state |= notLocked ? State.Unknown : State.PullingUnknown;
         if (state & State.IsScope) {
-          if (state & State.IsEffect) {
+          if (notLocked && state & State.IsEffect) {
             addEffect(down as Effect);
           }
         } else if (down.emitHead) {
@@ -67,7 +80,7 @@ export function pullDeep(root: SideEffect): any {
     top: Link = null,
     i = -1;
   const lineStack: Link[] = [];
-  while (true) {
+  do {
     const { state, scope } = node;
     let noSkip = !(state & PullingOrScopeExecuted || (scope && scope.state & State.ScopeAbort));
     // begin
@@ -84,7 +97,7 @@ export function pullDeep(root: SideEffect): any {
       }
     }
 
-    while (true) {
+    do {
       const { state } = node;
       if (noSkip) {
         // 子节点计算完成后重新查看父节点的 NeedCompute
@@ -128,8 +141,8 @@ export function pullDeep(root: SideEffect): any {
         top = lineStack[i];
         lineStack[i--] = null;
       }
-    }
-  }
+    } while (true);
+  } while (true);
 }
 /**
  * 将 PullingUnknown、PullingNeedCompute
@@ -170,6 +183,122 @@ export function flushEffect() {
   }
   consumeI = -1;
   produceI = -1;
+}
+
+export function unlink(line: OutLink, deep: boolean) {
+  const { nextEmitLine, prevEmitLine, nextRecLine, prevRecLine, up, down, prevOutLink, nextOutLink } = line;
+  const { scope } = down;
+  // 1. 非唯一 emitLine, 直接释放即可
+  /*----------------- 从 up 中移除 -----------------*/
+  if (prevEmitLine) {
+    prevEmitLine.nextEmitLine = nextEmitLine;
+  } else {
+    // 头移除
+    up.emitHead = nextEmitLine;
+  }
+  if (nextEmitLine) {
+    nextEmitLine.prevEmitLine = prevEmitLine;
+  } else {
+    // 尾移除
+    up.emitTail = prevEmitLine;
+  }
+  /*----------------- 从 down 中移除 -----------------*/
+  if (prevRecLine) {
+    prevRecLine.nextRecLine = nextRecLine;
+  } else {
+    // 头移除
+    down.recHead = nextRecLine;
+  }
+  if (nextRecLine) {
+    nextRecLine.prevRecLine = prevRecLine;
+  } else {
+    // 尾移除
+    down.recTail = prevRecLine;
+  }
+  /*----------------- 从 outLink 中移除 -----------------*/
+  if (prevOutLink) {
+    prevOutLink.nextOutLink = nextOutLink;
+  }
+  if (nextOutLink) {
+    nextOutLink.prevOutLink = prevOutLink;
+  }
+  if (scope && scope.outLink === line) {
+    scope.outLink = nextOutLink;
+  }
+  if (up.state & State.IsScope) {
+    dispose(up as Effect);
+  }
+  // 唯一 emitLine, 现在 up 是游离节点，递归删除 up 的上游依赖
+  else if (deep && !prevEmitLine && !nextEmitLine) {
+    let { recHead: line } = up as Effect;
+    // 如果 up 节点上面也有 唯一 emitLine 继续释放
+    while (line) {
+      const next = line.nextRecLine;
+      unlink(line as OutLink, true);
+      line = next;
+    }
+  }
+}
+
+export function dispose(root: SideEffect) {
+  let toDel = root.recHead;
+  while (toDel) {
+    const { up, nextRecLine } = toDel;
+    // 上游非 scope 直接 unlink
+    if ((up.state & State.IsScope) === 0) {
+      unlink(toDel as OutLink, true);
+      toDel = nextRecLine;
+      continue;
+    }
+    let node = up,
+      top: Link = null,
+      i = -1;
+    const lineStack: Link[] = [];
+    outer: do {
+      let noSkip = node.state & State.IsScope && (node.state & ScopeAbort) === 0;
+      const firstLine = node.recHead;
+
+      if (noSkip && firstLine) {
+        node = firstLine.up as SideEffect;
+        lineStack[++i] = top;
+        top = firstLine;
+        continue;
+      }
+      do {
+        if (noSkip) {
+          releaseScope(node as Effect);
+        }
+        noSkip = true;
+        // 递归出口
+        if (node === root) {
+          break outer;
+        }
+        if (top.nextRecLine) {
+          top = top.nextRecLine;
+        } else {
+          node = top.down as SideEffect;
+          top = lineStack[i];
+          lineStack[i--] = null;
+        }
+      } while (true);
+    } while (true);
+    toDel = nextRecLine;
+  }
+  releaseScope(root as Effect);
+  unlink(root.emitHead as OutLink, false);
+}
+
+function releaseScope(scope: Effect) {
+  let { outLink } = scope;
+  while (outLink) {
+    const next = outLink.nextOutLink;
+    unlink(outLink, true);
+    outLink = next;
+  }
+  scope.state |= State.ScopeAbort;
+  // clean 在 scope 释放时执行
+  scope.clean?.();
+  scope.clean = null;
 }
 
 // export function pullDeep<T>(node: SideEffect, down: SignalNode): T {

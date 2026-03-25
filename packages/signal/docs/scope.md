@@ -25,3 +25,11 @@ Scope 外部引用的情况
 4. dispose 时会打断 scope.outLink 中保存的所有外部依赖
 5. dispose 时还会打断 直接上游 signal 的依赖
 6. 打断依赖链时，如果上游节点是唯一引用，会递归进行打断
+
+## 释放 link
+
+1. 释放的 link  非 唯一 emitLine, 删除即可，它不可能是 scope 或 effect
+2. 释放的 link  是 唯一  emitLine
+   1. 释放的是 scope， 进行 outLink 释放， 递归 释放 scope
+   2. 非 scope 递归 unlink ？
+
