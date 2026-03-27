@@ -3,7 +3,8 @@ import { Signal } from './signal';
 import { Effect } from './effect';
 import { dispose } from './operate';
 import { Scope } from './scope';
-import { State, ValueDiff } from './type';
+import { ValueDiff } from './type';
+import { State } from './macro' with { type: 'macro' };
 
 export function $(data: any) {
   let set, get, s;

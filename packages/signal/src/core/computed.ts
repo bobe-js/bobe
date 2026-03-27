@@ -1,7 +1,8 @@
 import { setPulling, getPulling, execIdInc, execId, setExecId } from './global';
 import { Effect } from './effect';
 import { Scope } from './scope';
-import { State, Link, DirtyState, OutLink } from './type';
+import { Link, OutLink } from './type';
+import { State, DirtyState } from './macro' with { type: 'macro' };
 import { transferDirtyState, pullDeep, unlink } from './operate';
 import { link } from './line';
 
@@ -24,7 +25,7 @@ export class Computed<T = any> {
       }
     } else {
       this.state |= State.PullLock;
-      
+
       const nextId = execIdInc();
       const prevId = execId();
       setExecId(nextId);
@@ -34,7 +35,7 @@ export class Computed<T = any> {
       this.value = this.callback();
       this.state &= ~State.PullLock;
       setPulling(down);
-      
+
       setExecId(prevId);
       // Unknown 转换
       transferDirtyState(this, this.state);

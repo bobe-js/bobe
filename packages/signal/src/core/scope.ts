@@ -1,7 +1,8 @@
 import { Effect } from './effect';
 import { execIdInc, getPulling, setPulling } from './global';
 import { link } from './line';
-import { State, Link, OutLink } from './type';
+import { Link, OutLink } from './type';
+import { State } from './macro' with { type: 'macro' };
 const ScopeAndLinkScopeOnly = State.IsScope | State.LinkScopeOnly;
 export class Scope {
   emitHead: Link = null;

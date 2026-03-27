@@ -3,7 +3,8 @@ import { getPulling } from './global';
 import { link } from './line';
 import { mark, flushEffect, batchDeep } from './operate';
 import { Scope } from './scope';
-import { State, Link, SignalNode } from './type';
+import { Link, SignalNode } from './type';
+import { State } from './macro' with { type: 'macro' };
 
 export class Signal<T = any> {
   scope: Effect | Scope = getPulling() as any;

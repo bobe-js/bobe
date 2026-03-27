@@ -2,7 +2,8 @@ import { execId, execIdInc, getPulling, setExecId, setPulling } from './global';
 import { link } from './line';
 import { transferDirtyState, pullDeep, unlink } from './operate';
 import { Scope } from './scope';
-import { State, Link, OutLink } from './type';
+import { Link, OutLink } from './type';
+import { State } from './macro' with { type: 'macro' };
 
 const EffectState = State.IsEffect | State.IsScope;
 export class Effect {

@@ -4,6 +4,7 @@
     "@babel/core": "^7.29.0",
     "@babel/plugin-transform-destructuring": "^7.28.5",
     "@babel/preset-env": "^7.29.0",
+    "@babel/preset-typescript": "^7.28.5",
     "@rollup/plugin-alias": "^6.0.0",
     "@rollup/plugin-babel": "^6.1.0",
     "@rollup/plugin-commonjs": "^29.0.0",
@@ -16,6 +17,7 @@
     "rollup-plugin-esbuild": "^6.2.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
+    "unplugin-macros": "^0.19.1",
     "vitest": "^4.0.18"
   },
   "scripts": {

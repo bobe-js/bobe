@@ -6,6 +6,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import path from 'path';
 import alias from '@rollup/plugin-alias';
 import babel from '@rollup/plugin-babel';
+import Macros from 'unplugin-macros/rollup';
 
 const bigCamel = name =>
   name
@@ -40,20 +41,27 @@ export function createConfig(pkg, dir) {
         alias({
           entries: [{ find: '#', replacement: path.resolve(dir, './src') }]
         }),
-        nodeResolve(),
-        commonjs(),
-        esbuild({
-          target: 'esnext',
-          tsconfig: path.resolve(dir, 'tsconfig.json'),
-          minify: process.env.NODE_ENV === 'production'
+        nodeResolve({
+          extensions: ['.ts', '.js', '.json', '.node']
         }),
+        commonjs(),
         babel({
           babelHelpers: 'bundled',
           babelrc: false, // 禁用外部文件，防止干扰
           configFile: false, // 禁用外部文件
           extensions: ['.js', '.jsx', '.es6', '.es', '.mjs', '.ts', '.tsx'],
+          presets: [
+            ['@babel/preset-env', { targets: 'node 20' }],
+            [
+              '@babel/preset-typescript',
+              {
+                optimizeConstEnums: true
+              }
+            ]
+          ],
           plugins: ['@babel/plugin-transform-destructuring']
-        })
+        }),
+        Macros()
       ],
       external
     },

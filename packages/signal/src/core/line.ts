@@ -1,6 +1,7 @@
 import { execId } from './global';
 import { Scope } from './scope';
-import { Link, OutLink, SignalNode, State } from './type';
+import { Link, OutLink, SignalNode } from './type';
+import { State } from './macro' with { type: 'macro' };
 export function link(
   /** 上游顶点 */
   up: SignalNode = null,
@@ -23,6 +24,7 @@ export function link(
 
   // 1. down 无 nextRec 尾插
   if (!nextRec) {
+    // window['link'] = (window['link'] || 0) + 1;
     // 是 1. 上游节点尾指针 2.下游节点的首尾指针
     const line: Link = {
       execId: eid,
@@ -57,7 +59,7 @@ export function link(
     down.recTail = nextRec;
     return;
   }
-
+  // window['link'] = (window['link'] || 0) + 1;
   // 3. rec 指向不匹配, 在 tail 和 next 中间插入 line
   const line: Link = {
     execId: eid,

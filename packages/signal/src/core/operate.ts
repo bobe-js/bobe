@@ -3,16 +3,11 @@ import { Effect } from './effect';
 import { Signal } from './signal';
 import {
   Link,
-  PullingOrScopeExecuted,
-  UnknownOrScopeExecuted,
   SideEffect,
-  State,
-  DirtyState,
   OutLink,
-  SignalNode,
-  ScopeAbort
+  SignalNode
 } from './type';
-import { Scope } from './scope';
+import { State, DirtyState, PullingOrScopeExecuted, ScopeAbort } from './macro' with { type: 'macro' };
 
 export function mark(signal: Signal) {
   let line = signal.emitHead;
@@ -25,6 +20,7 @@ export function mark(signal: Signal) {
     } else {
       const notLocked = (state & State.PullLock) === 0;
       down.state |= notLocked ? State.NeedCompute : State.PullingNeedCompute;
+      // window['mark'] = (window['mark'] || 0) + 1;
       if (state & State.IsScope) {
         if (notLocked && state & State.IsEffect) {
           addEffect(down as Effect);
@@ -62,6 +58,7 @@ function markUnknownDeep(initialLine: Link) {
       } else {
         const notLocked = (state & State.PullLock) === 0;
         down.state |= notLocked ? State.Unknown : State.PullingUnknown;
+        // window['mark'] = (window['mark'] || 0) + 1;
         if (state & State.IsScope) {
           if (notLocked && state & State.IsEffect) {
             addEffect(down as Effect);
@@ -104,6 +101,7 @@ export function pullDeep(root: SideEffect): any {
       if (noSkip) {
         // 子节点计算完成后重新查看父节点的 NeedCompute
         if (state & State.NeedCompute) {
+          // window['update'] = (window['update'] || 0) + 1;
           // @ts-ignore
           const prevValue = node.value;
           const prevPulling = getPulling();
@@ -201,6 +199,7 @@ export const batchEnd = () => {
 export const batchDeep = () => _batchDeep;
 
 export function unlink(line: OutLink, deep: boolean) {
+  // window['unlink'] = (window['unlink'] || 0) + 1;
   const { nextEmitLine, prevEmitLine, nextRecLine, prevRecLine, up, down, prevOutLink, nextOutLink } = line;
   const { scope } = down;
   // 1. 非唯一 emitLine, 直接释放即可
@@ -256,6 +255,7 @@ export function unlink(line: OutLink, deep: boolean) {
 }
 
 export function dispose(root: SideEffect) {
+  // window['dispose'] = (window['dispose'] || 0) + 1;
   let { recHead: toDel, emitHead } = root;
   while (toDel) {
     const { up, nextRecLine } = toDel;
