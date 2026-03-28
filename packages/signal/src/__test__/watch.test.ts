@@ -1,4 +1,4 @@
-import { $, effect, scope } from '../core/index';
+import { $, effect, scope } from '#/index';
 // import { Scheduler } from '#/schedule';
 import { Log } from '#test/log-order';
 import { DepStr2 as DepStr } from './dep-str';

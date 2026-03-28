@@ -1,10 +1,12 @@
 import { isNatureNumStr } from 'bobe-shared';
-import { rawToProxy } from './global';
-import { Computed, Scope, Signal, batchEnd, batchStart, runWithPulling } from './core';
+import { G, rawToProxy } from './global';
+import { Scheduler } from './schedule';
+import { runWithPulling } from './scope';
+import { Signal, batchEnd, batchStart  } from './signal';
 import { IsStore, Key, Keys, StoreIgnoreKeys } from './type';
 import { toRaw } from './util';
 
-export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
+export const deepSignal = <T>(target: T, scope: Signal, deep = true) => {
   const isObj = typeof target === 'object' && target !== null;
   // 1. 不是对象则返回原始值
   if (!isObj || target[Keys.Raw]) return target;
@@ -43,7 +45,7 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
       const isGetter = desc && typeof desc.get === 'function';
 
       if (isGetter) {
-        return handleGetterAsComputed(obj, prop, receiver, cells as any, scope);
+        return handleGetterAsComputed(obj, prop, receiver, cells, scope);
       }
 
       // 创建 Signal
@@ -61,13 +63,17 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
       // 已有对应 Signal
       let s: Signal = cells.get(prop);
       if (s) {
-        return s.get();
+        return s.v;
       }
 
       const wrappedValue = deep ? deepSignal(value, scope) : value;
-      s = new Signal(wrappedValue);
+      s = Signal.create(wrappedValue, {
+        scheduler: Scheduler.Sync,
+        isScope: false,
+        scope
+      });
       cells.set(prop, s);
-      return s.get();
+      return s.v;
     },
 
     set(obj, prop, value, receiver) {
@@ -80,7 +86,7 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
       // 已有对应 Signal，更新 signal 值
       const cell = cells.get(prop);
       if (cell) {
-        cell.set(deep ? deepSignal(value, scope) : value);
+        cell.v = deep ? deepSignal(value, scope) : value;
       }
 
       if (targetIsArray) {
@@ -170,18 +176,22 @@ function handleGetterAsComputed(
   obj: object,
   prop: string | symbol,
   receiver: any,
-  cells: Map<any, Computed>,
-  scope: Scope
+  cells: Map<any, Signal>,
+  scope: Signal
 ) {
   let s = cells.get(prop);
   if (s) {
-    return s.get();
+    return s.v;
   }
 
-  s = new Computed(() => Reflect.get(obj, prop, receiver));
-  s.scope = scope;
+  s = Signal.create(null, {
+    customPull: () => Reflect.get(obj, prop, receiver),
+    scheduler: Scheduler.Sync,
+    isScope: false,
+    scope
+  });
   cells.set(prop, s);
-  return s.get();
+  return s.v;
 }
 
 function handleArraySet(arr: object, prop: string | symbol, value: any, receiver: any) {
@@ -596,7 +606,7 @@ arrayMethodReWrites.toSorted = function (...args: any[]) {
   };
 });
 
-function warpCallbackArgs(isDeep: boolean, args: any[], scope: Scope, wrapArgs: number = 0b01) {
+function warpCallbackArgs(isDeep: boolean, args: any[], scope: Signal, wrapArgs: number = 0b01) {
   const callback = args[0];
   const wrapCb = function (this: any, ...cbArgs: any[]) {
     if (isDeep) {

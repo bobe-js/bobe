@@ -1,4 +1,4 @@
-import { $, effect } from '../core/index';
+import { $, effect } from '#/index';
 import { Log } from '#test/log-order';
 import { DepStr2 as DepStr } from './dep-str';
 

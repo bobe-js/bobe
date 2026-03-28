@@ -1,4 +1,19 @@
+import { BaseEvent as Event } from 'bobe-shared';
+import type { Signal } from './signal';
 export const rawToProxy = new WeakMap();
+
+export const evt = new Event();
+
+export const G = {
+  /** 原子 signal 更新次数 */
+  version: 0,
+  id: 0,
+  /** scope 销毁任务序号 */
+  scopeDisposeI: 0,
+  PullingSignal: null as Signal | null,
+  /** 表示当前处于 pull 递归中 */
+  PullingRecurseDeep: 0
+};
 
 export enum State {
   Clean = 0,

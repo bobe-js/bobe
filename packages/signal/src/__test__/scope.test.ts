@@ -1,6 +1,6 @@
 import { Log } from '#test/log-order';
 import { DepStr2 as DepStr } from './dep-str';
-import { $, effect, scope } from '../core/index';
+import { $, effect, scope } from '#/index';
 
 describe('scope + signal 测试', () => {
   it('孤岛引用回收', () => {

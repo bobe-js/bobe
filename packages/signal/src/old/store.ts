@@ -1,4 +1,4 @@
-import { getPulling } from './core';
+import { G } from './global';
 import { deepSignal, shareSignal } from './deep-signal';
 import { DeepOmitPath, IsStore, Key, PRecord, StoreIgnoreKeys } from './type';
 
@@ -7,7 +7,7 @@ export class Store {
   static [StoreIgnoreKeys]: Key[] = ['ui', 'raw'];
   static Current: Store = null;
   constructor() {
-    const proxy = deepSignal(this, getPulling(), true);
+    const proxy = deepSignal(this, G.PullingSignal, true);
     Store.Current = proxy;
     return proxy;
   }

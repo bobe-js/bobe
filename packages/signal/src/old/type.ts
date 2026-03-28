@@ -1,4 +1,6 @@
-import { Signal } from './core';
+import { Queue } from 'bobe-shared';
+import { Line } from './line';
+import type { Signal } from './signal';
 export { Signal };
 
 export type SignalType = 'ref' | 'auto' | 'proxy';
@@ -29,6 +31,43 @@ export type CreateTaskProps = {
   callbackAble: (fn: Function) => any;
   aIsUrgent: (a: Task, b: Task) => boolean;
 };
+export type ScheduleHandler = (effects: Queue<Signal>) => any;
+export type SignalOpt<T> = {
+  customPull?: () => T;
+  scheduler?: string;
+  isScope?: boolean;
+  scope?: Signal;
+  immediate?: boolean;
+};
+
+export type Vertex = {
+  /** 上游来的最后一条线 */
+  recEnd: Line;
+  recStart: Line;
+  /** 向下游发出的最后一条线 */
+  emitEnd: Line;
+  emitStart: Line;
+};
+
+export type DFSCtxBegin = {
+  node: Signal;
+  lineFromUp: Line;
+  walkedLine: Line[];
+  notGoDeep?: boolean;
+};
+
+export type DFSCtxCompete = {
+  node: Signal;
+  lineToDeep: Line;
+  walkedLine: Line[];
+  notGoDeep?: boolean;
+};
+
+export type Getter<T = any> = {
+  (): T;
+  ins?: Signal;
+};
+
 export type Mix<T = any> = {
   (v: T): void;
   (): T;

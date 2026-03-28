@@ -1,5 +1,5 @@
 import { Log } from '#test/log-order';
-import { $, effect, scope, clean } from '../core/index';
+import { $, effect, scope, clean } from '#/index';
 describe('清除副作用测试', () => {
   it('clean 功能测试 - 在 scope 中注册清理函数', () => {
     const log = new Log();
