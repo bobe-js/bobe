@@ -147,6 +147,7 @@
   class TestIf extends Store {
     show1 = true;
     show2 = true;
+    show3 = true;
     fragment = bobe`
       div text={deep}
       if deep > 0
@@ -157,11 +158,15 @@
         {"切换1:" + show1}
       button onclick={() => show2 = !show2}
         {show2}
+      button onclick={() => show3 = !show3}
+        {'内部切换:' + show3}
       if show1
         {fragment} deep=10
         h1 text="show1"
       if show2 
         h2 text="show2"
+        if show3
+          h3 text="内部"
       else 
         h1 text="else back"  
       ${Deep} deep=20
@@ -249,7 +254,7 @@
   }
 
   const root2 = document.getElementById('root')
-  render(TestFor, root2)
+  render(TestIf, root2)
   window.cel = (obj, key) => {
     const cells = obj['__AOYE_META'].cells;
     return cells.get(key);

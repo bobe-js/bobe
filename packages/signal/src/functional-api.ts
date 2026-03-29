@@ -87,9 +87,7 @@ export function effect(
   opt = hasDep ? opt || {} : depOrOpt || {};
   if (!hasDep) {
     const ef = new Effect(callback);
-    const run = ef.dispose.bind(ef);
-    run.ins = ef;
-    return run;
+    return ef;
   }
   /*----------------- 指定依赖， watcher -----------------*/
   let mounted = false;
@@ -111,9 +109,7 @@ export function effect(
     }
     mounted = true;
   });
-  const run = ef.dispose.bind(ef);
-  run.ins = ef;
-  return run;
+  return ef;
 }
 export function scope(...args) {
   const ins = new Scope(args[0]);

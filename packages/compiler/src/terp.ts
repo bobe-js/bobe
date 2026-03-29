@@ -772,7 +772,7 @@ export class Interpreter {
       },
       [signal]
     );
-    ifNode.effect = ef.ins;
+    ifNode.effect = ef;
     return ifNode;
   }
 
