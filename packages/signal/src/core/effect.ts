@@ -2,7 +2,7 @@ import { execId, execIdInc, getPulling, setExecId, setPulling } from './global';
 import { link } from './line';
 import { transferDirtyState, pullDeep, unlink, dispose } from './operate';
 import { Scope } from './scope';
-import { Link, OutLink, SignalNode } from './type';
+import { Link, OnClean, OutLink, SideEffect, SignalNode } from './type';
 import { State } from './macro' with { type: 'macro' };
 
 const EffectState = State.IsEffect | State.IsScope;
@@ -15,8 +15,8 @@ export class Effect {
   state = EffectState;
   scope: Effect | Scope = getPulling() as any;
   outLink: OutLink = null;
-  clean: () => void = null;
-  constructor(public callback: (thisArg: SignalNode) => any) {
+  clean: OnClean = null;
+  constructor(public callback: (thisArg: Effect) => OnClean | void) {
     this.get();
   }
   get(shouldLink = true, notForceUpdate = true) {
@@ -28,7 +28,7 @@ export class Effect {
       this.state |= State.PullLock;
 
       setPulling(null);
-      this.clean?.();
+      this.clean?.(false);
       this.clean = null;
 
       const nextId = execIdInc();
@@ -63,4 +63,4 @@ export interface Effect {
   dispose(): void;
 }
 
-Effect.prototype.dispose = dispose
+Effect.prototype.dispose = dispose;

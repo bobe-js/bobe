@@ -2,6 +2,7 @@ import { execId } from './global';
 import { Scope } from './scope';
 import { Link, OutLink, SignalNode } from './type';
 import { State } from './macro' with { type: 'macro' };
+import { Effect } from './effect';
 export function link(
   /** 上游顶点 */
   up: SignalNode = null,
@@ -175,7 +176,7 @@ export function outLink(
   makeOutLink(scopeDown, line);
 }
 
-function makeOutLink(scopeDown: Scope, line: OutLink) {
+function makeOutLink(scopeDown: Effect|Scope, line: OutLink) {
   const first = scopeDown.outLink;
   if (first) {
     first.prevOutLink = line;

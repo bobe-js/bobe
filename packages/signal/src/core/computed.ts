@@ -1,7 +1,7 @@
 import { setPulling, getPulling, execIdInc, execId, setExecId } from './global';
 import { Effect } from './effect';
 import { Scope } from './scope';
-import { Link, OutLink, SignalNode } from './type';
+import { Link, OutLink, SideEffect, SignalNode } from './type';
 import { State, DirtyState } from './macro' with { type: 'macro' };
 import { transferDirtyState, pullDeep, unlink } from './operate';
 import { link } from './line';
@@ -14,7 +14,7 @@ export class Computed<T = any> {
   state = State.Clean;
   scope: Effect | Scope = getPulling() as any;
   value: T = null;
-  constructor(public callback: (thisArgs: SignalNode) => T) {}
+  constructor(public callback: (thisArgs: Computed) => T) {}
   get(shouldLink = true, notForceUpdate = true) {
     const { scope } = this;
     if (scope && scope.state & State.ScopeAbort) return this.value;

@@ -1,7 +1,7 @@
 import { setPulling, getPulling } from './global';
 import { Effect } from './effect';
 import { Signal } from './signal';
-import { Link, SideEffect, OutLink, SignalNode } from './type';
+import { Link, SideEffect, OutLink, SignalNode, OnClean } from './type';
 import { State, DirtyState, PullingOrScopeExecuted, ScopeAbort } from './macro' with { type: 'macro' };
 
 export function mark(signal: Signal) {
@@ -306,7 +306,7 @@ export function dispose(this: SideEffect) {
   if (emitHead) unlink(emitHead as OutLink, false);
 }
 
-export function clean(onClean: () => any) {
+export function clean(onClean: OnClean) {
   const current = getPulling() as Effect;
   current.clean = onClean;
 }
@@ -320,7 +320,7 @@ function releaseScope(scope: Effect) {
   }
   scope.state |= State.ScopeAbort;
   // clean 在 scope 释放时执行
-  scope.clean?.();
+  scope.clean?.(true);
   scope.clean = null;
 }
 

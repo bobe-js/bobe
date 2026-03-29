@@ -4,7 +4,11 @@ import { Scope } from './scope';
 import { Signal } from './signal';
 
 
-export type SignalNode = Partial<Signal & Effect & Scope & Computed>;
+export type OnClean = (isDestroy: boolean) => any;
+
+export type SignalNode = Partial<Omit<Computed, 'callback'> & {
+  dispose(): void;
+}>;
 export type Link = {
   execId: number;
   up: SignalNode;

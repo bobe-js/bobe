@@ -1,7 +1,7 @@
 import { Effect } from './effect';
 import { getPulling, setPulling } from './global';
 import { link } from './line';
-import { Link, OutLink } from './type';
+import { Link, OnClean, OutLink } from './type';
 import { State } from './macro' with { type: 'macro' };
 import { dispose } from './operate';
 const ScopeAndLinkScopeOnly = State.IsScope | State.LinkScopeOnly;
@@ -14,8 +14,8 @@ export class Scope {
   state = ScopeAndLinkScopeOnly;
   scope: Effect | Scope = getPulling() as any;
   outLink: OutLink = null;
-  clean?: () => void;
-  constructor(public callback: () => any) {}
+  clean: OnClean = null;
+  constructor(public callback: () => OnClean | any) {}
   get(shouldLink = true) {
     const { scope } = this;
     this.state |= State.PullLock;
@@ -36,4 +36,4 @@ export interface Scope {
   dispose(): void;
 }
 
-Scope.prototype.dispose = dispose
+Scope.prototype.dispose = dispose;
