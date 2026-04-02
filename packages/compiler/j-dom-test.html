@@ -35,8 +35,8 @@
         node.textContent = value;
       } else if (key.startsWith('on')) {
         node.addEventListener(key.slice(2), value);
-      } else if (node.tagName === 'INPUT' && key === 'value') {
-        node.value = value;
+      } else if (node.tagName === 'INPUT' && (key === 'value' || key === 'checked')) {
+        node[key] = value;
       }
 
       else {
@@ -312,15 +312,15 @@
   }
   class Keyed2 extends Store {
     arr = [
-      { value: 1, id: 1 },
-      { value: 2, id: 2 },
-      { value: 3, id: 3 }
+      { value: 1, id: 1, showText: true },
+      { value: 2, id: 2, showText: true },
+      { value: 3, id: 3, showText: true }
     ]
     show = true
     value = ''
     onkeyup = (e) => {
       if (e.keyCode === 13) {
-        this.arr.push({ value: this.value, id: Date.now() })
+        this.arr.push({ value: this.value, showText, id: Date.now() })
         this.value = ''
       }
     }
@@ -333,31 +333,43 @@
     }
 
     updateItem = (i, value) => {
-      // this.arr[i].value = value;
+      this.arr[i].value = value;
       // this.arr[i] = { value, id: Date.now() }
-      this.arr = [
-        { value: 3, id: 3 },
-        { value: 1, id: 1 },
-        { value: 2, id: 2 }
-      ]
+      // this.arr = [
+      //   { value: 3, id: 3 },
+      //   { value: 1, id: 1 },
+      //   { value: 2, id: 2 }
+      // ]
+    }
+    toggleText (i) {
+      this.arr[i].showText = !this.arr[i].showText;
     }
 
     ui = bobe`
       h2 text="测试"
       input value={value} oninput={oninput} onkeyup={onkeyup}
-      for arr; {value, id} i; id
+      for arr; { value, id, showText } i; id
+        div onchange={() => toggleText(i)}
+          label
+            input type="radio" checked={showText}
+            {'文字'}
+          label
+            input type="radio" checked={!showText}
+            {'编辑'}
         div style="display: flex; align-items: center;"
-          h1 onclick={() => delItem(i)}
-            {value}
-          input type="text"  oninput={(e) => updateItem(i, e.target.value)} 
+          if showText
+            h1 onclick={() => delItem(i)}
+              {value}
+          else      
+            input value={value} type="text" oninput={(e) => updateItem(i, e.target.value)}
+        div text="--------------------------------------------------------"  
       if show    
-        div
-          {'哈哈哈'}  
+        div text="哈哈哈"
     `
   }
 
   const root2 = document.getElementById('root')
-  render(Keyed, root2)
+  render(Keyed2, root2)
   window.cel = (obj, key) => {
     const cells = obj['__AOYE_META'].cells;
     return cells.get(key);

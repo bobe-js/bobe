@@ -66,6 +66,7 @@ export class Interpreter {
         (ctxProvider.__logicType & LogicalBit ? NodeSort.Logic : 0) | NodeSort.CtxProvider
       );
     }
+    const rootLen = stack.length;
 
     const ctx = (this.ctx = {
       realParent: root,
@@ -124,7 +125,7 @@ export class Interpreter {
       // Token 不论指示找 下一个同级节点，还是 Dedent, 都将当前节点插入
       if (ctx.current) {
         // root 下第一个子节点应该插入在 before 之后
-        if (stack.length === 2 && !ctx.prevSibling) {
+        if (stack.length === rootLen && !ctx.prevSibling) {
           ctx.prevSibling = before;
         }
         this.handleInsert(ctx.realParent, ctx.current, ctx.prevSibling);
@@ -733,7 +734,7 @@ export class Interpreter {
 
   getData() {
     const { node } = this.ctx.stack.peekByType(NodeSort.CtxProvider);
-    return node.data || node.owner.data;
+    return node.data;
   }
 
   /**
@@ -854,7 +855,8 @@ export class Interpreter {
       preCond: preIsCond ? prevSibling : null,
       isFirstRender: true,
       effect: null,
-      owner
+      owner,
+      data,
     };
     let signal: SignalNode;
 

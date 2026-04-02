@@ -114,13 +114,14 @@ export type StackItem = {
 };
 
 export type LogicNode = {
+  data: any;
   __logicType: FakeType;
   realParent: any;
   realBefore?: any;
   realAfter?: any;
 };
 
-export type ForNode = LogicNode & {
+export type ForNode = Omit<LogicNode, 'data'> & {
   children: ForItemNode[];
   snapshot: ReturnType<Tokenizer['snapshot']>;
   itemExp: string | ((value: any) => any);
@@ -138,7 +139,6 @@ export type ForNode = LogicNode & {
 export type ForItemNode = LogicNode & {
   id: number;
   forNode: ForNode;
-  data: any;
   effect: Scope;
   key?: any;
 };
@@ -153,13 +153,10 @@ export type IfNode = LogicNode & {
 };
 
 export type FragmentNode = LogicNode & {
-  data: Store;
   tokenizer: Tokenizer;
 };
 export type ComponentNode = LogicNode & {
-  data: Store;
   tokenizer: Tokenizer;
 };
 export type RootNode = LogicNode & {
-  store: Store;
 };
