@@ -37,6 +37,7 @@ import {
 import { jsVarRegexp } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
 import { macInc } from './util';
+import { KEY_INDEX } from './global';
 
 export class Interpreter {
   opt: TerpConf;
@@ -105,7 +106,7 @@ export class Interpreter {
           if (isLogicNode) {
             // 保证 if 子逻辑节点能被其 effect 管理
             setPulling(ctx.current.effect);
-            if(ctx.current.__logicType & FakeType.ForItem) {
+            if (ctx.current.__logicType & FakeType.ForItem) {
               ctx.prevSibling = ctx.current.realBefore;
             }
           }
@@ -469,12 +470,14 @@ export class Interpreter {
               break;
             }
           }
-          // 纯尾增
+          // 纯新增
           if (s > e1) {
             if (s <= e2) {
-              const lastAfter = children.at(-1)?.realAfter || forNode.realBefore;
+              // s > 0 纯尾增
+              // 否则 纯尾增
+              const firstBefore = s > 0 ? children.at(-1)?.realAfter || forNode.realBefore : forNode.realBefore;
               for (let i = e2; i >= s; i--) {
-                this.insertForItem(forNode, i, data, newChildren, lastAfter, snapshotForUpdate);
+                this.insertForItem(forNode, i, data, newChildren, firstBefore, snapshotForUpdate);
               }
             }
           }
@@ -568,7 +571,7 @@ export class Interpreter {
                   next: any;
                 do {
                   next = this.nextSib(point);
-                  this.insertAfter(realParent, point, before)
+                  this.insertAfter(realParent, point, before);
                   // this.handleInsert(realParent, point, before);
                   before = point;
                   if (point === realAfter) break;
@@ -638,9 +641,12 @@ export class Interpreter {
   reuseForItem(child: ForItemNode, data: any, itemExp: string | ((value: any) => any), i: number, indexName?: string) {
     if (typeof itemExp === 'string') {
       child.data[itemExp] = data;
-      if(indexName) {
+      if (indexName) {
         child.data[indexName] = i;
       }
+    } else {
+      indexName = indexName || KEY_INDEX;
+      child.data[indexName] = i;
     }
   }
 
@@ -693,7 +699,8 @@ export class Interpreter {
   }
 
   getItemData(forNode: ForNode, i: number, parentData: any) {
-    const { arr, itemExp, indexName, vars, arrSignal } = forNode;
+    const { arr, itemExp, vars, arrSignal, getKey } = forNode;
+    let indexName = forNode.indexName;
     let data: Record<any, any>;
     if (typeof itemExp === 'string') {
       data = deepSignal(
@@ -708,11 +715,14 @@ export class Interpreter {
         getPulling()
       );
     } else {
-      data = deepSignal(indexName ? { [indexName]: i } : {}, getPulling());
-      const computedData = new Computed(() => itemExp(arrSignal.get()[i]));
+      indexName = indexName ?? KEY_INDEX;
+      const rawData = { [indexName]: i };
+      data = deepSignal(rawData, getPulling());
+      const computedData = new Computed(() => itemExp(arrSignal.get()[getKey ? data[indexName] : i]));
       const cells = data[Keys.Meta].cells;
       for (let i = 0; i < vars.length; i++) {
         const name = vars[i];
+        rawData[name] = undefined;
         cells.set(name, new Computed(() => computedData.get()[name]));
       }
     }
@@ -1098,7 +1108,7 @@ export class Interpreter {
   remove(node: any, parent?: any, prev?: any) {
     return this.defaultRemove(node, parent, prev);
   }
-  
+
   defaultRemove(node: any, parent: any, prevSibling: any) {
     const next = node.nextSibling;
     if (prevSibling) {

@@ -197,7 +197,13 @@
     }
 
     updateItem = (i, value) => {
-      this.arr[i] = { value }
+      // this.arr[i].value = value;
+      // this.arr[i] = { value, id: Date.now() }
+      this.arr = [
+        { value: 3, id: 3 },
+        { value: 1, id: 1 },
+        { value: 2, id: 2 }
+      ]
     }
 
     ui = bobe`
@@ -236,7 +242,13 @@
     }
 
     updateItem = (i, value) => {
-      this.arr[i].value = value
+      // this.arr[i].value = value;
+      // this.arr[i] = { value, id: Date.now() }
+      this.arr = [
+        { value: 3, id: 3 },
+        { value: 1, id: 1 },
+        { value: 2, id: 2 }
+      ]
     }
 
     ui = bobe`
@@ -292,6 +304,51 @@
         div style="display: flex; align-items: center;"
           h1 onclick={() => delItem(i)}
             {item.value}
+          input type="text"  oninput={(e) => updateItem(i, e.target.value)} 
+      if show    
+        div
+          {'哈哈哈'}  
+    `
+  }
+  class Keyed2 extends Store {
+    arr = [
+      { value: 1, id: 1 },
+      { value: 2, id: 2 },
+      { value: 3, id: 3 }
+    ]
+    show = true
+    value = ''
+    onkeyup = (e) => {
+      if (e.keyCode === 13) {
+        this.arr.push({ value: this.value, id: Date.now() })
+        this.value = ''
+      }
+    }
+    oninput = (e) => {
+      this.value = e.target.value
+    }
+
+    delItem = (i) => {
+      this.arr.splice(i, 1)
+    }
+
+    updateItem = (i, value) => {
+      // this.arr[i].value = value;
+      // this.arr[i] = { value, id: Date.now() }
+      this.arr = [
+        { value: 3, id: 3 },
+        { value: 1, id: 1 },
+        { value: 2, id: 2 }
+      ]
+    }
+
+    ui = bobe`
+      h2 text="测试"
+      input value={value} oninput={oninput} onkeyup={onkeyup}
+      for arr; {value, id} i; id
+        div style="display: flex; align-items: center;"
+          h1 onclick={() => delItem(i)}
+            {value}
           input type="text"  oninput={(e) => updateItem(i, e.target.value)} 
       if show    
         div

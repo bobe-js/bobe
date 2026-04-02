@@ -1,0 +1,1 @@
+export const KEY_INDEX = '__BOBE_KEY_INDEX';
