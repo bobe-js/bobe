@@ -37,33 +37,7 @@ export function createConfig(pkg, dir) {
           globals: umdGlobals
         }
       ],
-      plugins: [
-        alias({
-          entries: [{ find: '#', replacement: path.resolve(dir, './src') }]
-        }),
-        nodeResolve({
-          extensions: ['.ts', '.js', '.json', '.node']
-        }),
-        commonjs(),
-        babel({
-          babelHelpers: 'bundled',
-          babelrc: false, // 禁用外部文件，防止干扰
-          configFile: false, // 禁用外部文件
-          shouldPrintComment: () => false,
-          extensions: ['.js', '.jsx', '.es6', '.es', '.mjs', '.ts', '.tsx'],
-          presets: [
-            ['@babel/preset-env', { targets: 'node 20' }],
-            [
-              '@babel/preset-typescript',
-              {
-                optimizeConstEnums: true
-              }
-            ]
-          ],
-          plugins: ['@babel/plugin-transform-destructuring']
-        }),
-        Macros()
-      ],
+      plugins: createPlugins(pkg, dir),
       external
     },
     // 2. 类型构建
@@ -73,5 +47,35 @@ export function createConfig(pkg, dir) {
       plugins: [alias(), dts()],
       external
     }
+  ];
+}
+
+export function createPlugins(pkg, dir) {
+  return [
+    alias({
+      entries: [{ find: '#', replacement: path.resolve(dir, './src') }]
+    }),
+    nodeResolve({
+      extensions: ['.ts', '.js', '.json', '.node']
+    }),
+    commonjs(),
+    babel({
+      babelHelpers: 'bundled',
+      babelrc: false, // 禁用外部文件，防止干扰
+      configFile: false, // 禁用外部文件
+      shouldPrintComment: () => false,
+      extensions: ['.js', '.jsx', '.es6', '.es', '.mjs', '.ts', '.tsx'],
+      presets: [
+        ['@babel/preset-env', { targets: 'node 20' }],
+        [
+          '@babel/preset-typescript',
+          {
+            optimizeConstEnums: true
+          }
+        ]
+      ],
+      plugins: ['@babel/plugin-transform-destructuring']
+    }),
+    Macros()
   ];
 }

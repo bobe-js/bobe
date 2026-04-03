@@ -19,6 +19,19 @@
   "files": [
     "dist"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/bobe.esm.js",
+      "require": "./dist/bobe.cjs.js",
+      "default": "./dist/index.umd.js"
+    },
+    "./compiler": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/bobe.compiler.esm.js",
+      "require": "./dist/bobe.compiler.cjs.js"
+    }
+  },
   "license": "MIT",
   "keywords": [
     "bobe",
