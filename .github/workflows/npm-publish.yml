@@ -1,10 +1,8 @@
 name: Manual Publish
 
 on:
-  # 手动 Action 只有在 main 分支提交后能被看到
   workflow_dispatch:
     inputs:
-      # 提供选择框选择 版本更新类型
       release_type:
         description: '选择版本更新类型 (patch, minor, major)'
         required: true
@@ -15,6 +13,11 @@ on:
           - minor
           - major
 
+# 1. 必须添加权限配置，允许 GitHub 生成 OIDC ID Token
+permissions:
+  contents: write
+  id-token: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -22,12 +25,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 获取完整历史以方便提交
+          fetch-depth: 0
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4.2.0
+        uses: pnpm/action-setup@v4
         with:
-          version: 10.26.0 # 或者你使用的具体版本
+          version: 10.26.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -42,7 +45,6 @@ jobs:
       - name: Build Project
         run: pnpm build
 
-      # 设置机器人来提交 commit
       - name: Configure Git
         run: |
           git config --global user.name "github-actions[bot]"
@@ -50,20 +52,17 @@ jobs:
 
       - name: Bump Version and Publish
         run: |
-          # 1. 更新版本（使用 -r 对所有子包生效，--no-git-tag-version 防止重复生成 tag）
+          # 更新版本
           pnpm -r exec npm version ${{ github.event.inputs.release_type }} --no-git-tag-version
 
-          # 2. 获取更新后的主包版本号（用于后续 commit 信息）
+          # 获取新版本号
           NEW_VERSION=$(node -p "require('./packages/signal/package.json').version")
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
-          # 3. 发布子包
+          # 2. 关键修改：发布时带上 --provenance，pnpm 会自动处理 OIDC 握手
+          # 注意：不再需要传递 NPM_TOKEN 环境变量
           pnpm pub
-        env:
-          # 使用 npm 生成的 token，可在 仓库 > settings > secrets and variables 中添加 npm token
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # 提交更改
       - name: Commit and Push Changes
         run: |
           git add .
