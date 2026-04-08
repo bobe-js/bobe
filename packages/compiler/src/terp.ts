@@ -476,7 +476,7 @@ export class Interpreter {
             if (s <= e2) {
               // s > 0 纯尾增
               // 否则 纯尾增
-              const firstBefore = s > 0 ? children.at(-1)?.realAfter || forNode.realBefore : forNode.realBefore;
+              const firstBefore = s > 0 ? children[s - 1]?.realAfter || forNode.realBefore : forNode.realBefore;
               for (let i = e2; i >= s; i--) {
                 this.insertForItem(forNode, i, data, newChildren, firstBefore, snapshotForUpdate);
               }
