@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AST</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "aoye": "./node_modules/aoye/dist/aoye.esm.js",
+      "bobe-shared": "./node_modules/bobe-shared/dist/bobe-shared.esm.js",
+      "bobe": "./dist/bobe.compiler.esm.js"
+    }
+  }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+    integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>hljs.highlightAll();</script>
+</head>
+
+<body>
+  <button id="out">showOuter = <span id="out-bool"></span></button>
+  <button id="in">showInner = <span id="in-bool"></span></button>
+  k1：<input id="k1" />
+  <pre><code id="output" class="language-json"></code></pre>
+</body>
+<script type="module">
+  import { Compiler, Tokenizer } from 'bobe';
+  const code = `
+    if show
+      div
+        {'哈哈哈'}  
+    for arr; item i; item.id
+      div style="display: flex; align-items: center;"
+        h1 onclick={() => delItem(i)}
+          {item.value}
+        input type="text"  oninput={(e) => updateItem(i, e.target.value)} 
+    \${Deep} deep=20
+    h2 text="测试"
+    input value={value} oninput={oninput} onkeyup={onkeyup}
+    {fragment} deep=10
+
+  `;
+  const tokenizer = new Tokenizer(
+    () => undefined,
+    false
+  );
+  window.tokens = tokenizer.handledTokens;
+  tokenizer.setCode(code);
+  const compiler = new Compiler(tokenizer, {
+    parseElementNode: {
+      propsAdded (node) {
+        console.log(node.tagName, node.props);
+      }
+    }
+  });
+  window.compiler = compiler;
+  const program = compiler.parseProgram();
+
+  function log () {
+    $('#output').text(JSON.stringify(program, undefined, 2));
+    console.log(window.tokens.map(item => ({ type: item.typeName, loc: item.loc })));
+  }
+  log();
+
+
+  function childToArray (node) {
+    const newNode = {};
+    const children = [];
+    let point = node.firstChild;
+
+    while (point) {
+      const item = childToArray(point);
+      children.push(item);
+      point = point.nextSibling;
+    }
+
+    for (const key in node) {
+      if (key === 'firstChild' || key === 'lastChild' || key === 'nextSibling') {
+        continue;
+      }
+      newNode[key] = node[key];
+    }
+    if (children.length) {
+      newNode.children = children;
+    }
+    return newNode;
+  }
+</script>
+
+</html>

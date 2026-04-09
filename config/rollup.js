@@ -74,7 +74,15 @@ export function createPlugins(pkg, dir) {
           }
         ]
       ],
-      plugins: ['@babel/plugin-transform-destructuring']
+      plugins: [
+        '@babel/plugin-transform-destructuring',
+        [
+          '@babel/plugin-proposal-decorators',
+          {
+            version: '2023-11' // 必须指定版本以支持 TypeScript 5 的新语法
+          }
+        ]
+      ]
     }),
     Macros()
   ];

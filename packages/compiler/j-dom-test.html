@@ -296,10 +296,15 @@
         { value: 2, id: 2 }
       ]
     }
+    fragment = bobe`
+      h3 text={deep}
+    `;
 
     ui = bobe`
       h2 text="测试"
       input value={value} oninput={oninput} onkeyup={onkeyup}
+      ${Deep} deep=2
+      {fragment} deep='fragment'
       for arr; item i; item.id
         div style="display: flex; align-items: center;"
           h1 onclick={() => delItem(i)}
@@ -369,7 +374,7 @@
   }
 
   const root2 = document.getElementById('root')
-  render(Keyed2, root2)
+  render(Keyed, root2)
   window.cel = (obj, key) => {
     const cells = obj['__AOYE_META'].cells;
     return cells.get(key);

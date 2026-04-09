@@ -12,7 +12,9 @@ export enum TokenType {
   Pipe = 0b0000_0000_0000_0000_0000_0000_0010_0000,
   Eof = 0b0000_0000_0000_0000_0000_0000_0100_0000,
   InsertionExp = 0b0000_0000_0000_0000_0000_0000_1000_0000,
-  Semicolon = 0b0000_0000_0000_0000_0000_0001_0000_0000
+  Semicolon = 0b0000_0000_0000_0000_0000_0001_0000_0000,
+  /** 仅编译时可解析 */
+  StaticInsExp = 0b0000_0000_0000_0000_0000_0010_0000_0000
 }
 
 export enum FakeType {
@@ -64,10 +66,23 @@ export type BaseType = string | number | boolean | undefined | null;
 export const InsComputed = Symbol('insertion-computed-map-key');
 export const IsAnchor = Symbol('is-anchor');
 
+export interface SourceLocation {
+  start: Position;
+  end: Position;
+  source: string;
+}
+
+export interface Position {
+  line: number;
+  column: number;
+  offset: number;
+}
+
 export type Token = {
   type: TokenType;
   typeName: string;
   value: BaseType;
+  loc: SourceLocation;
 };
 
 export type HookProps = {

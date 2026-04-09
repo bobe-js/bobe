@@ -16,7 +16,8 @@ export default [
     plugins: [
       ...configs[0].plugins,
       replace({
-        __IS_COMPILER__: JSON.stringify(false)
+        __IS_COMPILER__: JSON.stringify(false),
+        preventAssignment: true
       })
     ]
   },
@@ -37,7 +38,8 @@ export default [
     plugins: [
       ...createPlugins(pkg, __dirname),
       replace({
-        __IS_COMPILER__: JSON.stringify(true)
+        __IS_COMPILER__: JSON.stringify(true),
+        preventAssignment: true,
       })
     ],
     external: [...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.peerDependencies || {})]

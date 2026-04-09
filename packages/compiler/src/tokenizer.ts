@@ -1,5 +1,5 @@
 import { isNum, matchIdStart, matchIdStart2, Queue } from 'bobe-shared';
-import { BaseType, Hook, HookProps, HookType, Token, TokenType } from './type';
+import { BaseType, Hook, HookProps, HookType, Position, Token, TokenType } from './type';
 
 export class Tokenizer {
   /** 缩进大小 默认 2 */
@@ -22,6 +22,11 @@ export class Tokenizer {
   dentStack: number[] = [0];
   /** 当前字符 index */
   i = 0;
+  line = 0;
+  column = 0;
+  preCol = 0;
+  preI = 0;
+  needLoc = false;
   // TODO: 生产环境不需要这个，导致不必要的内存占用
   handledTokens: Token[] = [];
   /**
@@ -33,6 +38,8 @@ export class Tokenizer {
    * parent2 <- 产生两个 dedent
    */
   waitingTokens = new Queue<Token>();
+  /** 当前文件路径 */
+  source = '';
 
   constructor(
     private hook: Hook,
@@ -48,11 +55,27 @@ export class Tokenizer {
       // })
     }
   }
-  consume() {
-    const token = this.token;
-    this.nextToken();
-    return token;
+  private next() {
+    if (__IS_COMPILER__) {
+      const char = this.code[this.i];
+      if (char === '\n') {
+        this.line++;
+        this.column = 0;
+      } else {
+        this.column++;
+      }
+    }
+    this.i++;
   }
+
+  getCurrentPos(): Position {
+    return {
+      offset: this.i,
+      line: this.line,
+      column: this.column
+    };
+  }
+
   // /** 恢复至某一个现场，进行 token 重算 */
   resume(_snapshot: ReturnType<Tokenizer['snapshot']>) {
     this.token = undefined;
@@ -89,13 +112,13 @@ export class Tokenizer {
       if (char === '\n') {
         needIndent = true;
         skipFragment += char;
-        this.i++;
+        this.next();
         continue;
       }
 
       if (!needIndent) {
         skipFragment += char;
-        this.i++;
+        this.next();
         continue;
       }
 
@@ -134,7 +157,9 @@ export class Tokenizer {
             this.waitingTokens.push({
               type: TokenType.Dedent,
               typeName: TokenType[TokenType.Dedent],
-              value: String(expLen)
+              value: String(expLen),
+              // TODO: 暂时不做缩进位置
+              loc: null
             });
           }
         }
@@ -170,7 +195,23 @@ export class Tokenizer {
     this.token = {
       type,
       typeName: TokenType[type],
-      value
+      value,
+      loc: __IS_COMPILER__ && this.needLoc
+        ? {
+            start: {
+              offset: this.preI,
+              line: this.line,
+              column: this.preCol
+            },
+            end: {
+              offset: this.i + 1,
+              line: this.line,
+              column: this.column + 1
+            },
+            // TODO: 文件名
+            source: this.code.slice(this.preI, this.i + 1)
+          }
+        : null
     };
     this.isFirstToken = false;
   }
@@ -210,32 +251,45 @@ export class Tokenizer {
             case '|':
               this.pipe();
               break;
-            case "'":
-            case '"':
-              this.str(char);
-              break;
-            case '{':
-              const braceToken = this.brace();
-              this.setToken(TokenType.InsertionExp, braceToken);
-              break;
-            case '$':
-              const handled = this.dynamic(char);
-              if (handled) break;
             case ';':
               this.setToken(TokenType.Semicolon, ';');
               break;
+            /*----------------- 需要 loc 的 token -----------------*/
             default:
-              if (isNum(char)) {
-                this.number(char);
-                break;
+              if(__IS_COMPILER__) {
+                this.preI = this.i;
+                this.preCol = this.column;
+                this.needLoc = true;
               }
-              if (typeof char === 'string' && matchIdStart2(char, 0)) {
-                this.identifier(char);
+              switch (char) {
+                case "'":
+                case '"':
+                  this.str(char);
+                  break;
+                case '{':
+                  const braceToken = this.brace();
+                  this.setToken(TokenType.InsertionExp, braceToken);
+                  break;
+                case '$':
+                  const handled = this.staticIns();
+                  if (handled) break;
+                default:
+                  if (isNum(char)) {
+                    this.number(char);
+                    break;
+                  }
+                  if (typeof char === 'string' && matchIdStart2(char, 0)) {
+                    this.identifier(char);
+                  }
+                  break;
+              }
+              if(__IS_COMPILER__) {
+                this.needLoc = false;
               }
               break;
           }
           // 指向下一个字符
-          this.i++;
+          this.next();
         }
 
         // 找到 token 即可停止
@@ -253,19 +307,34 @@ export class Tokenizer {
   }
 
   condExp() {
+    if(__IS_COMPILER__) {
+      this.preCol = this.column;
+      this.preI = this.i;
+      this.needLoc = true;
+    }
+
     let value = '';
     this.token = null;
-    while (1) {
-      const char = this.code[this.i];
-      if (char === '\n') {
-        break;
+    try {
+      if (this.code[this.i] === '\n') {
+        this.setToken(TokenType.Identifier, true);
+        return this.token;
       }
-      value += char;
-      this.i++;
+      while (this.code[this.i + 1] !== '\n') {
+        value += this.code[this.i];
+        this.next();
+      }
+      value += this.code[this.i];
+      const trimmed = value.trim();
+      this.setToken(TokenType.Identifier, trimmed ? value : true);
+      return this.token;
+    } finally {
+      this.next();
+      this.handledTokens.push(this.token);
+      if(__IS_COMPILER__) {
+        this.needLoc = false;
+      }
     }
-    value = value.trim();
-    this.setToken(TokenType.Identifier, value || true);
-    return this.token;
   }
 
   /**
@@ -276,17 +345,36 @@ export class Tokenizer {
    * @returns {boolean} 是否含有 key
    */
   public jsExp() {
+    if(__IS_COMPILER__) {
+      this.preCol = this.column;
+      this.preI = this.i;
+      this.needLoc = true;
+    }
+
     this.token = null;
     let value = '';
-    while (1) {
+
+    try {
       const char = this.code[this.i];
       if (char === ';' || char === '\n') {
-        this.setToken(TokenType.Identifier, value.trim());
+        this.setToken(TokenType.Identifier, value);
         return this.token;
-      } else {
-        value += char;
       }
-      this.i++;
+      let nextC = this.code[this.i + 1];
+      while (nextC !== ';' && nextC !== '\n') {
+        value += this.code[this.i];
+        this.next();
+        nextC = this.code[this.i + 1];
+      }
+      value += this.code[this.i];
+      this.setToken(TokenType.Identifier, value);
+      return this.token;
+    } finally {
+      this.next();
+      this.handledTokens.push(this.token);
+      if(__IS_COMPILER__) {
+        this.needLoc = false;
+      }
     }
   }
 
@@ -304,20 +392,20 @@ export class Tokenizer {
   private pipe() {
     this.setToken(TokenType.Pipe, '|');
   }
-  private dynamic(char: string) {
+  private staticIns() {
     let nextC = this.code[this.i + 1];
     // 不是动态插值
     if (nextC !== '{') {
       return false;
     }
-    this.i++;
-    let value = '${';
+    this.next();
+    let value = '';
     let innerBrace = 0;
     while (1) {
       nextC = this.code[this.i + 1];
       value += nextC;
       // 下一个属于本标识符再前进
-      this.i++;
+      this.next();
       if (nextC === '{') {
         innerBrace++;
       }
@@ -330,7 +418,7 @@ export class Tokenizer {
         innerBrace--;
       }
     }
-    this.setToken(TokenType.Identifier, value);
+    this.setToken(TokenType.StaticInsExp, value.slice(0,-1));
     return true;
   }
 
@@ -350,7 +438,7 @@ export class Tokenizer {
       } else if (inComment === 'multi' && char === '*' && nextChar === '/') {
         inComment = null;
         value += this.code[this.i];
-        this.i++;
+        this.next();
       }
       // 2. 如果不在注释中，处理字符串状态
       else if (inString) {
@@ -364,11 +452,11 @@ export class Tokenizer {
         if (char === '/' && nextChar === '/') {
           inComment = 'single';
           value += this.code[this.i]; // 跳过 / 号
-          this.i++;
+          this.next();
         } else if (char === '/' && nextChar === '*') {
           inComment = 'multi';
           value += this.code[this.i]; // 跳过 / 号
-          this.i++;
+          this.next();
         } else if (char === "'" || char === '"' || char === '`') {
           inString = char;
         }
@@ -384,7 +472,7 @@ export class Tokenizer {
         return value.slice(1);
       }
       value += this.code[this.i];
-      this.i++;
+      this.next();
     }
   }
 
@@ -398,7 +486,7 @@ export class Tokenizer {
       }
       value += nextC;
       // 下一个属于本标识符再前进
-      this.i++;
+      this.next();
     }
     // Program 希望第一个 token 一定是 node 节点
     if (this.isFirstToken) {
@@ -438,7 +526,7 @@ export class Tokenizer {
         break;
       }
       value += nextC;
-      this.i++;
+      this.next();
     }
     return {
       value,
@@ -490,7 +578,9 @@ export class Tokenizer {
           this.waitingTokens.push({
             type: TokenType.Dedent,
             typeName: TokenType[TokenType.Dedent],
-            value: String(expLen)
+            value: String(expLen),
+            // TODO: 暂时不做缩进位置
+            loc: null
           });
         }
       }
@@ -515,13 +605,17 @@ export class Tokenizer {
           this.waitingTokens.push({
             type: TokenType.Dedent,
             typeName: TokenType[TokenType.Dedent],
-            value: ''
+            value: '',
+            // TODO: 暂时不做缩进位置
+            loc: null
           });
         } else {
           this.waitingTokens.push({
             type: TokenType.Identifier,
             typeName: TokenType[TokenType.Identifier],
-            value: Tokenizer.EofId
+            value: Tokenizer.EofId,
+            // TODO: 暂时不做缩进位置
+            loc: null
           });
         }
       }
@@ -538,7 +632,7 @@ export class Tokenizer {
         break;
       }
       value += nextC;
-      this.i++;
+      this.next();
     }
     if (value === Tokenizer.EofId && this.useDedentAsEof) {
       this.setToken(TokenType.Dedent, '');
@@ -569,7 +663,7 @@ export class Tokenizer {
       } else {
         continuousBackslashCount = 0;
       }
-      this.i++;
+      this.next();
       /**
        * 引号前 \ 为双数时，全都是字符 \
        *  */
@@ -589,7 +683,7 @@ export class Tokenizer {
         break;
       }
       value += nextC;
-      this.i++;
+      this.next();
     }
     this.setToken(TokenType.Identifier, Number(value));
   }
@@ -603,11 +697,16 @@ export class Tokenizer {
   _hook = (props: Partial<HookProps>): [HookType | undefined, any, hookI?: any] => {
     const value = this.token.value;
     const isDynamicHook = this.token.type & TokenType.InsertionExp;
-    const isStaticHook = typeof value === 'string' && value.indexOf(this.HookId) === 0;
+    let isStaticHook: boolean;
+    if (__IS_COMPILER__) {
+      isStaticHook = Boolean(this.token.type & TokenType.StaticInsExp);
+    } else {
+      isStaticHook = typeof value === 'string' && value.indexOf(this.HookId) === 0;
+    }
     const hookType: HookType = isDynamicHook ? 'dynamic' : isStaticHook ? 'static' : undefined;
     // 静态插值 `${xxx}`
     if (this.hook && isStaticHook) {
-      const hookI = Number(value.slice(this.HookId.length));
+      const hookI = Number((value as any as string).slice(this.HookId.length));
       const res = this.hook({
         ...props,
         HookId: this.HookId,
