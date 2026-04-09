@@ -17,7 +17,7 @@ import { TokenType, FakeType, SourceLocation } from './type';
 export class Compiler {
   constructor(
     public tokenizer: Tokenizer,
-    public hooks: ParseHooks =  {}
+    public hooks: ParseHooks = {}
   ) {}
 
   /**
@@ -147,8 +147,8 @@ export class Compiler {
     const keyword = this.tokenizer.token.value as string;
 
     // 获取条件表达式
-    const conditionToken = this.tokenizer.condExp();
-    const condition = conditionToken.value as string;
+    this.tokenizer.condExp();
+    const condition = this.parsePropertyValue();
     this.tokenizer.nextToken(); // 跳过 cond
     this.tokenizer.nextToken(); // 跳过 \n
     node.type = keyword === 'if' ? NodeType.If : keyword === 'else' ? NodeType.Else : NodeType.Fail;
@@ -170,26 +170,38 @@ export class Compiler {
   parseLoopNode(node?: LoopNode) {
     // 跳过 'for' 关键字
     // 解析循环表达式
-    const collection = this.tokenizer.nextToken().value as string;
+    this.tokenizer.nextToken();
+    const collection = this.parsePropertyValue();
+
     this.tokenizer.nextToken(); // 跳过分号
     const itemToken = this.tokenizer.nextToken(); // item 表达式
     const isDestruct = itemToken.type === TokenType.InsertionExp;
-    let item = isDestruct ? `{${itemToken.value}}` : (itemToken.value as string);
+    if (isDestruct) {
+      itemToken.value = '{' + itemToken.value + '}';
+    }
+    const item = this.parsePropertyValue();
 
     let char = this.tokenizer.peekChar(),
-      key,
-      index: string | undefined;
+      key: PropertyValue | undefined,
+      index: PropertyValue | undefined;
     if (char === ';') {
       this.tokenizer.nextToken(); // 分号
-      if (this.tokenizer.peekChar() !== '\n') key = this.tokenizer.jsExp().value as string;
+      if (this.tokenizer.peekChar() !== '\n') {
+        this.tokenizer.jsExp();
+        key = this.parsePropertyValue();
+      }
     } else if (char === '\n') {
     }
     // 下一个是 indexName
     else {
-      index = this.tokenizer.nextToken().value as string;
+      this.tokenizer.nextToken();
+      index = this.parsePropertyValue();
       if (this.tokenizer.peekChar() === ';') {
         this.tokenizer.nextToken(); // 分号
-        if (this.tokenizer.peekChar() !== '\n') key = this.tokenizer.jsExp().value as string;
+        if (this.tokenizer.peekChar() !== '\n') {
+          this.tokenizer.jsExp();
+          key = this.parsePropertyValue();
+        }
       }
     }
     // 跳过最后一个表达式

@@ -102,7 +102,7 @@ interface DynamicValue extends BaseNode {
 // 条件节点（复用NodeType.If）
 interface ConditionalNode extends BaseNode {
   type: NodeType.If | NodeType.Else | NodeType.Fail;
-  condition: string;
+  condition: PropertyValue;
   consequent: TemplateNode[];
   children?: TemplateNode[];
 }
@@ -110,10 +110,10 @@ interface ConditionalNode extends BaseNode {
 // 循环节点（复用NodeType.For）
 interface LoopNode extends BaseNode {
   type: NodeType.For;
-  collection: string; // 被迭代的集合
-  item: string; // 项变量名
-  index?: string; // 索引变量名
-  key?: string; // 键名
+  collection: PropertyValue; // 被迭代的集合
+  item: PropertyValue; // 项变量名
+  index?: PropertyValue; // 索引变量名
+  key?: PropertyValue; // 键名
   children: TemplateNode[]; // 循环体
 }
 
