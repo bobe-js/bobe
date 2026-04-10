@@ -120,7 +120,7 @@ interface LoopNode extends BaseNode {
 // 组件节点（复用NodeType.Component）
 interface ComponentNode extends BaseNode {
   type: NodeType.Component;
-  componentName: string; // 组件名称
+  componentName: PropertyValue; // 组件名称
   props: Property[]; // 组件属性
   children?: TemplateNode[]; // 组件插槽内容
 }

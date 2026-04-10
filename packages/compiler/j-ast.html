@@ -60,6 +60,7 @@
   });
   window.compiler = compiler;
   const program = compiler.parseProgram();
+  window.program = program;
 
   function log () {
     $('#output').text(JSON.stringify(program, undefined, 2));

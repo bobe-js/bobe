@@ -12,7 +12,7 @@ import {
   BaseNode,
   ComponentNode
 } from './type-ast';
-import { TokenType, FakeType, SourceLocation } from './type';
+import { TokenType } from './type';
 
 export class Compiler {
   constructor(
@@ -95,15 +95,13 @@ export class Compiler {
   @NodeHook
   @NodeLoc
   parseComponentNode(node?: ComponentNode) {
-    const tagToken = this.tokenizer.token;
-    // 获取标签名
-    const tagName = tagToken.value as string;
+    const name = this.parseName();
     this.tokenizer.nextToken(); // 跳过标签名
 
     // 解析属性
     const props: Property[] = this.headerLineAndExtensions();
     node.type = NodeType.Component;
-    node.componentName = tagName;
+    node.componentName = name;
     node.props = props;
     this.hooks.parseComponentNode?.propsAdded?.call(this, node);
 
@@ -304,6 +302,17 @@ export class Compiler {
   @NodeHook
   @TokenLoc
   parsePropertyValue(node?: PropertyValue) {
+    const [hookType, value] = this.tokenizer._hook({});
+    node.type = hookType === 'dynamic' ? NodeType.DynamicValue : NodeType.StaticValue;
+    node.value = value;
+    return node;
+  }
+  /**
+   * 根据值类型创建名称
+   */
+  @NodeHook
+  @TokenLoc
+  parseName(node?: PropertyValue) {
     const [hookType, value] = this.tokenizer._hook({});
     node.type = hookType === 'dynamic' ? NodeType.DynamicValue : NodeType.StaticValue;
     node.value = value;

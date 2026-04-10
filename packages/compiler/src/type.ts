@@ -66,7 +66,7 @@ export type BaseType = string | number | boolean | undefined | null;
 export const InsComputed = Symbol('insertion-computed-map-key');
 export const IsAnchor = Symbol('is-anchor');
 
-export interface SourceLocation {
+export type SourceLocation = {
   start: Position;
   end: Position;
   source: string;
