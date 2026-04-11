@@ -106,6 +106,39 @@ export type Hook = (props: HookProps) => any;
 
 export type HookType = 'dynamic' | 'static';
 
+export type ParseErrorCode =
+  | 'UNCLOSED_BRACE'
+  | 'UNCLOSED_STRING'
+  | 'UNCLOSED_STATIC_INS'
+  | 'INCONSISTENT_INDENT'
+  | 'INDENT_MISMATCH'
+  | 'MISSING_ASSIGN'
+  | 'INVALID_TAG_NAME'
+  | 'ELSE_WITHOUT_IF'
+  | 'EMPTY_IF_BODY'
+  | 'EMPTY_FOR_BODY'
+  | 'MISSING_FOR_COLLECTION'
+  | 'MISSING_FOR_SEMICOLON'
+  | 'MISSING_FOR_ITEM'
+  | 'PIPE_IN_WRONG_CONTEXT';
+
+export type ParseError = {
+  code: ParseErrorCode;
+  message: string;
+  loc: SourceLocation;
+};
+
+/** tokenizer 抛出的带位置信息的语法错误 */
+export class ParseSyntaxError extends SyntaxError {
+  code: ParseErrorCode;
+  loc: SourceLocation;
+  constructor(code: ParseErrorCode, message: string, loc: SourceLocation) {
+    super(message);
+    this.code = code;
+    this.loc = loc;
+  }
+}
+
 export type ProgramCtx = {
   stack: MultiTypeStack<any>;
   prevSibling: any;

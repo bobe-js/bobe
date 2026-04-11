@@ -1,5 +1,5 @@
 import { isNum, matchIdStart, matchIdStart2, Queue } from 'bobe-shared';
-import { BaseType, Hook, HookProps, HookType, Position, Token, TokenType } from './type';
+import { BaseType, Hook, HookProps, HookType, ParseErrorCode, ParseSyntaxError, Position, SourceLocation, Token, TokenType } from './type';
 
 export class Tokenizer {
   /** 缩进大小 默认 2 */
@@ -74,6 +74,20 @@ export class Tokenizer {
       line: this.line,
       column: this.column
     };
+  }
+
+  /** 构造从当前扫描起始位置到模板结尾的 SourceLocation，用于未闭合错误 */
+  private unclosedLoc(startOffset: number, startLine: number, startCol: number): SourceLocation {
+    const end = this.code.length - 1; // 去掉末尾 EofId 前的位置
+    return {
+      start: { offset: startOffset, line: startLine, column: startCol },
+      end: { offset: end, line: this.line, column: this.column },
+      source: this.code.slice(startOffset, end)
+    };
+  }
+
+  private throwUnclosed(code: ParseErrorCode, message: string, startOffset: number, startLine: number, startCol: number): never {
+    throw new ParseSyntaxError(code, message, this.unclosedLoc(startOffset, startLine, startCol));
   }
 
   // /** 恢复至某一个现场，进行 token 重算 */
@@ -299,8 +313,7 @@ export class Tokenizer {
       }
       return this.token;
     } catch (error) {
-      console.error(error);
-      return this.token;
+      throw error;
     } finally {
       this.handledTokens.push(this.token);
     }
@@ -393,6 +406,7 @@ export class Tokenizer {
     this.setToken(TokenType.Pipe, '|');
   }
   private staticIns() {
+    const startOffset = this.preI, startLine = this.line, startCol = this.preCol;
     let nextC = this.code[this.i + 1];
     // 不是动态插值
     if (nextC !== '{') {
@@ -403,6 +417,9 @@ export class Tokenizer {
     let innerBrace = 0;
     while (1) {
       nextC = this.code[this.i + 1];
+      if (nextC === undefined) {
+        this.throwUnclosed('UNCLOSED_STATIC_INS', '未闭合的 "${...}"', startOffset, startLine, startCol);
+      }
       value += nextC;
       // 下一个属于本标识符再前进
       this.next();
@@ -423,6 +440,7 @@ export class Tokenizer {
   }
 
   private brace() {
+    const startOffset = this.preI, startLine = this.line, startCol = this.preCol;
     let inComment: string,
       inString: string,
       count = 0,
@@ -430,9 +448,10 @@ export class Tokenizer {
       backslashCount = 0; // 用于记录连续的反斜杠数量
     while (1) {
       const char = this.code[this.i];
+      if (char === undefined) {
+        this.throwUnclosed('UNCLOSED_BRACE', '未闭合的 "{"', startOffset, startLine, startCol);
+      }
       const nextChar = this.code[this.i + 1];
-
-      // 1. 处理注释状态退出
       if (inComment === 'single' && char === '\n') {
         inComment = null;
       } else if (inComment === 'multi' && char === '*' && nextChar === '/') {
@@ -652,11 +671,15 @@ export class Tokenizer {
     this.setToken(TokenType.Identifier, realValue);
   }
   private str(char: string) {
+    const startOffset = this.preI, startLine = this.line, startCol = this.preCol;
     let value = '';
     let nextC;
     let continuousBackslashCount = 0;
     while (1) {
       nextC = this.code[this.i + 1];
+      if (nextC === undefined) {
+        this.throwUnclosed('UNCLOSED_STRING', '未闭合的字符串字面量', startOffset, startLine, startCol);
+      }
       const memoCount = continuousBackslashCount;
       if (nextC === '\\') {
         continuousBackslashCount++;
