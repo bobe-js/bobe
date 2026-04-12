@@ -106,22 +106,22 @@ export type Hook = (props: HookProps) => any;
 
 export type HookType = 'dynamic' | 'static';
 
-export type ParseErrorCode =
-  | 'UNCLOSED_BRACE'
-  | 'UNCLOSED_STRING'
-  | 'UNCLOSED_STATIC_INS'
-  | 'INCONSISTENT_INDENT'
-  | 'INDENT_MISMATCH'
-  | 'MISSING_ASSIGN'
-  | 'INVALID_TAG_NAME'
-  | 'ELSE_WITHOUT_IF'
-  | 'EMPTY_IF_BODY'
-  | 'EMPTY_FOR_BODY'
-  | 'MISSING_FOR_COLLECTION'
-  | 'MISSING_FOR_SEMICOLON'
-  | 'MISSING_FOR_ITEM'
-  | 'PIPE_IN_WRONG_CONTEXT';
-
+export enum ParseErrorCode {
+  UNCLOSED_BRACE = 9001,
+  UNCLOSED_STRING,
+  UNCLOSED_STATIC_INS,
+  INCONSISTENT_INDENT,
+  INDENT_MISMATCH,
+  MISSING_ASSIGN,
+  INVALID_TAG_NAME,
+  ELSE_WITHOUT_IF,
+  EMPTY_IF_BODY,
+  EMPTY_FOR_BODY,
+  MISSING_FOR_COLLECTION,
+  MISSING_FOR_SEMICOLON,
+  MISSING_FOR_ITEM,
+  PIPE_IN_WRONG_CONTEXT,
+}
 export type ParseError = {
   code: ParseErrorCode;
   message: string;

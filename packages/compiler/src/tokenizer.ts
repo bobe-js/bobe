@@ -1,5 +1,16 @@
 import { isNum, matchIdStart, matchIdStart2, Queue } from 'bobe-shared';
-import { BaseType, Hook, HookProps, HookType, ParseErrorCode, ParseSyntaxError, Position, SourceLocation, Token, TokenType } from './type';
+import {
+  BaseType,
+  Hook,
+  HookProps,
+  HookType,
+  ParseErrorCode,
+  ParseSyntaxError,
+  Position,
+  SourceLocation,
+  Token,
+  TokenType
+} from './type';
 
 export class Tokenizer {
   /** 缩进大小 默认 2 */
@@ -86,7 +97,13 @@ export class Tokenizer {
     };
   }
 
-  private throwUnclosed(code: ParseErrorCode, message: string, startOffset: number, startLine: number, startCol: number): never {
+  private throwUnclosed(
+    code: ParseErrorCode,
+    message: string,
+    startOffset: number,
+    startLine: number,
+    startCol: number
+  ): never {
     throw new ParseSyntaxError(code, message, this.unclosedLoc(startOffset, startLine, startCol));
   }
 
@@ -155,7 +172,7 @@ export class Tokenizer {
 
           // 大于
           if (currLen > expLen) {
-            throw SyntaxError(`缩进错误，缩进长度不匹配`);
+            throw new ParseSyntaxError(ParseErrorCode.INCONSISTENT_INDENT, '缩进大小不统一', this.emptyLoc());
           }
 
           //  小于 expLen 检查是否是基础缩进
@@ -210,22 +227,23 @@ export class Tokenizer {
       type,
       typeName: TokenType[type],
       value,
-      loc: __IS_COMPILER__ && this.needLoc
-        ? {
-            start: {
-              offset: this.preI,
-              line: this.line,
-              column: this.preCol
-            },
-            end: {
-              offset: this.i + 1,
-              line: this.line,
-              column: this.column + 1
-            },
-            // TODO: 文件名
-            source: this.code.slice(this.preI, this.i + 1)
-          }
-        : null
+      loc:
+        __IS_COMPILER__ && this.needLoc
+          ? {
+              start: {
+                offset: this.preI,
+                line: this.line,
+                column: this.preCol
+              },
+              end: {
+                offset: this.i + 1,
+                line: this.line,
+                column: this.column + 1
+              },
+              // TODO: 文件名
+              source: this.code.slice(this.preI, this.i + 1)
+            }
+          : null
     };
     this.isFirstToken = false;
   }
@@ -270,7 +288,7 @@ export class Tokenizer {
               break;
             /*----------------- 需要 loc 的 token -----------------*/
             default:
-              if(__IS_COMPILER__) {
+              if (__IS_COMPILER__) {
                 this.preI = this.i;
                 this.preCol = this.column;
                 this.needLoc = true;
@@ -297,7 +315,7 @@ export class Tokenizer {
                   }
                   break;
               }
-              if(__IS_COMPILER__) {
+              if (__IS_COMPILER__) {
                 this.needLoc = false;
               }
               break;
@@ -320,7 +338,7 @@ export class Tokenizer {
   }
 
   condExp() {
-    if(__IS_COMPILER__) {
+    if (__IS_COMPILER__) {
       this.preCol = this.column;
       this.preI = this.i;
       this.needLoc = true;
@@ -344,7 +362,7 @@ export class Tokenizer {
     } finally {
       this.next();
       this.handledTokens.push(this.token);
-      if(__IS_COMPILER__) {
+      if (__IS_COMPILER__) {
         this.needLoc = false;
       }
     }
@@ -358,7 +376,7 @@ export class Tokenizer {
    * @returns {boolean} 是否含有 key
    */
   public jsExp() {
-    if(__IS_COMPILER__) {
+    if (__IS_COMPILER__) {
       this.preCol = this.column;
       this.preI = this.i;
       this.needLoc = true;
@@ -385,7 +403,7 @@ export class Tokenizer {
     } finally {
       this.next();
       this.handledTokens.push(this.token);
-      if(__IS_COMPILER__) {
+      if (__IS_COMPILER__) {
         this.needLoc = false;
       }
     }
@@ -406,7 +424,9 @@ export class Tokenizer {
     this.setToken(TokenType.Pipe, '|');
   }
   private staticIns() {
-    const startOffset = this.preI, startLine = this.line, startCol = this.preCol;
+    const startOffset = this.preI,
+      startLine = this.line,
+      startCol = this.preCol;
     let nextC = this.code[this.i + 1];
     // 不是动态插值
     if (nextC !== '{') {
@@ -418,7 +438,7 @@ export class Tokenizer {
     while (1) {
       nextC = this.code[this.i + 1];
       if (nextC === undefined) {
-        this.throwUnclosed('UNCLOSED_STATIC_INS', '未闭合的 "${...}"', startOffset, startLine, startCol);
+        this.throwUnclosed(ParseErrorCode.UNCLOSED_STATIC_INS, '未闭合的 "${...}"', startOffset, startLine, startCol);
       }
       value += nextC;
       // 下一个属于本标识符再前进
@@ -435,12 +455,14 @@ export class Tokenizer {
         innerBrace--;
       }
     }
-    this.setToken(TokenType.StaticInsExp, value.slice(0,-1));
+    this.setToken(TokenType.StaticInsExp, value.slice(0, -1));
     return true;
   }
 
   private brace() {
-    const startOffset = this.preI, startLine = this.line, startCol = this.preCol;
+    const startOffset = this.preI,
+      startLine = this.line,
+      startCol = this.preCol;
     let inComment: string,
       inString: string,
       count = 0,
@@ -449,7 +471,7 @@ export class Tokenizer {
     while (1) {
       const char = this.code[this.i];
       if (char === undefined) {
-        this.throwUnclosed('UNCLOSED_BRACE', '未闭合的 "{"', startOffset, startLine, startCol);
+        this.throwUnclosed(ParseErrorCode.UNCLOSED_BRACE, '未闭合的 "{"', startOffset, startLine, startCol);
       }
       const nextChar = this.code[this.i + 1];
       if (inComment === 'single' && char === '\n') {
@@ -552,6 +574,11 @@ export class Tokenizer {
       isEmptyLine
     };
   }
+
+  emptyLoc(): SourceLocation {
+    const pos = this.getCurrentPos();
+    return { start: pos, end: { offset: pos.offset + 1, line: pos.line, column: pos.column + 1 }, source: ' ' };
+  }
   private dent() {
     const { value, isEmptyLine } = this.getDentValue();
     if (isEmptyLine) {
@@ -582,7 +609,7 @@ export class Tokenizer {
         if (currLen === expLen) break;
         // 夹在两者说明缩进大小有问题
         if (currLen > expLen) {
-          throw SyntaxError('缩进大小不统一');
+          throw new ParseSyntaxError(ParseErrorCode.INCONSISTENT_INDENT, '缩进大小不统一', this.emptyLoc());
         }
         //  小于 expLen 检查是否是基础缩进
         if (this.shorterThanBaseDentEof()) {
@@ -671,14 +698,16 @@ export class Tokenizer {
     this.setToken(TokenType.Identifier, realValue);
   }
   private str(char: string) {
-    const startOffset = this.preI, startLine = this.line, startCol = this.preCol;
+    const startOffset = this.preI,
+      startLine = this.line,
+      startCol = this.preCol;
     let value = '';
     let nextC;
     let continuousBackslashCount = 0;
     while (1) {
       nextC = this.code[this.i + 1];
       if (nextC === undefined) {
-        this.throwUnclosed('UNCLOSED_STRING', '未闭合的字符串字面量', startOffset, startLine, startCol);
+        this.throwUnclosed(ParseErrorCode.UNCLOSED_STRING, '未闭合的字符串字面量', startOffset, startLine, startCol);
       }
       const memoCount = continuousBackslashCount;
       if (nextC === '\\') {

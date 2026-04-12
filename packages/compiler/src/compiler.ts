@@ -26,11 +26,6 @@ export class Compiler {
     this.errors.push({ code, message, loc });
   }
 
-  private emptyLoc(): SourceLocation {
-    const pos = this.tokenizer.getCurrentPos();
-    return { start: pos, end: { offset: pos.offset + 1, line: pos.line, column: pos.column + 1 }, source: ' ' };
-  }
-
   /**
    * 编译程序入口，生成AST
    */
@@ -50,13 +45,8 @@ export class Compiler {
     } catch (error) {
       if (error instanceof ParseSyntaxError) {
         this.addError(error.code, error.message, error.loc);
-      } else if (error instanceof SyntaxError) {
-        // 缩进错误等没有位置信息的情况
-        const knownCodes: ParseErrorCode[] = ['INCONSISTENT_INDENT', 'INDENT_MISMATCH'];
-        const code: ParseErrorCode = knownCodes.includes(error.message as ParseErrorCode)
-          ? (error.message as ParseErrorCode)
-          : 'INCONSISTENT_INDENT';
-        this.addError(code, error.message, this.emptyLoc());
+      } else {
+        this.addError(error.toString() as any, '未知错误', this.tokenizer.emptyLoc());
       }
     }
 
@@ -96,20 +86,29 @@ export class Compiler {
 
     // Pipe 出现在非属性扩展行上下文中
     if (token.type & TokenType.Pipe) {
-      this.addError('PIPE_IN_WRONG_CONTEXT', '"|" 只能出现在元素属性扩展行中', token.loc ?? this.emptyLoc());
+      this.addError(
+        ParseErrorCode.PIPE_IN_WRONG_CONTEXT,
+        '"|" 只能出现在元素属性扩展行中',
+        token.loc ?? this.tokenizer.emptyLoc()
+      );
       this.tokenizer.nextToken(); // 跳过 |
       return null;
     }
 
     const [hookType, value] = this.tokenizer._hook({});
 
+    const isElseOrFail = value === 'else' || value === 'fail';
     // 检查是否为特殊关键字
-    if (value === 'if' || value === 'else' || value === 'fail') {
-      if (value === 'else' || value === 'fail') {
+    if (value === 'if' || isElseOrFail) {
+      if (isElseOrFail) {
         const lastSibling = siblings[siblings.length - 1];
         const lastType = lastSibling?.type;
         if (lastType !== NodeType.If && lastType !== NodeType.Else && lastType !== NodeType.Fail) {
-          this.addError('ELSE_WITHOUT_IF', `"${value}" 前必须有 "if" 或 "else" 节点`, token.loc ?? this.emptyLoc());
+          this.addError(
+            ParseErrorCode.ELSE_WITHOUT_IF,
+            `"${value}" 前必须有 "if" 或 "else" 节点`,
+            token.loc ?? this.tokenizer.emptyLoc()
+          );
         }
       }
       return this.parseConditionalNode();
@@ -156,9 +155,9 @@ export class Compiler {
     // 验证标签名
     if (!(tagToken.type & TokenType.Identifier)) {
       this.addError(
-        'INVALID_TAG_NAME',
+        ParseErrorCode.INVALID_TAG_NAME,
         `无效的标签名，期望标识符但得到 "${tagToken.value}"`,
-        tagToken.loc ?? this.emptyLoc()
+        tagToken.loc ?? this.tokenizer.emptyLoc()
       );
       // 跳到下一个 NewLine 恢复
       while (!(this.tokenizer.token.type & TokenType.NewLine) && !this.tokenizer.isEof()) {
@@ -218,21 +217,21 @@ export class Compiler {
   @NodeHook
   @NodeLoc
   parseLoopNode(node?: LoopNode) {
-    const forLoc = this.tokenizer.token.loc ?? this.emptyLoc();
+    const forLoc = this.tokenizer.token.loc ?? this.tokenizer.emptyLoc();
     // 跳过 'for' 关键字，解析循环表达式
     this.tokenizer.nextToken();
     const collection = this.parsePropertyValue();
 
     if (!collection.value && collection.value !== 0) {
-      this.addError('MISSING_FOR_COLLECTION', '"for" 缺少集合表达式', forLoc);
+      this.addError(ParseErrorCode.MISSING_FOR_COLLECTION, '"for" 缺少集合表达式', forLoc);
     }
 
     const semicolonToken = this.tokenizer.nextToken(); // 期望分号
     if (!(semicolonToken.type & TokenType.Semicolon)) {
       this.addError(
-        'MISSING_FOR_SEMICOLON',
+        ParseErrorCode.MISSING_FOR_SEMICOLON,
         '"for" 语法：for <集合>; <item> [index][; key]，缺少第一个 ";"',
-        semicolonToken.loc ?? this.emptyLoc()
+        semicolonToken.loc ?? this.tokenizer.emptyLoc()
       );
     }
 
@@ -244,7 +243,11 @@ export class Compiler {
     const item = this.parsePropertyValue();
 
     if (!item.value && item.value !== 0) {
-      this.addError('MISSING_FOR_ITEM', '"for" 缺少 item 变量名', itemToken.loc ?? this.emptyLoc());
+      this.addError(
+        ParseErrorCode.MISSING_FOR_ITEM,
+        '"for" 缺少 item 变量名',
+        itemToken.loc ?? this.tokenizer.emptyLoc()
+      );
     }
 
     let char = this.tokenizer.peekChar(),
@@ -350,7 +353,11 @@ export class Compiler {
       node.value = this.parsePropertyValue();
       this.tokenizer.nextToken();
     } else {
-      this.addError('MISSING_ASSIGN', `属性 "${node.key.key}" 缺少 "=" 赋值符号`, node.key.loc ?? this.emptyLoc());
+      this.addError(
+        ParseErrorCode.MISSING_ASSIGN,
+        `属性 "${node.key.key}" 缺少 "=" 赋值符号`,
+        node.key.loc ?? this.tokenizer.emptyLoc()
+      );
     }
     node.loc.start = node.key.loc.start;
     node.loc.end = node.value ? node.value.loc.end : node.key.loc.end;
