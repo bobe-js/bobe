@@ -685,17 +685,31 @@ export class Tokenizer {
       return;
     }
 
-    let realValue =
-      value === 'null'
-        ? null
-        : value === 'undefined'
-          ? undefined
-          : value === 'false'
-            ? false
-            : value === 'true'
-              ? true
-              : value;
-    this.setToken(TokenType.Identifier, realValue);
+    let realValue: any, tokenType: TokenType;
+
+    switch (value) {
+      case 'null':
+        realValue = null;
+        tokenType = TokenType.Null;
+        break;
+      case 'undefined':
+        realValue = undefined;
+        tokenType = TokenType.Undefined;
+        break;
+      case 'false':
+        realValue = false;
+        tokenType = TokenType.Boolean;
+        break;
+      case 'true':
+        realValue = true;
+        tokenType = TokenType.Boolean;
+        break;
+      default:
+        realValue = value;
+        tokenType = TokenType.Identifier;
+        break;
+    }
+    this.setToken(tokenType, realValue);
   }
   private str(char: string) {
     const startOffset = this.preI,
@@ -724,7 +738,7 @@ export class Tokenizer {
       }
       value += nextC;
     }
-    this.setToken(TokenType.Identifier, value);
+    this.setToken(TokenType.String, value);
   }
   private number(char: string) {
     let value = char;
@@ -737,7 +751,7 @@ export class Tokenizer {
       value += nextC;
       this.next();
     }
-    this.setToken(TokenType.Identifier, Number(value));
+    this.setToken(TokenType.Number, Number(value));
   }
   private eof() {
     this.setToken(TokenType.Eof, 'End Of File');

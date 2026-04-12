@@ -14,8 +14,17 @@ export enum TokenType {
   InsertionExp = 0b0000_0000_0000_0000_0000_0000_1000_0000,
   Semicolon = 0b0000_0000_0000_0000_0000_0001_0000_0000,
   /** 仅编译时可解析 */
-  StaticInsExp = 0b0000_0000_0000_0000_0000_0010_0000_0000
+  StaticInsExp = 0b0000_0000_0000_0000_0000_0010_0000_0000,
+  String = 0b0000_0000_0000_0000_0000_0100_0000_0000,
+  Number = 0b0000_0000_0000_0000_0000_1000_0000_0000,
+  Boolean = 0b0000_0000_0000_0000_0001_0000_0000_0000,
+  Null = 0b0000_0000_0000_0000_0010_0000_0000_0000,
+  Undefined = 0b0000_0000_0000_0000_0100_0000_0000_0000
 }
+
+export const BaseTokenType =
+  TokenType.String | TokenType.Number | TokenType.Boolean | TokenType.Null | TokenType.Undefined;
+export const ValueTokenType = BaseTokenType | TokenType.InsertionExp | TokenType.StaticInsExp;
 
 export enum FakeType {
   If = 0b0000_0000_0000_0000_0000_0000_0000_0001,
@@ -70,7 +79,7 @@ export type SourceLocation = {
   start: Position;
   end: Position;
   source: string;
-}
+};
 
 export interface Position {
   line: number;
@@ -114,13 +123,15 @@ export enum ParseErrorCode {
   INDENT_MISMATCH,
   MISSING_ASSIGN,
   INVALID_TAG_NAME,
+  INVALID_PROP_KEY,
   ELSE_WITHOUT_IF,
   EMPTY_IF_BODY,
   EMPTY_FOR_BODY,
   MISSING_FOR_COLLECTION,
   MISSING_FOR_SEMICOLON,
   MISSING_FOR_ITEM,
-  PIPE_IN_WRONG_CONTEXT,
+  MISSING_PROP_ASSIGNMENT,
+  PIPE_IN_WRONG_CONTEXT
 }
 export type ParseError = {
   code: ParseErrorCode;
@@ -176,7 +187,7 @@ export type ForNode = Omit<LogicNode, 'data'> & {
   indexName?: string;
   getKey?: (data: any) => any;
   arr: any[];
-  arrSignal: Signal<any[]>|Computed<any[]>;
+  arrSignal: Signal<any[]> | Computed<any[]>;
   effect: Effect;
   i: number;
   owner: ComponentNode | FragmentNode;
@@ -206,5 +217,4 @@ export type FragmentNode = LogicNode & {
 export type ComponentNode = LogicNode & {
   tokenizer: Tokenizer;
 };
-export type RootNode = LogicNode & {
-};
+export type RootNode = LogicNode & {};

@@ -12,7 +12,15 @@ import {
   BaseNode,
   ComponentNode
 } from './type-ast';
-import { TokenType, ParseError, ParseErrorCode, ParseSyntaxError, SourceLocation } from './type';
+import {
+  TokenType,
+  ParseError,
+  ParseErrorCode,
+  ParseSyntaxError,
+  SourceLocation,
+  BaseTokenType,
+  ValueTokenType
+} from './type';
 
 export class Compiler {
   errors: ParseError[] = [];
@@ -22,7 +30,10 @@ export class Compiler {
     public hooks: ParseHooks = {}
   ) {}
 
-  private addError(code: ParseErrorCode, message: string, loc: SourceLocation) {
+  private addError(code: ParseErrorCode, message: string, loc: SourceLocation, node?: BaseNode) {
+    if(node) {
+      node.hasError = true;
+    }
     this.errors.push({ code, message, loc });
   }
 
@@ -157,7 +168,8 @@ export class Compiler {
       this.addError(
         ParseErrorCode.INVALID_TAG_NAME,
         `无效的标签名，期望标识符但得到 "${tagToken.value}"`,
-        tagToken.loc ?? this.tokenizer.emptyLoc()
+        tagToken.loc ?? this.tokenizer.emptyLoc(),
+        node
       );
       // 跳到下一个 NewLine 恢复
       while (!(this.tokenizer.token.type & TokenType.NewLine) && !this.tokenizer.isEof()) {
@@ -193,7 +205,7 @@ export class Compiler {
 
     // 获取条件表达式
     this.tokenizer.condExp();
-    const condition = this.parsePropertyValue();
+    const condition = this.parseJsExp();
     this.tokenizer.nextToken(); // 跳过 cond
     this.tokenizer.nextToken(); // 跳过 \n
     node.type = keyword === 'if' ? NodeType.If : keyword === 'else' ? NodeType.Else : NodeType.Fail;
@@ -220,10 +232,10 @@ export class Compiler {
     const forLoc = this.tokenizer.token.loc ?? this.tokenizer.emptyLoc();
     // 跳过 'for' 关键字，解析循环表达式
     this.tokenizer.nextToken();
-    const collection = this.parsePropertyValue();
+    const collection = this.parseJsExp();
 
     if (!collection.value && collection.value !== 0) {
-      this.addError(ParseErrorCode.MISSING_FOR_COLLECTION, '"for" 缺少集合表达式', forLoc);
+      this.addError(ParseErrorCode.MISSING_FOR_COLLECTION, '"for" 缺少集合表达式', forLoc, node);
     }
 
     const semicolonToken = this.tokenizer.nextToken(); // 期望分号
@@ -231,7 +243,8 @@ export class Compiler {
       this.addError(
         ParseErrorCode.MISSING_FOR_SEMICOLON,
         '"for" 语法：for <集合>; <item> [index][; key]，缺少第一个 ";"',
-        semicolonToken.loc ?? this.tokenizer.emptyLoc()
+        semicolonToken.loc ?? this.tokenizer.emptyLoc(),
+        node
       );
     }
 
@@ -240,13 +253,14 @@ export class Compiler {
     if (isDestruct) {
       itemToken.value = '{' + itemToken.value + '}';
     }
-    const item = this.parsePropertyValue();
+    const item = this.parseJsExp();
 
     if (!item.value && item.value !== 0) {
       this.addError(
         ParseErrorCode.MISSING_FOR_ITEM,
         '"for" 缺少 item 变量名',
-        itemToken.loc ?? this.tokenizer.emptyLoc()
+        itemToken.loc ?? this.tokenizer.emptyLoc(),
+        node
       );
     }
 
@@ -257,19 +271,19 @@ export class Compiler {
       this.tokenizer.nextToken(); // 分号
       if (this.tokenizer.peekChar() !== '\n') {
         this.tokenizer.jsExp();
-        key = this.parsePropertyValue();
+        key = this.parseJsExp();
       }
     } else if (char === '\n') {
     }
     // 下一个是 indexName
     else {
       this.tokenizer.nextToken();
-      index = this.parsePropertyValue();
+      index = this.parseJsExp();
       if (this.tokenizer.peekChar() === ';') {
         this.tokenizer.nextToken(); // 分号
         if (this.tokenizer.peekChar() !== '\n') {
           this.tokenizer.jsExp();
-          key = this.parsePropertyValue();
+          key = this.parseJsExp();
         }
       }
     }
@@ -335,7 +349,10 @@ export class Compiler {
       !(this.tokenizer.token.type & TokenType.Pipe) &&
       !this.tokenizer.isEof()
     ) {
-      props.push(this.parseProperty());
+      const prop = this.parseProperty();
+      if (prop) {
+        props.push(prop);
+      }
     }
 
     return props;
@@ -344,23 +361,51 @@ export class Compiler {
   @NodeHook
   parseProperty(node?: Property) {
     node.type = NodeType.Property;
+    if (this.tokenizer.token.type !== TokenType.Identifier) {
+      this.addError(
+        ParseErrorCode.INVALID_PROP_KEY,
+        `属性名 "${this.tokenizer.token.value}" 不合法`,
+        this.tokenizer.token.loc ?? this.tokenizer.emptyLoc(),
+        node
+      );
+      this.tokenizer.nextToken(); // 跳过key
+      return null;
+    }
+
     node.key = this.parsePropertyKey();
     const token = this.tokenizer.nextToken(); // 跳过key
-    // 需要赋值
-    if (token.value === '=') {
-      this.tokenizer.nextToken(); // 跳过等号
-
-      node.value = this.parsePropertyValue();
-      this.tokenizer.nextToken();
-    } else {
+    if (token.value !== '=') {
       this.addError(
         ParseErrorCode.MISSING_ASSIGN,
         `属性 "${node.key.key}" 缺少 "=" 赋值符号`,
-        node.key.loc ?? this.tokenizer.emptyLoc()
+        node.key.loc ?? this.tokenizer.emptyLoc(),
+        node
       );
+      node.loc.start = node.key.loc.start;
+      node.loc.end = node.key.loc.end;
+      node.loc.source = this.tokenizer.code.slice(node.loc.start.offset, node.loc.end.offset);
+      return node;
     }
+
+    const valueToken = this.tokenizer.nextToken(); // 跳过等号
+    if ((valueToken.type & ValueTokenType) === 0) {
+      this.addError(
+        ParseErrorCode.MISSING_PROP_ASSIGNMENT,
+        `属性值不合法, "${valueToken.value}" 不合法`,
+        valueToken.loc ?? this.tokenizer.emptyLoc(),
+        node
+      );
+      
+      node.loc.start = node.key.loc.start;
+      node.loc.end = node.key.loc.end;
+      node.loc.source = this.tokenizer.code.slice(node.loc.start.offset, node.loc.end.offset);
+      return node;
+    }
+
+    node.value = this.parsePropertyValue();
+    this.tokenizer.nextToken();
     node.loc.start = node.key.loc.start;
-    node.loc.end = node.value ? node.value.loc.end : node.key.loc.end;
+    node.loc.end = node.value.loc.end;
     node.loc.source = this.tokenizer.code.slice(node.loc.start.offset, node.loc.end.offset);
     return node;
   }
@@ -373,6 +418,17 @@ export class Compiler {
   parsePropertyKey(node?: PropertyKeyNode) {
     node.type = NodeType.PropertyKey;
     node.key = this.tokenizer.token.value as string;
+    return node;
+  }
+  /**
+   * 根据值类型创建属性值节点
+   */
+  @NodeHook
+  @TokenLoc
+  parseJsExp(node?: PropertyValue) {
+    const [hookType, value] = this.tokenizer._hook({});
+    node.type = hookType === 'dynamic' ? NodeType.DynamicValue : NodeType.StaticValue;
+    node.value = value;
     return node;
   }
   /**
