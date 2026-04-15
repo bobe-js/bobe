@@ -187,15 +187,27 @@ export const matchIdStart = (char: string) => {
 };
 
 // 提前创建一个长度为 128 的布尔映射数组
-const mask = new Uint8Array(128);
-[36, 47, 95].forEach(c => (mask[c] = 1)); // $, /, _
-for (let i = 48; i <= 57; i++) mask[i] = 1; // 0-9
-for (let i = 65; i <= 90; i++) mask[i] = 1; // A-Z
-for (let i = 97; i <= 122; i++) mask[i] = 1; // a-z
+const idStartMask = new Uint8Array(128);
+[36, 47, 95].forEach(c => (idStartMask[c] = 1)); // $, /, _
+for (let i = 48; i <= 57; i++) idStartMask[i] = 1; // 0-9
+for (let i = 65; i <= 90; i++) idStartMask[i] = 1; // A-Z
+for (let i = 97; i <= 122; i++) idStartMask[i] = 1; // a-z
 
 export const matchIdStart2 = (char: string, i: number) => {
   const code = char.charCodeAt(i);
-  return mask[code] === 1;
+  return idStartMask[code] === 1;
+};
+
+
+// 提前创建一个长度为 128 的布尔映射数组
+const idMask = new Uint8Array(128);
+[36, 45, 47, 95].forEach(c => (idMask[c] = 1)); // $, -, /, _
+for (let i = 48; i <= 57; i++) idMask[i] = 1; // 0-9
+for (let i = 65; i <= 90; i++) idMask[i] = 1; // A-Z
+for (let i = 97; i <= 122; i++) idMask[i] = 1; // a-z
+export const matchId = (char: string, i: number) => {
+  const code = char.charCodeAt(i);
+  return idMask[code] === 1;
 };
 
 export const jsVarRegexp = /\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g;

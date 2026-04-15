@@ -1,4 +1,4 @@
-import { isNum, matchIdStart, matchIdStart2, Queue } from 'bobe-shared';
+import { isNum, matchId, matchIdStart, matchIdStart2, Queue } from 'bobe-shared';
 import {
   BaseType,
   Hook,
@@ -674,7 +674,7 @@ export class Tokenizer {
     let nextC;
     while (1) {
       nextC = this.code[this.i + 1];
-      if (typeof nextC !== 'string' || !matchIdStart2(nextC, 0)) {
+      if (typeof nextC !== 'string' || !matchId(nextC, 0)) {
         break;
       }
       value += nextC;
