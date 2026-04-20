@@ -294,6 +294,9 @@ export class Tokenizer {
                 this.needLoc = true;
               }
               switch (char) {
+                case '/':
+                  this.comment();
+                  break;
                 case "'":
                 case '"':
                   this.str(char);
@@ -336,7 +339,26 @@ export class Tokenizer {
       this.handledTokens.push(this.token);
     }
   }
-
+  getComment() {
+    let value = '/';
+    let nextC = this.code[this.i + 1];
+    if (nextC !== '/') {
+      throw new ParseSyntaxError(ParseErrorCode.MISSING_COMMENT_SECOND_SLASH, '注释开头必须是 //', this.emptyLoc());
+    }
+    while (this.code[this.i + 1] !== '\n') {
+      this.next();
+      value += this.code[this.i];
+    }
+    return value;
+  }
+  /**
+   * 处理处于行末尾的 comment 例如：
+   * div // 这里是注释
+   */
+  comment() {
+    const value = this.getComment();
+    this.next(); // 设置当前字符为 /n
+  }
   condExp() {
     if (__IS_COMPILER__) {
       this.preCol = this.column;
@@ -351,13 +373,15 @@ export class Tokenizer {
         this.setToken(TokenType.Identifier, true);
         return this.token;
       }
+      // TODO: 考虑字符串中转义 \n
       while (this.code[this.i + 1] !== '\n') {
         value += this.code[this.i];
         this.next();
       }
       value += this.code[this.i];
-      const trimmed = value.trim();
-      this.setToken(TokenType.Identifier, trimmed ? value : true);
+      const trimmed = value.replace(/\/\/[\s\S]+/, '').trim();
+      
+      this.setToken(TokenType.Identifier,  trimmed ? trimmed : true);
       return this.token;
     } finally {
       this.next();
@@ -367,7 +391,9 @@ export class Tokenizer {
       }
     }
   }
-
+  isEol(i: number) {
+    return this.code[i] === '\n' || this.code[i] === '/';
+  }
   /**
    * 解析到 for 时使用这个方法获取 for 后方的子表达式
    * 表达式通过 “;” 分割
@@ -415,6 +441,15 @@ export class Tokenizer {
       i++;
     }
     return this.code[i];
+  }
+
+  peekCharIsEol() {
+    const char = this.peekChar();
+    return char === '\n' || char === '/';
+  }
+
+  charIsEol(char: string) {
+    return char === '\n' || char === '/';
   }
 
   private assignment() {
@@ -553,6 +588,9 @@ export class Tokenizer {
         case '\n':
           nextC = '\n';
           break;
+        case '/':
+          nextC = '/';
+          break;
         default:
           nextC = '';
           break;
@@ -560,6 +598,13 @@ export class Tokenizer {
 
       // \n 空白 \n 的情况，这行不算
       if (nextC === '\n') {
+        isEmptyLine = true;
+        break;
+      }
+      if (nextC === '/') {
+        // 获取到下一个字符是 \n 为止
+        value += this.getComment();
+        this.next(); // 设置当前字符为 \n
         isEmptyLine = true;
         break;
       }
@@ -582,12 +627,13 @@ export class Tokenizer {
   private dent() {
     const { value, isEmptyLine } = this.getDentValue();
     if (isEmptyLine) {
-      // 这种情况下需要 next ，即后续从 \n 重新开始匹配
+      // 这种情况下需要 next ，即后续从 \n 之后重新开始匹配
       this.needIndent = true;
+      this.next();
       return;
     }
-    // 比较长度，比上个 indent 长，缩进，比上个 indent 短，dedent
     this.needIndent = false;
+    // 比较长度，比上个 indent 长，缩进，比上个 indent 短，dedent
     // 期望 firstToken 是 node，所以这里只要修改第一个节点的基础偏移值即可
     if (this.isFirstToken) {
       this.dentStack[0] = value.length;

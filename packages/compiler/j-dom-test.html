@@ -286,6 +286,9 @@
     delItem = (i) => {
       this.arr.splice(i, 1)
     }
+    toggle = () => {
+      this.show = !this.show
+    }
 
     updateItem = (i, value) => {
       // this.arr[i].value = value;
@@ -302,7 +305,17 @@
 
     ui = bobe`
       h2 text="测试"
+      
+      if show // 注释1
+
+  // 注释2
+        div onclick={toggle}
+          {'显示'}  
+      else 
+        div onclick={toggle} text="隐藏"   
       input data-id='123' value={value} oninput={oninput} onkeyup={onkeyup}
+      
+      // 注释3
       ${Deep} deep=2
       {fragment} deep='fragment'
       for arr; item i; item.id
@@ -310,9 +323,7 @@
           h1 onclick={() => delItem(i)}
             {item.value}
           input type="text"  oninput={(e) => updateItem(i, e.target.value)} 
-      if show    
-        div
-          {'哈哈哈'}  
+       
     `
   }
   class Keyed2 extends Store {

@@ -360,7 +360,7 @@ export class Interpreter {
       i: 0
     };
     if (keyExp) {
-      forNode.getKey = new Function('data', `let v;with(data){v=${keyExp}};return v;`) as any;
+      forNode.getKey = new Function('data', `let v;with(data){v=${keyExp}\n};return v;`) as any;
     }
     window['for1'] = forNode;
 

@@ -31,6 +31,11 @@
 <script type="module">
   import { Compiler, Tokenizer } from 'bobe';
   const code = `
+  
+    h2 text="测试"
+    
+    input data-id="456" value={value} oninput={oninput} onkeyup={onkeyup}
+    {fragment} deep=10
     if show
       div
         {'哈哈哈'}  
@@ -39,10 +44,8 @@
         h1 onclick={() => delItem(i)}
           {item.value}
         input type="text"  oninput={(e) => updateItem(i, e.target.value)} 
+  // 注释
     \${Deep} deep=20
-    h2 text="测试"
-    input data-id="456" value={value} oninput={oninput} onkeyup={onkeyup}
-    {fragment} deep=10
 
   `;
   const tokenizer = new Tokenizer(

@@ -6,6 +6,7 @@ enum NodeType {
   Element = 'Element', // 真实DOM节点
   Text = 'Text', // 文本节点
   Interpolation = 'Interpolation', // 插值节点
+  Comment = 'Comment', // 注释节点
 
   // 属性相关类型
   Property = 'Property', // 属性节点
@@ -51,7 +52,8 @@ type TemplateNode =
   | ConditionalNode // 条件节点（复用NodeType.If）
   | LoopNode // 循环节点（复用NodeType.For）
   | ComponentNode // 组件节点（复用NodeType.Component）
-  | FragmentNode; // 片段节点（复用NodeType.Fragment）
+  | FragmentNode // 片段节点（复用NodeType.Fragment）
+  | CommentNode;
 
 // 真实DOM元素节点（使用NodeType.Element）
 interface ElementNode extends BaseNode {
@@ -59,6 +61,11 @@ interface ElementNode extends BaseNode {
   tagName: string;
   props: Property[];
   children: TemplateNode[];
+}
+
+interface CommentNode extends BaseNode {
+  type: NodeType.Comment;
+  value: string;
 }
 
 // 文本节点（使用NodeType.Text）
@@ -150,5 +157,6 @@ export {
   ConditionalNode,
   LoopNode,
   ComponentNode,
-  FragmentNode
+  FragmentNode,
+  CommentNode
 };
