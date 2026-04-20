@@ -357,7 +357,7 @@ export class Tokenizer {
    */
   comment() {
     const value = this.getComment();
-    this.next(); // 设置当前字符为 /n
+    // this.next(); // 设置当前字符为 /n
   }
   condExp() {
     if (__IS_COMPILER__) {
