@@ -266,16 +266,18 @@
   }
 
   class Keyed extends Store {
-    arr = [
-      { value: 1, id: 1 },
-      { value: 2, id: 2 },
-      { value: 3, id: 3 }
-    ]
+    arr = {
+      value: [
+        { value: 1, id: 1 },
+        { value: 2, id: 2 },
+        { value: 3, id: 3 }
+      ]
+    }
     show = true
     value = ''
     onkeyup = (e) => {
       if (e.keyCode === 13) {
-        this.arr.push({ value: this.value, id: Date.now() })
+        this.arr.value.push({ value: this.value, id: Date.now() })
         this.value = ''
       }
     }
@@ -284,7 +286,7 @@
     }
 
     delItem = (i) => {
-      this.arr.splice(i, 1)
+      this.arr.value.splice(i, 1)
     }
     toggle = () => {
       this.show = !this.show
@@ -293,18 +295,18 @@
     updateItem = (i, value) => {
       // this.arr[i].value = value;
       // this.arr[i] = { value, id: Date.now() }
-      this.arr = [
+      this.arr.value = [
         { value: 3, id: 3 },
         { value: 1, id: 1 },
         { value: 2, id: 2 }
       ]
     }
     fragment = bobe`
-      h3 text={deep}
+      h3 text={desc}
     `;
 
     ui = bobe`
-      h2 text="测试" // 注释0
+      h2 text="测\n试" // 注释0
       
       if show // 注释1
 
@@ -317,8 +319,8 @@
       
       // 注释3
       ${Deep} deep=2
-      {fragment} deep='fragment'
-      for arr; item i; item.id
+      {fragment} desc='代码片段'
+      for arr['value']; item i; item.id
         div style="display: flex; align-items: center;"
           h1 onclick={() => delItem(i)}
             {item.value}

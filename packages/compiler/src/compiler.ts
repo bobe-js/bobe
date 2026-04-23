@@ -231,7 +231,7 @@ export class Compiler {
   parseLoopNode(node?: LoopNode) {
     const forLoc = this.tokenizer.token.loc ?? this.tokenizer.emptyLoc();
     // 跳过 'for' 关键字，解析循环表达式
-    this.tokenizer.nextToken();
+    this.tokenizer.jsExp();
     const collection = this.parseJsExp();
 
     if (!collection.value && collection.value !== 0) {

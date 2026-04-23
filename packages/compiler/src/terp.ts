@@ -310,7 +310,7 @@ export class Interpreter {
   }
 
   forDeclaration() {
-    const arrExp = this.tokenizer.nextToken().value as string;
+    const arrExp = this.tokenizer.jsExp().value as string;
     this.tokenizer.nextToken(); // 分号
     const itemToken = this.tokenizer.nextToken(); // item 表达式
     const isDestruct = itemToken.type === TokenType.InsertionExp;

@@ -169,7 +169,6 @@ export const isNatureNumStr = (val: unknown) => typeof val === 'string' && Natur
 export const matchIdStart = (char: string) => {
   // 获取第一个字符的 Unicode 编码
   const code = char.charCodeAt(0);
-
   // 1. 数字 0-9 (48-57)
   return (
     (code >= 48 && code <= 57) ||
@@ -198,7 +197,6 @@ export const matchIdStart2 = (char: string, i: number) => {
   return idStartMask[code] === 1;
 };
 
-
 // 提前创建一个长度为 128 的布尔映射数组
 const idMask = new Uint8Array(128);
 [36, 45, 47, 95].forEach(c => (idMask[c] = 1)); // $, -, /, _
@@ -208,6 +206,33 @@ for (let i = 97; i <= 122; i++) idMask[i] = 1; // a-z
 export const matchId = (char: string, i: number) => {
   const code = char.charCodeAt(i);
   return idMask[code] === 1;
+};
+
+export const escapeMap = {
+  /** 空字符 */
+  '\0': `\\0`,
+  /** 退格 */
+  '\b': `\\b`,
+  /** 制表符 */
+  '\t': `\\t`,
+  /** 换行 */
+  '\n': `\\n`,
+  /** 垂直制表 */
+  '\v': `\\v`,
+  /** 换页 */
+  '\f': `\\f`,
+  /** 回车 */
+  '\r': `\\r`,
+  /** 双引号 */
+  '\"': `\\"`,
+  /** 单引号 */
+  "\'": `\\'`,
+  /** 反斜杠 */
+  '\\': `\\\\`
+};
+
+export const getEscapeChar = (char: string, i: number): string | undefined => {
+  return escapeMap[char[i]];
 };
 
 export const jsVarRegexp = /\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g;
