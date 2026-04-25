@@ -758,7 +758,7 @@ export class Interpreter {
       this.setProp(node, key, value, hookI);
     } else if (typeof value === 'function') {
       new Effect(() => {
-        const res = value();
+        const res = value(data);
         this.setProp(node, key, res, hookI);
       });
     } else if (valueIsMapKey) {
@@ -813,7 +813,7 @@ export class Interpreter {
         const meta = child[Keys.Meta];
         const cells: Map<string, Signal> = meta.cells;
         if (typeof value === 'function') {
-          const computed = new Computed(value);
+          const computed = new Computed(() => value(data));
           cells.set(key, computed as any);
           child[Keys.Raw][key] = undefined;
         }

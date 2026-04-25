@@ -314,7 +314,8 @@
         div onclick={toggle}
           {'显示'}  
       else 
-        div onclick={toggle} text="隐藏"   
+        div onclick={toggle} text="隐藏"
+      h1 text=${(data) => data.show ? 'Visible' : 'Hidden'}   
       input data-id='123' value={value} oninput={oninput} onkeyup={onkeyup}
       
       // 注释3
