@@ -47,6 +47,7 @@ export function effectUt(
   const hasDep = Array.isArray(depOrOpt);
   opt = hasDep ? opt || {} : depOrOpt || {};
   if (!hasDep) {
+    // @ts-ignore
     const ef = new Effect(callback);
     const run = ef.dispose.bind(ef);
     run.ins = ef;
@@ -86,6 +87,7 @@ export function effect(
   const hasDep = Array.isArray(depOrOpt);
   opt = hasDep ? opt || {} : depOrOpt || {};
   if (!hasDep) {
+    // @ts-ignore
     const ef = new Effect(callback);
     return ef;
   }

@@ -6,7 +6,9 @@ export type SignalType = 'ref' | 'auto' | 'proxy';
 export enum Keys {
   Iterator = '__AOYE_ITERATOR',
   Raw = '__AOYE_RAW',
-  Meta = '__AOYE_META'
+  Meta = '__AOYE_META',
+  /** 当一个值对象标记为 ShallowObject 时，它的所有属性都不需要代理 */
+  ProxyFreeObject = '__AOYE_PROXY_FREE_OBJECT'
 }
 export type Key = string | number | symbol;
 /** store 标识 */

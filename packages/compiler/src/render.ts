@@ -20,7 +20,8 @@ export function customRender(option: CustomRenderConf) {
   // 保存 options
   return function render<T>(Ctor: typeof Store, root: any) {
     const store = Ctor.new();
-    const tokenizer: Tokenizer = store['ui'](false);
+    // @ts-ignore
+    const tokenizer: Tokenizer = store.ui(false);
     const terp = new Interpreter(tokenizer);
     terp.config(option);
 

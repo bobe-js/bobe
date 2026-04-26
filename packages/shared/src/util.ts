@@ -133,6 +133,8 @@ export function isNum(char: string) {
 
 export const genKey = (v: string | number) => `${v}-${Date.now()}-${Math.random()}` as unknown as number;
 
+export const date32 = () => Date.now().toString(32);
+
 export class SortMap<T> {
   data: Record<string | symbol, Queue<T>> = {};
   clear() {

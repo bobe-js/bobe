@@ -34,11 +34,14 @@
       if (key === 'text') {
         node.textContent = value;
       } else if (key.startsWith('on')) {
-        node.addEventListener(key.slice(2), value);
+        const evtName = key.slice(2)
+        node.addEventListener(evtName, value);
+        return () => {
+          node.removeEventListener(evtName, value);
+        }
       } else if (node.tagName === 'INPUT' && (key === 'value' || key === 'checked')) {
         node[key] = value;
       }
-
       else {
         node.setAttribute(key, value);
       }
@@ -301,25 +304,30 @@
         { value: 2, id: 2 }
       ]
     }
+    div = {
+      dom: null
+    }
+
+    cmp = null
     fragment = bobe`
       h3 text={desc}
     `;
 
     ui = bobe`
-      h2 text="测\n试" // 注释0
-      
       if show // 注释1
 
-  // 注释2
-        div onclick={toggle}
+// 注释2
+        div ref={div.dom} onclick={toggle}
           {'显示'}  
       else 
         div onclick={toggle} text="隐藏"
+      h2 text="测\n试" // 注释0
+      
       h1 text=${(data) => data.show ? 'Visible' : 'Hidden'}   
       input data-id='123' value={value} oninput={oninput} onkeyup={onkeyup}
       
       // 注释3
-      ${Deep} deep=2
+      ${Deep} ref={cmp} deep=2
       {fragment} desc='代码片段'
       for arr['value']; item i; item.id
         div style="display: flex; align-items: center;"
@@ -388,7 +396,8 @@
   }
 
   const root2 = document.getElementById('root')
-  render(Keyed, root2)
+  const [_, store] = render(Keyed, root2)
+  window.store = store;
   window.cel = (obj, key) => {
     const cells = obj['__AOYE_META'].cells;
     return cells.get(key);

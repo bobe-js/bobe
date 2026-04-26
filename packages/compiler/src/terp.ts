@@ -13,7 +13,6 @@ import {
   Signal,
   SignalNode,
   Store,
-  clean,
   toRaw
 } from 'aoye';
 import {
@@ -34,7 +33,7 @@ import {
   ForItemNode,
   Token
 } from './type';
-import { jsVarRegexp } from 'bobe-shared';
+import { date32, jsVarRegexp } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
 import { macInc } from './util';
 import { KEY_INDEX } from './global';
@@ -755,16 +754,20 @@ export class Interpreter {
     hookI?: number
   ) {
     if (isFn) {
-      this.setProp(node, key, value, hookI);
+      new Scope(() => {
+        return this.setProp(node, key, value, hookI);
+      }).get();
     } else if (typeof value === 'function') {
       new Effect(() => {
         const res = value(data);
-        this.setProp(node, key, res, hookI);
+        const dispose = this.setProp(node, key, res, hookI);
+        return dispose;
       });
     } else if (valueIsMapKey) {
       new Effect(() => {
         const res = data[value];
-        this.setProp(node, key, res, hookI);
+        const dispose = this.setProp(node, key, res, hookI);
+        return dispose;
       });
     }
     // 静态数据
@@ -798,7 +801,7 @@ export class Interpreter {
       realBefore: null,
       realAfter: null,
       data: child,
-      tokenizer: render ? render(true) : (child['ui'] as BobeUI)(true)
+      tokenizer: render ? render(true) : (child.ui as BobeUI)(true)
     };
     this.onePropParsed = (data, _, key, value, valueIsMapKey, isFn, hookI) => {
       if (isFn) {
@@ -830,6 +833,10 @@ export class Interpreter {
   getFn(data: any, expression: string | number) {
     return new Function('data', `let v;with(data){v=${expression}};return v;`).bind(undefined, data);
   }
+  getAssignFn(data: any, expression: string | number) {
+    const valueId = `value_bobe_${date32()}`;
+    return new Function('data', valueId, `with(data){${expression}=${valueId}};`).bind(undefined, data);
+  }
   // TODO: 优化代码逻辑，拆分 if elseif else
   condDeclaration(ctx: ProgramCtx) {
     const { prevSibling } = ctx;
@@ -856,7 +863,7 @@ export class Interpreter {
       isFirstRender: true,
       effect: null,
       owner,
-      data,
+      data
     };
     let signal: SignalNode;
 
@@ -1044,8 +1051,32 @@ export class Interpreter {
         const [hookType, value, hookI] = this.tokenizer._hook({});
         const rawVal = data[Keys.Raw][value];
         const isFn = typeof rawVal === 'function';
+        // ref 应该将对应 key 值分配给 ref
+        if (key === 'ref') {
+          const valueIsMapKey = Reflect.has(data[Keys.Raw], value);
+          let refValue = _node;
+          if (_node.__logicType === FakeType.Component) {
+            refValue = _node.data;
+          } else {
+            refValue[Keys.ProxyFreeObject] = true;
+          }
+
+          if (valueIsMapKey) {
+            data[value] = refValue;
+            new Scope(() => () => {
+              data[value] = null;
+            }).get();
+          } else {
+            const fn = this.getAssignFn(data, value);
+            // 执行赋值操作
+            fn(refValue);
+            new Scope(() => () => {
+              fn(null);
+            }).get();
+          }
+        }
         // 动态的要做成函数
-        if (hookType === 'dynamic') {
+        else if (hookType === 'dynamic') {
           const valueIsMapKey = Reflect.has(data[Keys.Raw], value);
           const fn = isFn ? rawVal : valueIsMapKey ? value : this.getFn(data, value);
           this.onePropParsed(data, _node, key, fn, valueIsMapKey, isFn, hookI);
@@ -1121,7 +1152,7 @@ export class Interpreter {
     }
   }
 
-  setProp(node: any, key: string, value: any, hookI?: number) {
+  setProp(node: any, key: string, value: any, hookI?: number): void | undefined | (() => void) {
     node.props[key] = value;
   }
 }

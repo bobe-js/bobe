@@ -7,7 +7,9 @@ import { toRaw } from './util';
 export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
   const isObj = typeof target === 'object' && target !== null;
   // 1. 不是对象则返回原始值
-  if (!isObj || target[Keys.Raw]) return target;
+  // 2. 返回已有代理
+  // 3. 对象不需要代理
+  if (!isObj || target[Keys.Raw] || target[Keys.ProxyFreeObject]) return target;
   // 2. 返回已有代理
   const p = rawToProxy.get(target);
   if (p) return p;
