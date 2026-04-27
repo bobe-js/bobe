@@ -34,7 +34,8 @@ export enum FakeType {
   For = 0b0000_0000_0000_0000_0000_0000_0000_1000,
   Component = 0b0000_0000_0000_0000_0000_0000_0001_0000,
   Fragment = 0b0000_0000_0000_0000_0000_0000_0010_0000,
-  ForItem = 0b0000_0000_0000_0000_0000_0000_0100_0000
+  ForItem = 0b0000_0000_0000_0000_0000_0000_0100_0000,
+  Context = 0b0000_0000_0000_0000_0000_0000_1000_0000
 }
 
 export const CondBit = FakeType.If | FakeType.Fail | FakeType.Else;
@@ -47,6 +48,9 @@ export const CtxProviderBit =
   FakeType.ForItem |
   FakeType.Component |
   FakeType.Fragment;
+
+/** 条件节点、ForItem节点、Context节点  */
+export const ContextBit = FakeType.If | FakeType.Fail | FakeType.Else | FakeType.ForItem | FakeType.Context;
 
 export const TokenizerSwitcherBit = FakeType.Component | FakeType.Fragment;
 export type NodeSortBit = number;
@@ -63,7 +67,9 @@ export enum NodeSort {
   /** FakeType 所有枚举都能提供 ctx，否则重新渲染时获取不到上下文 */
   CtxProvider = 0b0000_0000_0000_0000_0000_0000_0000_1000,
   /** 节点可导致 token 切换 1. component 2. fragment */
-  TokenizerSwitcher = 0b0000_0000_0000_0000_0000_0000_0001_0000
+  TokenizerSwitcher = 0b0000_0000_0000_0000_0000_0000_0001_0000,
+  /** context 关键字对应的节点 */
+  Context = 0b0000_0000_0000_0000_0000_0000_0010_0000
 }
 
 export enum TerpEvt {
@@ -202,6 +208,7 @@ export type ForItemNode = LogicNode & {
   forNode: ForNode;
   effect: Scope;
   key?: any;
+  context: any;
 };
 
 export type IfNode = LogicNode & {
@@ -211,6 +218,12 @@ export type IfNode = LogicNode & {
   effect: Effect;
   preCond: IfNode | null;
   owner: ComponentNode | FragmentNode;
+  context: any;
+};
+
+/** data 是 map<storeKey, store> */
+export type ContextNode = Omit<LogicNode, 'data'> & {
+  context: any;
 };
 
 export type FragmentNode = LogicNode & {

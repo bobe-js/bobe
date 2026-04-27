@@ -31,12 +31,13 @@ import {
   TokenizerSwitcherBit,
   ForNode,
   ForItemNode,
-  Token
+  ContextNode,
+  ContextBit
 } from './type';
 import { date32, jsVarRegexp } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
 import { macInc } from './util';
-import { KEY_INDEX } from './global';
+import { KEY_INDEX, setCtxStack } from './global';
 
 export class Interpreter {
   opt: TerpConf;
@@ -54,6 +55,7 @@ export class Interpreter {
 
     this.tokenizer.nextToken();
     const stack = new MultiTypeStack<StackItem>();
+    setCtxStack(stack);
     stack.push({ node: root, prev: null }, NodeSort.Real);
     stack.push(
       { node: componentNode, prev: null },
@@ -98,8 +100,10 @@ export class Interpreter {
             ? NodeSort.Real
             : (ctx.current.__logicType & LogicalBit ? NodeSort.Logic : 0) |
                 (ctx.current.__logicType & TokenizerSwitcherBit ? NodeSort.TokenizerSwitcher : 0) |
+                (ctx.current.__logicType & ContextBit ? NodeSort.Context : 0) |
                 (ctx.current.__logicType === FakeType.Component ? NodeSort.Component : 0) |
-                NodeSort.CtxProvider
+                // context 节点， 不提供 data 上下文，其余 Fake 节点提供 CtxProvider
+                (ctx.current.__logicType !== FakeType.Context ? NodeSort.CtxProvider : 0)
         );
         if (ctx.current.__logicType) {
           // 父节点是逻辑节点
@@ -260,6 +264,8 @@ export class Interpreter {
     let _node: any;
     if (value === 'if' || value === 'else' || value === 'fail') {
       return this.condDeclaration(ctx);
+    } else if (value === 'context') {
+      _node = this.createContextNode();
     } else if (value === 'for') {
       return this.forDeclaration();
     } else if (hookType) {
@@ -301,11 +307,30 @@ export class Interpreter {
     this.headerLine(_node);
     this.extensionLines(_node);
     // 组件用完，切换回 真实node 的方法
+    this.onePropParsed = this.oneRealPropParsed;
     if (_node.__logicType & TokenizerSwitcherBit) {
-      this.onePropParsed = this.oneRealPropParsed;
       this.tokenizer = _node.tokenizer;
     }
     return _node;
+  }
+  createContextNode() {
+    const child = deepSignal({}, getPulling());
+    const parentContext: any = this.ctx.stack.peekByType(NodeSort.Context)?.node?.context;
+    if (parentContext) {
+      Object.setPrototypeOf(child, parentContext);
+    }
+
+    this.onePropParsed = createStoreOnePropParsed(child);
+
+    const node: ContextNode = {
+      __logicType: FakeType.Context,
+      context: child,
+      realParent: null,
+      realBefore: null,
+      realAfter: null
+    };
+    node.realAfter = this.insertAfterAnchor('context-after');
+    return node;
   }
 
   forDeclaration() {
@@ -683,6 +708,7 @@ export class Interpreter {
     // 考虑到生成每项数据需要依赖原始响应式数组，因此无法放在 scope 里
     // 使得 for effect 依赖原响应式数组，每一项
     data = this.getItemData(forNode, i, parentData);
+    const context = this.ctx.stack.peekByType(NodeSort.Context)?.node?.data;
     forItemNode = {
       id: this.forItemId++,
       __logicType: FakeType.ForItem,
@@ -692,7 +718,8 @@ export class Interpreter {
       forNode,
       key: forNode.getKey?.(data),
       effect: null,
-      data
+      data,
+      context
     };
     forItemNode.effect = scope;
     return forItemNode;
@@ -803,30 +830,7 @@ export class Interpreter {
       data: child,
       tokenizer: render ? render(true) : (child.ui as BobeUI)(true)
     };
-    this.onePropParsed = (data, _, key, value, valueIsMapKey, isFn, hookI) => {
-      if (isFn) {
-        child[Keys.Raw][key] = value;
-      }
-      // key 映射
-      else if (valueIsMapKey) {
-        shareSignal(data, value, child, key);
-      }
-      // 动态值内置 computed 处理
-      else {
-        const meta = child[Keys.Meta];
-        const cells: Map<string, Signal> = meta.cells;
-        if (typeof value === 'function') {
-          const computed = new Computed(() => value(data));
-          cells.set(key, computed as any);
-          child[Keys.Raw][key] = undefined;
-        }
-        // 静态数据
-        else {
-          cells.set(key, { get: () => value } as Signal);
-          child[Keys.Raw][key] = value;
-        }
-      }
-    };
+    this.onePropParsed = createStoreOnePropParsed(child);
     node.realAfter = this.insertAfterAnchor('component-after');
     return node;
   }
@@ -851,6 +855,7 @@ export class Interpreter {
     const noCond = value === true;
     const valueIsMapKey = !noCond && Reflect.has(data[Keys.Raw], value);
     const owner = ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node;
+    const context = ctx.stack.peekByType(NodeSort.Context)?.node?.data;
     const ifNode: IfNode = {
       __logicType: isElse ? FakeType.Else : isIf ? FakeType.If : FakeType.Fail,
       // 此时 token 是 exp, 下次解析 从 \n 开始
@@ -863,7 +868,8 @@ export class Interpreter {
       isFirstRender: true,
       effect: null,
       owner,
-      data
+      data,
+      context
     };
     let signal: SignalNode;
 
@@ -1155,4 +1161,32 @@ export class Interpreter {
   setProp(node: any, key: string, value: any, hookI?: number): void | undefined | (() => void) {
     node.props[key] = value;
   }
+}
+
+function createStoreOnePropParsed(child: any) {
+  const onePropParsed: Interpreter['onePropParsed'] = (data, _, key, value, valueIsMapKey, isFn, hookI) => {
+    if (isFn) {
+      child[Keys.Raw][key] = value;
+    }
+    // key 映射
+    else if (valueIsMapKey) {
+      shareSignal(data, value, child, key);
+    }
+    // 动态值内置 computed 处理
+    else {
+      const meta = child[Keys.Meta];
+      const cells: Map<string, Signal> = meta.cells;
+      if (typeof value === 'function') {
+        const computed = new Computed(() => value(data));
+        cells.set(key, computed as any);
+        child[Keys.Raw][key] = undefined;
+      }
+      // 静态数据
+      else {
+        cells.set(key, { get: () => value } as Signal);
+        child[Keys.Raw][key] = value;
+      }
+    }
+  };
+  return onePropParsed;
 }

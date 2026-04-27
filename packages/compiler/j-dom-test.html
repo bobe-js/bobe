@@ -20,7 +20,7 @@
   <div id="root"></div>
 </body>
 <script type="module">
-  import { bobe, Store, customRender } from 'bobe';
+  import { bobe, Store, customRender, context } from 'bobe';
   // 指定版本号以确保 API 兼容性
   // import { Bench } from 'https://esm.sh/tinybench@2.9.0';
   const render = customRender({
@@ -67,18 +67,6 @@
       return node.nextSibling;
     },
   });
-
-  class B extends Store {
-    v = 1;
-    name = '😁';
-    updateName = () => {
-      this.name = '🤡';
-    };
-    ui = bobe`
-      div text={v}
-      div text={name}
-    `;
-  }
 
   class Deep extends Store {
     deep = 10
@@ -312,6 +300,7 @@
     fragment = bobe`
       h3 text={desc}
     `;
+    countStore = CountStore.new();
 
     ui = bobe`
       if show // 注释1
@@ -323,8 +312,13 @@
         div onclick={toggle} text="隐藏"
       h2 text="测\n试" // 注释0
       
-      h1 text=${(data) => data.show ? 'Visible' : 'Hidden'}   
-      input data-id='123' value={value} oninput={oninput} onkeyup={onkeyup}
+      h1 text=${(data) => data.show ? 'Visible' : 'Hidden'}
+      if show   
+        context countStore={countStore}
+          input data-id='123' value={value} oninput={oninput} onkeyup={onkeyup}
+          br
+          button onclick={countStore.add} text="父 add"
+          ${Child}
       
       // 注释3
       ${Deep} ref={cmp} deep=2
@@ -337,6 +331,22 @@
        
     `
   }
+
+  class CountStore extends Store {
+    count = 0
+    add = () => {
+      this.count++
+    }
+  }
+
+  class Child extends Store{
+    countStore = context('countStore');
+    ui = bobe`
+      h1 text={countStore.count}
+      button onclick={countStore.add} text="子 add"
+    `
+  }
+
   class Keyed2 extends Store {
     arr = [
       { value: 1, id: 1, showText: true },

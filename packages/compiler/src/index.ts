@@ -5,5 +5,5 @@ import { ParseSyntaxError } from './type';
 export * from 'aoye';
 export * from './type-ast';
 export * from './render'
-
+export * from './context';
 export { Compiler, Tokenizer, SourceLocation, ParseError, ParseErrorCode, ParseSyntaxError };
