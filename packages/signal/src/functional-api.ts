@@ -1,4 +1,4 @@
-import { Computed, Effect, getPulling, Scope, Signal } from './core';
+import { Computed, Effect, getPulling, ScheduleType, Scope, Signal } from './core';
 import { State } from './core/macro' with { type: 'macro' };
 import { ValueDiff } from './type';
 import { deepSignal } from './deep-signal';
@@ -33,7 +33,8 @@ export function $(data: any) {
 }
 
 const DefaultCustomEffectOpt = {
-  immediate: true
+  immediate: true,
+  scheduleType: ScheduleType.Sync
 };
 
 export type CustomEffectOpt = Partial<typeof DefaultCustomEffectOpt>;
@@ -48,7 +49,7 @@ export function effectUt(
   opt = hasDep ? opt || {} : depOrOpt || {};
   if (!hasDep) {
     // @ts-ignore
-    const ef = new Effect(callback);
+    const ef = new Effect(callback, opt.scheduleType);
     const run = ef.dispose.bind(ef);
     run.ins = ef;
     return run;
@@ -72,7 +73,7 @@ export function effectUt(
       ef.state &= ~State.LinkScopeOnly;
     }
     mounted = true;
-  });
+  }, opt.scheduleType);
   const run = ef.dispose.bind(ef);
   run.ins = ef;
   return run;
@@ -88,7 +89,7 @@ export function effect(
   opt = hasDep ? opt || {} : depOrOpt || {};
   if (!hasDep) {
     // @ts-ignore
-    const ef = new Effect(callback);
+    const ef = new Effect(callback, opt.scheduleType);
     return ef;
   }
   /*----------------- 指定依赖， watcher -----------------*/
@@ -110,9 +111,10 @@ export function effect(
       eff.state &= ~State.LinkScopeOnly;
     }
     mounted = true;
-  });
+  }, opt.scheduleType);
   return ef;
 }
+
 export function scope(...args) {
   const ins = new Scope(args[0]);
   if (args.length === 2) {

@@ -1,7 +1,7 @@
 import { Effect } from './effect';
 import { getPulling } from './global';
 import { link } from './line';
-import { mark, flushEffect, batchDeep } from './operate';
+import { mark, flushSyncEffect, batchDeep, flushMicroEffect } from './operate';
 import { Scope } from './scope';
 import { Link, SignalNode } from './type';
 import { State } from './macro' with { type: 'macro' };
@@ -30,7 +30,8 @@ export class Signal<T = any> {
     if (this.emitHead) {
       mark(this);
       if (batchDeep() === 0) {
-        flushEffect();
+        flushSyncEffect();
+        flushMicroEffect();
       }
     }
   }

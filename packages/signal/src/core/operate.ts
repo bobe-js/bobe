@@ -1,13 +1,15 @@
 import { setPulling, getPulling } from './global';
 import { Effect } from './effect';
 import { Signal } from './signal';
-import { Link, SideEffect, OutLink, SignalNode, OnClean } from './type';
+import { Link, SideEffect, OutLink, SignalNode, OnClean, ScheduleType } from './type';
 import { State, DirtyState, PullingOrScopeExecuted, ScopeAbort } from './macro' with { type: 'macro' };
+import { multiScheduler } from './schedule';
+import { micro } from '#/util';
 
 export function mark(signal: Signal) {
   let line = signal.emitHead;
   while (line) {
-    const { down, up } = line;
+    const down = line.down as Effect;
     const { scope, emitHead, state } = down;
     // if ((scope && scope.state & State.ScopeAbort) || down === up.scope || state & ScopeExecuted) {
     // }
@@ -18,7 +20,11 @@ export function mark(signal: Signal) {
       // window['mark'] = (window['mark'] || 0) + 1;
       if (state & State.IsScope) {
         if (notLocked && state & State.IsEffect) {
-          addEffect(down as Effect);
+          if (down.type === ScheduleType.Sync) {
+            addEffect(down);
+          } else {
+            multiScheduler.addTask(down.type, down);
+          }
         }
       } else if (emitHead) {
         markUnknownDeep(emitHead);
@@ -40,7 +46,7 @@ function markUnknownDeep(initialLine: Link) {
     stack[len] = null as any;
 
     while (line) {
-      const { down, up } = line;
+      const down = line.down as Effect;
       const { state, scope } = down;
       // 判定逻辑
       // const noSkip = !(
@@ -56,7 +62,11 @@ function markUnknownDeep(initialLine: Link) {
         // window['mark'] = (window['mark'] || 0) + 1;
         if (state & State.IsScope) {
           if (notLocked && state & State.IsEffect) {
-            addEffect(down as Effect);
+            if (down.type === ScheduleType.Sync) {
+              addEffect(down);
+            } else {
+              multiScheduler.addTask(down.type, down);
+            }
           }
         } else if (down.emitHead) {
           // 手动入栈
@@ -169,7 +179,7 @@ let consumeI = -1,
 export function addEffect(effect: Effect) {
   effectQueue[++produceI] = effect;
 }
-export function flushEffect() {
+export function flushSyncEffect() {
   // 正在消费
   if (consumeI !== -1) {
     return;
@@ -185,12 +195,21 @@ export function flushEffect() {
   produceI = -1;
 }
 
+export function flushMicroEffect() {
+  if (multiScheduler.hasTask) {
+    micro(() => {
+      multiScheduler.flushAllTask();
+    });
+  }
+}
+
 let _batchDeep = 0;
 export const batchStart = () => _batchDeep++;
 export const batchEnd = () => {
   _batchDeep--;
   if (_batchDeep === 0) {
-    flushEffect();
+    flushSyncEffect();
+    flushMicroEffect();
   }
 };
 /** effect、computed 回调执行的唯一 id
