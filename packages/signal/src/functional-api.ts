@@ -34,7 +34,7 @@ export function $(data: any) {
 
 const DefaultCustomEffectOpt = {
   immediate: true,
-  scheduleType: ScheduleType.Sync
+  type: ScheduleType.Sync
 };
 
 export type CustomEffectOpt = Partial<typeof DefaultCustomEffectOpt>;
@@ -49,7 +49,7 @@ export function effectUt(
   opt = hasDep ? opt || {} : depOrOpt || {};
   if (!hasDep) {
     // @ts-ignore
-    const ef = new Effect(callback, opt.scheduleType);
+    const ef = new Effect(callback, opt.type);
     const run = ef.dispose.bind(ef);
     run.ins = ef;
     return run;
@@ -60,7 +60,7 @@ export function effectUt(
   const immediate = deps.length === 0 ? true : (opt.immediate ?? true);
   const vs: ValueDiff[] = Array.from({ length: deps.length }, () => ({ old: null, val: null }));
 
-  const ef = new Effect(() => {
+  const ef = new Effect((eff) => {
     for (let i = 0; i < deps.length; i++) {
       const value = deps[i].v;
       vs[i].old = vs[i].val;
@@ -68,12 +68,12 @@ export function effectUt(
     }
 
     if (mounted || immediate) {
-      ef.state |= State.LinkScopeOnly;
+      eff.state |= State.LinkScopeOnly;
       callback(...vs);
-      ef.state &= ~State.LinkScopeOnly;
+      eff.state &= ~State.LinkScopeOnly;
     }
     mounted = true;
-  }, opt.scheduleType);
+  }, opt.type);
   const run = ef.dispose.bind(ef);
   run.ins = ef;
   return run;
@@ -89,7 +89,7 @@ export function effect(
   opt = hasDep ? opt || {} : depOrOpt || {};
   if (!hasDep) {
     // @ts-ignore
-    const ef = new Effect(callback, opt.scheduleType);
+    const ef = new Effect(callback, opt.type);
     return ef;
   }
   /*----------------- 指定依赖， watcher -----------------*/
@@ -111,7 +111,7 @@ export function effect(
       eff.state &= ~State.LinkScopeOnly;
     }
     mounted = true;
-  }, opt.scheduleType);
+  }, opt.type);
   return ef;
 }
 

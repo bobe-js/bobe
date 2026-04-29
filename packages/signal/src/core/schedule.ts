@@ -68,5 +68,7 @@ export class MultiScheduler<T> {
   }
 }
 
-/** TODO: 考虑如何与 ScheduleType 对齐 */
+/** TODO: 考虑如何与 ScheduleType 对齐
+ *  TODO: 考虑异步 effect 循环依赖的情况
+ */
 export const multiScheduler = new MultiScheduler(4);
