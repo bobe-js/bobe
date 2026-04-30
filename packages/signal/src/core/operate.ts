@@ -1,7 +1,7 @@
 import { setPulling, getPulling } from './global';
 import { Effect } from './effect';
 import { Signal } from './signal';
-import { Link, SideEffect, OutLink, SignalNode, OnClean, ScheduleType } from './type';
+import { Link, SideEffect, OutLink, SignalNode, OnClean, ScheduleType, ScheduleStatus } from './type';
 import { State, DirtyState, PullingOrScopeExecuted, ScopeAbort } from './macro' with { type: 'macro' };
 import { multiScheduler } from './schedule';
 import { micro } from '#/util';
@@ -194,11 +194,14 @@ export function flushSyncEffect() {
   consumeI = -1;
   produceI = -1;
 }
-
+let schedulerStatus = ScheduleStatus.Idle;
 export function flushMicroEffect() {
-  if (multiScheduler.hasTask) {
+  if (schedulerStatus === ScheduleStatus.Idle && multiScheduler.hasTask) {
+    schedulerStatus = ScheduleStatus.Ready;
     micro(() => {
+      schedulerStatus = ScheduleStatus.Running;
       multiScheduler.flushAllTask();
+      schedulerStatus = ScheduleStatus.Idle;
     });
   }
 }

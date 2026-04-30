@@ -37,3 +37,12 @@ export enum ScheduleType {
   /** signal 变化后优先级第三高的异步任务 */
   Post = 0b0000_0000_0000_0000_0000_0000_0000_1000
 }
+
+export enum ScheduleStatus {
+  /** 空闲 */
+  Idle = 0,
+  /** 准备运行 */
+  Ready,
+  /** 运行中 */
+  Running
+}

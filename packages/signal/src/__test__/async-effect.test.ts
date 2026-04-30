@@ -605,4 +605,67 @@ describe('async effect 调度测试', () => {
       log.toBe('v=2');
     });
   });
+
+  describe('flushMicroEffect 去重', () => {
+    it('微任务执行后状态重置，后续变更可重新调度', () =>
+      new Promise(done => {
+        const log = new Log();
+        const s = $(1);
+
+        effect(() => {
+          log.call(`v=${s.v}`);
+        }, { type: ScheduleType.Pre });
+
+        log.toBe('v=1');
+
+        // 第一轮
+        s.v = 2;
+        log.toBe();
+
+        Promise.resolve().then(() => {
+          log.toBe('v=2');
+
+          // 第二轮：状态必须已在回调末尾重置为 Idle
+          s.v = 3;
+          log.toBe();
+
+          Promise.resolve().then(() => {
+            log.toBe('v=3');
+            done(1);
+          });
+        });
+      })
+    );
+
+    it('Effect 执行期间触发的 Effect 在同一微任务中完成', () =>
+      new Promise(done => {
+        const log = new Log();
+        const s = $(1);
+        const s2 = $(10);
+
+        effect(() => {
+          log.call(`A=${s.v}`);
+          if (s.v > 1) {
+            s2.v = s.v * 2;
+            // s2.set() 内部调用 flushMicroEffect()，此时状态为 Running，被跳过
+            // 但 flushAllTask 的 while 循环会消费新增的 B
+          }
+        }, { type: ScheduleType.Pre });
+
+        effect(() => {
+          log.call(`B=${s2.v}`);
+        }, { type: ScheduleType.Pre });
+
+        log.toBe('A=1', 'B=10');
+
+        s.v = 3;
+        log.toBe();
+
+        Promise.resolve().then(() => {
+          log.toBe('A=3', 'B=6');
+          done(1);
+        });
+      })
+    );
+  });
 });

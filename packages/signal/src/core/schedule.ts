@@ -42,6 +42,7 @@ export class MultiScheduler<T> {
   }
 
   flushAllTask() {
+    // TODO: 开发环境 考虑异步 effect 循环依赖的情况
     while (this.hasTask) {
       const { hasTask } = this;
       const highest = hasTask & (~hasTask + 1);
