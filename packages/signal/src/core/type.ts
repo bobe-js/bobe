@@ -38,6 +38,15 @@ export enum ScheduleType {
   Post = 0b0000_0000_0000_0000_0000_0000_0000_1000
 }
 
+export const EffectStrType2Enum = {
+  sync: ScheduleType.Sync,
+  pre: ScheduleType.Pre,
+  render: ScheduleType.Render,
+  post: ScheduleType.Post
+};
+
+export type ScheduleTypeStr = keyof typeof EffectStrType2Enum;
+
 export enum ScheduleStatus {
   /** 空闲 */
   Idle = 0,

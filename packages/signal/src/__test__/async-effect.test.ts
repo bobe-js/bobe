@@ -1,4 +1,4 @@
-import { $, effectUt as effect, ScheduleType, batchStart, batchEnd } from '#/index';
+import { $, effectUt as effect, batchStart, batchEnd } from '#/index';
 import { Log } from '#test/log-order';
 
 describe('async effect 调度测试', () => {
@@ -11,7 +11,7 @@ describe('async effect 调度测试', () => {
         () => {
           log.call(`v=${s.v}`);
         },
-        { type: ScheduleType.Sync }
+        { type: 'sync' }
       );
 
       log.toBe('v=1');
@@ -32,7 +32,7 @@ describe('async effect 调度测试', () => {
           () => {
             log.call(`v=${s.v}`);
           },
-          { type: ScheduleType.Pre }
+          { type: 'pre' }
         );
 
         log.toBe('v=1');
@@ -55,7 +55,7 @@ describe('async effect 调度测试', () => {
           () => {
             log.call(`v=${s.v}`);
           },
-          { type: ScheduleType.Render }
+          { type: 'render' }
         );
 
         log.toBe('v=1');
@@ -78,7 +78,7 @@ describe('async effect 调度测试', () => {
           () => {
             log.call(`v=${s.v}`);
           },
-          { type: ScheduleType.Post }
+          { type: 'post' }
         );
 
         log.toBe('v=1');
@@ -99,9 +99,9 @@ describe('async effect 调度测试', () => {
         const log = new Log();
         const s = $(1);
 
-        effect(() => log.call('post'), [s], { type: ScheduleType.Post });
-        effect(() => log.call('render'), [s], { type: ScheduleType.Render });
-        effect(() => log.call('pre'), [s], { type: ScheduleType.Pre });
+        effect(() => log.call('post'), [s], { type: 'post' });
+        effect(() => log.call('render'), [s], { type: 'render' });
+        effect(() => log.call('pre'), [s], { type: 'pre' });
 
         log.toBe('post', 'render', 'pre');
 
@@ -121,9 +121,9 @@ describe('async effect 调度测试', () => {
         const s2 = $(10);
         const s3 = $(100);
 
-        effect(() => log.call(`post-s3=${s3.v}`), { type: ScheduleType.Post });
-        effect(() => log.call(`render-s2=${s2.v}`), { type: ScheduleType.Render });
-        effect(() => log.call(`pre-s1=${s1.v}`), { type: ScheduleType.Pre });
+        effect(() => log.call(`post-s3=${s3.v}`), { type: 'post' });
+        effect(() => log.call(`render-s2=${s2.v}`), { type: 'render' });
+        effect(() => log.call(`pre-s1=${s1.v}`), { type: 'pre' });
 
         log.toBe('post-s3=100', 'render-s2=10', 'pre-s1=1');
 
@@ -146,9 +146,9 @@ describe('async effect 调度测试', () => {
         const log = new Log();
         const s = $(1);
 
-        effect(() => log.call('sync'), [s], { type: ScheduleType.Sync });
-        effect(() => log.call('pre'), [s], { type: ScheduleType.Pre });
-        effect(() => log.call('post'), [s], { type: ScheduleType.Post });
+        effect(() => log.call('sync'), [s], { type: 'sync' });
+        effect(() => log.call('pre'), [s], { type: 'pre' });
+        effect(() => log.call('post'), [s], { type: 'post' });
 
         log.toBe('sync', 'pre', 'post');
 
@@ -173,14 +173,14 @@ describe('async effect 调度测试', () => {
               s.v = s.v + 1;
             }
           },
-          { type: ScheduleType.Sync }
+          { type: 'sync' }
         );
 
         effect(
           () => {
             log.call(`pre=${s.v}`);
           },
-          { type: ScheduleType.Pre }
+          { type: 'pre' }
         );
 
         log.toBe('sync=1', 'pre=2');
@@ -203,9 +203,9 @@ describe('async effect 调度测试', () => {
         const log = new Log();
         const s = $(1);
 
-        effect(() => log.call('a'), [s], { type: ScheduleType.Pre });
-        effect(() => log.call('b'), [s], { type: ScheduleType.Pre });
-        effect(() => log.call('c'), [s], { type: ScheduleType.Pre });
+        effect(() => log.call('a'), [s], { type: 'pre' });
+        effect(() => log.call('b'), [s], { type: 'pre' });
+        effect(() => log.call('c'), [s], { type: 'pre' });
 
         log.toBe('a', 'b', 'c');
 
@@ -233,14 +233,14 @@ describe('async effect 调度测试', () => {
               s.v = s.v + 1;
             }
           },
-          { type: ScheduleType.Pre }
+          { type: 'pre' }
         );
 
         effect(
           () => {
             log.call(`post-v=${s.v}`);
           },
-          { type: ScheduleType.Post }
+          { type: 'post' }
         );
 
         log.toBe('pre-v=1', 'post-v=2');
@@ -268,7 +268,7 @@ describe('async effect 调度测试', () => {
             // 修改 B 信号，触发其 effect
             signalB.v = signalA.v * 2;
           },
-          { type: ScheduleType.Pre }
+          { type: 'pre' }
         );
 
         effect(
@@ -277,7 +277,7 @@ describe('async effect 调度测试', () => {
             // 修改 C 信号，触发其 effect
             signalC.v = signalB.v + 5;
           },
-          { type: ScheduleType.Render }
+          { type: 'render' }
         );
 
         effect(
@@ -288,7 +288,7 @@ describe('async effect 调度测试', () => {
               signalA.v = signalC.v - 10;
             }
           },
-          { type: ScheduleType.Post }
+          { type: 'post' }
         );
 
         log.toBe('pre-A10', 'render-B20', 'post-C25');
@@ -311,7 +311,7 @@ describe('async effect 调度测试', () => {
       const log = new Log();
       const s = $(1);
 
-      effect(() => log.call(`sync=${s.v}`), { type: ScheduleType.Sync });
+      effect(() => log.call(`sync=${s.v}`), { type: 'sync' });
 
       log.toBe('sync=1');
 
@@ -328,8 +328,8 @@ describe('async effect 调度测试', () => {
         const log = new Log();
         const s = $(1);
 
-        effect(() => log.call('sync'), [s], { type: ScheduleType.Sync });
-        effect(() => log.call('pre'), [s], { type: ScheduleType.Pre });
+        effect(() => log.call('sync'), [s], { type: 'sync' });
+        effect(() => log.call('pre'), [s], { type: 'pre' });
 
         log.toBe('sync', 'pre');
 
@@ -350,7 +350,7 @@ describe('async effect 调度测试', () => {
         const log = new Log();
         const s = $(1);
 
-        effect(() => log.call(`pre=${s.v}`), { type: ScheduleType.Pre });
+        effect(() => log.call(`pre=${s.v}`), { type: 'pre' });
 
         log.toBe('pre=1');
 
@@ -378,7 +378,7 @@ describe('async effect 调度测试', () => {
             log.call(`val=${val}, old=${old}`);
           },
           [s],
-          { type: ScheduleType.Pre, immediate: false }
+          { type: 'pre', immediate: false }
         );
 
         log.toBe();
@@ -403,7 +403,7 @@ describe('async effect 调度测试', () => {
             log.call(`s1=${v1.val}, s2=${v2.val}`);
           },
           [s1, s2],
-          { type: ScheduleType.Post, immediate: false }
+          { type: 'post', immediate: false }
         );
 
         log.toBe();
@@ -427,7 +427,7 @@ describe('async effect 调度测试', () => {
             log.call(`v=${val}`);
           },
           [s],
-          { type: ScheduleType.Render, immediate: true }
+          { type: 'render', immediate: true }
         );
 
         log.toBe('v=5');
@@ -452,7 +452,7 @@ describe('async effect 调度测试', () => {
           () => {
             log.call(`v=${s.v}`);
           },
-          { type: ScheduleType.Pre }
+          { type: 'pre' }
         );
 
         log.toBe('v=1');
@@ -472,8 +472,8 @@ describe('async effect 调度测试', () => {
         const log = new Log();
         const s = $(1);
 
-        const disposeA = effect(() => log.call('a'), [s], { type: ScheduleType.Pre });
-        effect(() => log.call('b'), [s], { type: ScheduleType.Pre });
+        const disposeA = effect(() => log.call('a'), [s], { type: 'pre' });
+        effect(() => log.call('b'), [s], { type: 'pre' });
 
         log.toBe('a', 'b');
 
@@ -498,7 +498,7 @@ describe('async effect 调度测试', () => {
           () => {
             log.call(`v=${s.v}`);
           },
-          { type: ScheduleType.Pre }
+          { type: 'pre' }
         );
 
         log.toBe('v=1');
@@ -529,7 +529,7 @@ describe('async effect 调度测试', () => {
           () => {
             log.call(`effect=${b.v}`);
           },
-          { type: ScheduleType.Pre }
+          { type: 'pre' }
         );
 
         log.toBe('b计算', 'effect=2');
@@ -557,7 +557,7 @@ describe('async effect 调度测试', () => {
           () => {
             log.call(`effect=${c.v}`);
           },
-          { type: ScheduleType.Post }
+          { type: 'post' }
         );
 
         log.toBe('c计算', 'effect=5');
@@ -614,7 +614,7 @@ describe('async effect 调度测试', () => {
 
         effect(() => {
           log.call(`v=${s.v}`);
-        }, { type: ScheduleType.Pre });
+        }, { type: 'pre' });
 
         log.toBe('v=1');
 
@@ -650,11 +650,11 @@ describe('async effect 调度测试', () => {
             // s2.set() 内部调用 flushMicroEffect()，此时状态为 Running，被跳过
             // 但 flushAllTask 的 while 循环会消费新增的 B
           }
-        }, { type: ScheduleType.Pre });
+        }, { type: 'pre' });
 
         effect(() => {
           log.call(`B=${s2.v}`);
-        }, { type: ScheduleType.Pre });
+        }, { type: 'pre' });
 
         log.toBe('A=1', 'B=10');
 
