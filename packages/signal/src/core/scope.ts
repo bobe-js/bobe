@@ -32,6 +32,21 @@ export class Scope {
     }
   }
 }
+
+export class NoopEffect {
+  constructor(public callback: () => OnClean | any) {
+    const scope = new Scope(callback);
+    scope.get();
+    return scope;
+  }
+}
+
+export const noopEffect = (callback: () => OnClean | any) => {
+  const scope = new Scope(callback);
+  scope.get();
+  return scope;
+};
+
 export interface Scope {
   dispose(): void;
 }

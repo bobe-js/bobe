@@ -20,7 +20,7 @@
   <div id="root"></div>
 </body>
 <script type="module">
-  import { bobe, Store, customRender, context } from 'bobe';
+  import { bobe, Store, customRender, context, effect } from 'bobe';
   // 指定版本号以确保 API 兼容性
   // import { Bench } from 'https://esm.sh/tinybench@2.9.0';
   const render = customRender({
@@ -264,7 +264,19 @@
         { value: 3, id: 3 }
       ]
     }
-    show = true
+    show = true;
+    div = {
+      dom: null
+    }
+    ef = effect(() => {
+      // console.log('切换', this.show);
+      // if (this.show) {
+        console.log('div', this.div);
+      // }
+    }, `div.dom`, { type: 'post'})
+
+
+
     value = ''
     onkeyup = (e) => {
       if (e.keyCode === 13) {
@@ -291,9 +303,6 @@
         { value: 1, id: 1 },
         { value: 2, id: 2 }
       ]
-    }
-    div = {
-      dom: null
     }
 
     cmp = null
@@ -339,7 +348,7 @@
     }
   }
 
-  class Child extends Store{
+  class Child extends Store {
     countStore = context('countStore');
     ui = bobe`
       h1 text={countStore.count}

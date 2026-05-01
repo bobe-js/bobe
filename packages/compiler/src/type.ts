@@ -112,7 +112,9 @@ export type HookProps = {
 
 export type TerpConf = Partial<
   Pick<Interpreter, 'createNode' | 'setProp' | 'insertAfter' | 'remove' | 'createAnchor' | 'firstChild' | 'nextSib'>
->;
+> & {
+  noopEffect?: boolean;
+};
 export type CustomRenderConf = Pick<
   TerpConf,
   'createNode' | 'setProp' | 'insertAfter' | 'remove' | 'createAnchor' | 'firstChild' | 'nextSib'
@@ -233,3 +235,12 @@ export type ComponentNode = LogicNode & {
   tokenizer: Tokenizer;
 };
 export type RootNode = LogicNode & {};
+
+export type Dep = Signal | Computed | (() => any) | string;
+
+export const isDep = (target: unknown): target is Dep =>
+  target &&
+  (target instanceof Signal ||
+    target instanceof Computed ||
+    typeof target === 'function' ||
+    typeof target === 'string');

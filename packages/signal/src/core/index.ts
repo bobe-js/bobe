@@ -1,9 +1,9 @@
 import { Computed } from './computed';
 import { Signal } from './signal';
 import { Effect } from './effect';
-import { Scope } from './scope';
+import { Scope, NoopEffect, noopEffect } from './scope';
 
-export { Signal, Computed, Effect, Scope };
+export { Signal, Computed, Effect, Scope, NoopEffect, noopEffect };
 export { clean, batchStart, batchEnd } from './operate';
 export * from './global';
 export * from './type';

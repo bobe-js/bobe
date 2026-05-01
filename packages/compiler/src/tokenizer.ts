@@ -737,7 +737,7 @@ export class Tokenizer {
     }
     this.setToken(tokenType, realValue);
   }
-  private getStr(head: string, parseEscape = true) {
+  getStr(head: string, parseEscape = true) {
     const startOffset = this.preI,
       startLine = this.line,
       startCol = this.preCol;

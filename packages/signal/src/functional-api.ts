@@ -88,6 +88,7 @@ export function effect(
   /*----------------- 自动收集 -----------------*/
   const hasDep = Array.isArray(depOrOpt);
   opt = hasDep ? opt || {} : depOrOpt || {};
+  opt = { ...DefaultCustomEffectOpt, ...opt };
   const scheduleType = EffectStrType2Enum[opt.type];
   if (!hasDep) {
     // @ts-ignore
@@ -102,7 +103,8 @@ export function effect(
 
   const ef = new Effect(eff => {
     for (let i = 0; i < deps.length; i++) {
-      const value = deps[i].get();
+      const dep = deps[i];
+      const value = typeof dep === 'function' ? dep() : dep.get();
       vs[i].old = vs[i].val;
       vs[i].val = value;
     }

@@ -1,4 +1,4 @@
-import { Signal } from './core';
+import type { Signal } from './core';
 export { Signal };
 
 export type SignalType = 'ref' | 'auto' | 'proxy';

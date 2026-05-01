@@ -6,7 +6,10 @@ import {
   effect,
   getPulling,
   Keys,
+  noopEffect,
+  NoopEffect,
   runWithPulling,
+  ScheduleType,
   Scope,
   setPulling,
   shareSignal,
@@ -405,7 +408,7 @@ export class Interpreter {
     const { dentStack, isFirstToken, ...snapshotForUpdate } = forNode.snapshot;
 
     let isFirstRender = true;
-    forNode.effect = new Effect(() => {
+    forNode.effect = new this.Effect(() => {
       let arr: any[] = arrSignal.get();
       // 订阅 iter
       arr[Keys.Iterator];
@@ -619,7 +622,7 @@ export class Interpreter {
           }
         }
       };
-    });
+    }, ScheduleType.Render);
     return forNode.children[0] || forNode;
   }
 
@@ -785,17 +788,17 @@ export class Interpreter {
         return this.setProp(node, key, value, hookI);
       }).get();
     } else if (typeof value === 'function') {
-      new Effect(() => {
+      new this.Effect(() => {
         const res = value(data);
         const dispose = this.setProp(node, key, res, hookI);
         return dispose;
-      });
+      }, ScheduleType.Render);
     } else if (valueIsMapKey) {
-      new Effect(() => {
+      new this.Effect(() => {
         const res = data[value];
         const dispose = this.setProp(node, key, res, hookI);
         return dispose;
-      });
+      }, ScheduleType.Render);
     }
     // 静态数据
     else {
@@ -944,7 +947,7 @@ export class Interpreter {
     // 不论是否执行 if 都应该插入 anchor 节点用于后续
     ifNode.realAfter = this.insertAfterAnchor(`${keyWord.value}-after`);
 
-    const ef = effect(
+    const ef = this.effect(
       ({ val }) => {
         // 如果值是 true 则直接放行让下面的节点自然执行插入
         if (val) {
@@ -983,7 +986,8 @@ export class Interpreter {
         }
         ifNode.isFirstRender = false;
       },
-      [signal]
+      [signal],
+       { type: 'render' }
     );
     ifNode.effect = ef;
     return ifNode;
@@ -1104,6 +1108,10 @@ export class Interpreter {
   config(opt: TerpConf) {
     Object.assign(this, opt);
     this.opt = opt;
+    if (opt.noopEffect) {
+      this.effect = noopEffect as any as typeof effect;
+      this.Effect = NoopEffect as any as typeof Effect;
+    }
   }
 
   createNode(name: string) {
@@ -1161,6 +1169,9 @@ export class Interpreter {
   setProp(node: any, key: string, value: any, hookI?: number): void | undefined | (() => void) {
     node.props[key] = value;
   }
+
+  Effect = Effect;
+  effect = effect;
 }
 
 function createStoreOnePropParsed(child: any) {
