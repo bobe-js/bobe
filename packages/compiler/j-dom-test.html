@@ -271,9 +271,9 @@
     ef = effect(() => {
       // console.log('切换', this.show);
       // if (this.show) {
-        console.log('div', this.div);
+      console.log('div', this.div);
       // }
-    }, `div.dom`, { type: 'post'})
+    }, `div.dom`, { type: 'post' })
 
 
 
@@ -310,15 +310,15 @@
       h3 text={desc}
     `;
     countStore = CountStore.new();
-
+    parentTitle = '父 title'
     ui = bobe`
-      if show // 注释1
+      // if show 
 
 // 注释2
-        div ref={div.dom} onclick={toggle}
-          {'显示'}  
-      else 
-        div onclick={toggle} text="隐藏"
+      div ref={div.dom} onclick={toggle}
+        {'显示'}  
+      // else 
+      //   div onclick={toggle} text="隐藏"
       h2 text="测\n试" // 注释0
       
       h1 text=${(data) => data.show ? 'Visible' : 'Hidden'}
@@ -327,16 +327,24 @@
           input data-id='123' value={value} oninput={oninput} onkeyup={onkeyup}
           br
           button onclick={countStore.add} text="父 add"
-          ${Child}
+          ${Child} header=
+            div
+              input value="头部"
+          |
+            h5 text={parentTitle}
+            h6 text={childTitle}
       
       // 注释3
-      ${Deep} ref={cmp} deep=2
       {fragment} desc='代码片段'
       for arr['value']; item i; item.id
         div style="display: flex; align-items: center;"
           h1 onclick={() => delItem(i)}
             {item.value}
           input type="text"  oninput={(e) => updateItem(i, e.target.value)} 
+          ${Child2} header=
+            h2 text={item.value + ' 子头'}
+          |
+            h3 text={childTitle}
        
     `
   }
@@ -349,10 +357,23 @@
   }
 
   class Child extends Store {
+    childTitle = '子 title'
     countStore = context('countStore');
     ui = bobe`
       h1 text={countStore.count}
       button onclick={countStore.add} text="子 add"
+      {header}
+      h4
+        {children} childTitle={childTitle}
+    `
+  }
+
+  class Child2 extends Store {
+    childTitle = '子 title'
+    ui = bobe`
+      {header}
+      h4
+        {children} childTitle={childTitle}
     `
   }
 

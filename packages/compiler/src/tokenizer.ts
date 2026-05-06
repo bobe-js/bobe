@@ -57,8 +57,7 @@ export class Tokenizer {
     public useDedentAsEof: boolean
   ) {
     if (useDedentAsEof) {
-      this.setToken(TokenType.Indent, '');
-      this.isFirstToken = true;
+      this.initIndentWhenUseDedentAsEof();
       // this.waitingTokens.push({
       //   type: TokenType.Indent,
       //   typeName: TokenType[TokenType.Indent],
@@ -66,6 +65,11 @@ export class Tokenizer {
       // })
     }
   }
+  initIndentWhenUseDedentAsEof() {
+    this.setToken(TokenType.Indent, '');
+    this.isFirstToken = true;
+  }
+
   private next() {
     if (__IS_COMPILER__) {
       const char = this.code[this.i];
@@ -108,16 +112,19 @@ export class Tokenizer {
   }
 
   // /** 恢复至某一个现场，进行 token 重算 */
-  resume(_snapshot: ReturnType<Tokenizer['snapshot']>) {
+  resume({ dentStack, waitingTokens, ..._snapshot }: ReturnType<Tokenizer['snapshot']>) {
     this.token = undefined;
     this.needIndent = false;
     this.isFirstToken = true;
-    this.dentStack = [0];
+    this.dentStack = dentStack ? dentStack.slice() : [0];
+    if (waitingTokens) {
+      this.waitingTokens = waitingTokens.clone();
+    }
     Object.assign(this, _snapshot);
   }
-  snapshot(keys?: (keyof Tokenizer)[]): Partial<Tokenizer> {
+  snapshot(keys?: (keyof Tokenizer)[], dtI = 0): Partial<Tokenizer> {
     const snap = {
-      i: this.i,
+      i: this.i + dtI,
       waitingTokens: this.waitingTokens.clone()
     };
     if (keys) {
@@ -131,8 +138,10 @@ export class Tokenizer {
     return snap;
   }
 
-  skip() {
-    const logicDentLen = this.dentStack[this.dentStack.length - 1];
+  skip(targetDentLen?: number) {
+    if (targetDentLen == undefined) {
+      targetDentLen = this.dentStack[this.dentStack.length - 1];
+    }
     let needIndent = false;
     /** \n 是为了弥补 if 节点 consume condition 后，已将 token 设置成回车 */
     let skipFragment = ``;
@@ -158,7 +167,7 @@ export class Tokenizer {
       const { value, isEmptyLine } = this.getDentValue();
       const currLen = value.length;
       if (isEmptyLine) continue;
-      if (currLen > logicDentLen) {
+      if (currLen > targetDentLen) {
         skipFragment += value;
       }
       // 找到与条件节点同级或更短的缩进了，结束。
@@ -179,9 +188,11 @@ export class Tokenizer {
           if (this.shorterThanBaseDentEof()) {
             break;
           }
-
           this.dentStack.pop();
-
+          // 比目标值大，这一行被跳过了，不需要记录反缩进
+          if (expLen > targetDentLen) {
+            continue;
+          }
           if (!this.token) {
             this.setToken(TokenType.Dedent, String(expLen));
           } else {

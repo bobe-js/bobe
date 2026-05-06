@@ -233,6 +233,10 @@ export type FragmentNode = LogicNode & {
 };
 export type ComponentNode = LogicNode & {
   tokenizer: Tokenizer;
+  /** 模版片段快照 */
+  fragmentSnapshot?: ReturnType<Tokenizer['snapshot']>;
+  /** 渲染模版片段前的 快照，渲染完成后用于恢复 */
+  resumeSnapshot?: ReturnType<Tokenizer['snapshot']>;
 };
 export type RootNode = LogicNode & {};
 

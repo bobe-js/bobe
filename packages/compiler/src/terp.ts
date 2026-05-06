@@ -160,6 +160,9 @@ export class Interpreter {
           // 子 tokenizer 使用 Dedent 推出 component 节点后，将 tokenizer 切换为 上一个 TokenSwitcher 的 tokenizer
           if (sort & NodeSort.TokenizerSwitcher) {
             const switcher = stack.peekByType(NodeSort.TokenizerSwitcher)?.node;
+            if (parent.resumeSnapshot) {
+              this.tokenizer.resume(parent.resumeSnapshot);
+            }
             this.tokenizer = switcher.tokenizer;
           }
 
@@ -260,7 +263,7 @@ export class Interpreter {
   /**
    * 声明部分：
    * 包含首行定义和（可选的）多行属性扩展
-   * <declaration> ::= <tagName=token> <headerLine> <extensionLines>
+   * <declaration> ::= <tagName=token> <headerLineAndExtensions>
    *  */
   declaration(ctx: ProgramCtx) {
     const [hookType, value] = this.tokenizer._hook({});
@@ -293,7 +296,7 @@ export class Interpreter {
       else {
         const valueIsMapKey = Reflect.has(data[Keys.Raw], value);
         const val = data[Keys.Raw][value];
-        if (typeof val === 'function') {
+        if (typeof val === 'function' || val instanceof InlineFragment) {
           _node = this.componentOrFragmentDeclaration(val, ctx);
         }
         // 字符
@@ -307,12 +310,18 @@ export class Interpreter {
       _node = this.createNode(value);
     }
     this.tokenizer.nextToken(); // 跳过 node 本身，token -> id
-    this.headerLine(_node);
-    this.extensionLines(_node);
+    this.headerLineAndExtensions(_node);
     // 组件用完，切换回 真实node 的方法
     this.onePropParsed = this.oneRealPropParsed;
     if (_node.__logicType & TokenizerSwitcherBit) {
       this.tokenizer = _node.tokenizer;
+      // 切换到子 tokenizer 时如有快照，则指定
+      if (_node.fragmentSnapshot) {
+        // TODO: 考虑使用 dent 处理时，的初始化 indent。这个行为应与 Tokenizer constructor 中逻辑一致
+        this.tokenizer.resume(_node.fragmentSnapshot);
+        this.tokenizer.useDedentAsEof = true;
+        this.tokenizer.initIndentWhenUseDedentAsEof();
+      }
     }
     return _node;
   }
@@ -649,8 +658,8 @@ export class Interpreter {
     /**
      * resume 后 token = null, 下个字符是 \n
      */
-    this.tokenizer.resume(snapshotForUpdate);
     // 解析到缩进小于 base 时自动 eof
+    this.tokenizer.resume(snapshotForUpdate);
     this.tokenizer.useDedentAsEof = false;
     runWithPulling(() => {
       this.program(forNode.realParent, forNode.owner, realBefore, item);
@@ -808,21 +817,44 @@ export class Interpreter {
 
   oneRealPropParsed: Interpreter['onePropParsed'] = this.onePropParsed.bind(this);
 
-  componentOrFragmentDeclaration(ComponentOrRender: BobeUI | typeof Store, ctx: ProgramCtx) {
+  componentOrFragmentDeclaration(ComponentOrRender: BobeUI | typeof Store | InlineFragment, ctx: ProgramCtx) {
     // 先进行 attr 映射，或建立 signal 连接，才能开始 render
     // 必须等待 attr 解析完毕
-    let Component: typeof Store, render: BobeUI, child: any;
+    let Component: typeof Store,
+      tokenizer: Tokenizer,
+      child: any,
+      fragmentSnapshot: Partial<Tokenizer>,
+      resumeSnapshot: Partial<Tokenizer>;
 
     const isCC = (ComponentOrRender as any).prototype instanceof Store;
     if (isCC) {
       Component = ComponentOrRender as any;
       child = Component.new();
+      // @ts-ignore
+      tokenizer = child.ui(true);
+    } else if (ComponentOrRender instanceof InlineFragment) {
+      const conf = ComponentOrRender as InlineFragment;
+      // 使用原型链来继承 store 的数据
+      child = deepSignal({}, getPulling(), true);
+      Object.setPrototypeOf(child, conf.data);
+      tokenizer = conf.tokenizer;
+      fragmentSnapshot = conf.snapshot;
+      // 考虑根组件，useDedentAsEof 与子组件不同
+      resumeSnapshot = tokenizer.snapshot([
+        'token',
+        'needIndent',
+        'isFirstToken',
+        'dentStack',
+        'isFirstToken',
+        'useDedentAsEof'
+      ]);
     } else {
-      render = ComponentOrRender as BobeUI;
+      const render = ComponentOrRender as BobeUI;
       const boundStore = render.boundStore;
       // 使用原型链来继承 store 的数据
       child = deepSignal({}, getPulling(), true);
       Object.setPrototypeOf(child, boundStore);
+      tokenizer = render(true);
     }
 
     const node: ComponentNode = {
@@ -831,7 +863,9 @@ export class Interpreter {
       realBefore: null,
       realAfter: null,
       data: child,
-      tokenizer: render ? render(true) : (child.ui as BobeUI)(true)
+      tokenizer,
+      fragmentSnapshot,
+      resumeSnapshot
     };
     this.onePropParsed = createStoreOnePropParsed(child);
     node.realAfter = this.insertAfterAnchor('component-after');
@@ -987,7 +1021,7 @@ export class Interpreter {
         ifNode.isFirstRender = false;
       },
       [signal],
-       { type: 'render' }
+      { type: 'render' }
     );
     ifNode.effect = ef;
     return ifNode;
@@ -1003,35 +1037,50 @@ export class Interpreter {
     }
   }
   /**
-   * <extensionLines> ::= PIPE <attributeList> NEWLINE <extensionLines>
-   *                    | ε
+   * 首行属性 + 可选的 pipe 扩展行
+   * <headerLineAndExtensions> ::= <attributeList> NEWLINE (PIPE <attributeList> NEWLINE)*
    */
-  extensionLines(_node: any) {
-    while (1) {
-      //  终止条件，下一行不是 pipe
-      if ((this.tokenizer.token.type & TokenType.Pipe) === 0) {
-        return;
+  headerLineAndExtensions(_node: any) {
+    const { tokenizer } = this;
+    do {
+      const isComponent = _node.__logicType & TokenizerSwitcherBit;
+      let snapshot: Partial<Tokenizer>, dentLen: number;
+      const data = this.getData();
+      const unHandledKey = this.attributeList(_node, data);
+      // 为行内模板片段准备快照，当前 token 是 NEWLINE，快照需要包含换行符，所以 -1
+      if (isComponent) {
+        snapshot = tokenizer.snapshot(undefined, -1);
+        dentLen = tokenizer.dentStack[tokenizer.dentStack.length - 1];
       }
-      // 开始解析 attributeList
-      this.tokenizer.nextToken(); // PIPE
-      this.attributeList(_node);
-      // 文件结束了，通常不会发生
-      if ((this.tokenizer.token.type & TokenType.NewLine) === 0) {
-        return;
+      tokenizer.nextToken(); // NEWLINE
+      if ((tokenizer.token.type & TokenType.Pipe) === 0) {
+        // 是 indent, 且当前节点是组件节点，记录行内模板起始快照，
+        // 跳过行内模板片段解析
+        if (isComponent && tokenizer.token.type & TokenType.Indent) {
+          this.inlineFragment(_node, snapshot, data, unHandledKey);
+          tokenizer.skip(dentLen);
+          if ((tokenizer.token.type & TokenType.Pipe) === 0) {
+            break;
+          }
+        } else {
+          break;
+        }
       }
-      // 换行
-      this.tokenizer.nextToken(); // NEWLINE
-    }
+      tokenizer.nextToken(); // PIPE
+    } while (true);
   }
 
   /**
-   * 首行：
-   * 节点名称 + 属性列表 + 换行
-   * <headerLine> ::= <attributeList> NEWLINE
+   * 1. 快照
+   * 2. 跳过 行内模板片段
+   * 3. 准备
+   *    1. tokenizer
+   *    2. 快照
+   *    3. 使用 CtxProvider 中 数据作为 data
    */
-  headerLine(_node: any) {
-    this.attributeList(_node);
-    this.tokenizer.nextToken(); // NEWLINE
+  inlineFragment(_node: any, snapshot: Partial<Tokenizer>, data: any, key = 'children') {
+    const value = new InlineFragment(snapshot, data, key, this.tokenizer);
+    this.onePropParsed(data, _node, key, value, false, true);
   }
 
   /**
@@ -1044,9 +1093,9 @@ export class Interpreter {
    * 1. 普通节点 执行 setProps 🪝
    * 2. 组件节点 收集映射关系，或 产生 computed
    */
-  attributeList(_node: any) {
+  attributeList(_node: any, data: any) {
     let key: string, eq: any;
-    const data = this.getData();
+
     while ((this.tokenizer.token.type & TokenType.NewLine) === 0) {
       // 取 key
       if (key == null) {
@@ -1104,7 +1153,9 @@ export class Interpreter {
       }
       this.tokenizer.nextToken();
     }
+    return key;
   }
+
   config(opt: TerpConf) {
     Object.assign(this, opt);
     this.opt = opt;
@@ -1200,4 +1251,14 @@ function createStoreOnePropParsed(child: any) {
     }
   };
   return onePropParsed;
+}
+
+export class InlineFragment {
+  [Keys.ProxyFreeObject] = true;
+  constructor(
+    public snapshot: Partial<Tokenizer>,
+    public data: any,
+    public key: string,
+    public tokenizer: Tokenizer
+  ) {}
 }
