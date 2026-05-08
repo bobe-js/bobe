@@ -171,7 +171,9 @@ export type ProgramCtx = {
 /** 返回值是用户自定义的节点 */
 export type UI<T = any> = {
   /** 在哪个 Store 声明的 */
-  boundStore: T;
+  boundStore: Store;
+  /** 用户声明片段内可用的 props */
+  defineProps?: T;
   (isSub: boolean): Tokenizer;
 };
 
