@@ -853,7 +853,9 @@ export class Interpreter {
       const boundStore = render.boundStore;
       // 使用原型链来继承 store 的数据
       child = deepSignal({}, getPulling(), true);
-      Object.setPrototypeOf(child, boundStore);
+      if(boundStore) {
+        Object.setPrototypeOf(child, boundStore);
+      }
       tokenizer = render(true);
     }
 

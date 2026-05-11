@@ -237,7 +237,12 @@ export const getEscapeChar = (char: string, i: number): string | undefined => {
   return escapeMap[char[i]];
 };
 
-export const jsVarRegexp = /\b[a-zA-Z_$][a-zA-Z0-9_$]*\b/g;
+export const jsVarRegexp = /(?<![a-zA-Z0-9_$])[a-zA-Z_$][a-zA-Z0-9_$]*(?![a-zA-Z0-9_$])/g;
+
+export const matchBlank = (char: string, i: number) => {
+  const code = char.charCodeAt(i);
+  return (code > 8 && code < 14) || code === 32;
+};
 
 // const queue = new Queue([1,2,3,4]);
 // queue.shift()
