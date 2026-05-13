@@ -34,6 +34,7 @@ interface BaseNode {
   type: ASTNodeType; // 直接使用FakeType或NodeType作为类型
   loc?: SourceLocation;
   hasError?: boolean;
+  parent?: BaseNode;
 }
 
 

@@ -69,7 +69,10 @@
   window.program = program;
 
   function log () {
-    $('#output').text(JSON.stringify(program, undefined, 2));
+    $('#output').text(JSON.stringify(program, (key, val) => {
+      if (key === 'parent') return val ? `[${val.type}]` : null;
+      return val;
+    }, 2));
     console.log(window.tokens.map(item => ({ type: item.typeName, loc: item.loc })));
   }
   log();

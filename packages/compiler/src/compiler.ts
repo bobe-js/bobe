@@ -24,7 +24,7 @@ import {
 
 export class Compiler {
   errors: ParseError[] = [];
-
+  currentParent?: BaseNode;
   constructor(
     public tokenizer: Tokenizer,
     public hooks: ParseHooks = {}
@@ -494,10 +494,14 @@ function TokenLoc(target: Function, context: ClassMethodDecoratorContext<Compile
 
 function NodeHook(target: Function, context: ClassMethodDecoratorContext<Compiler>) {
   return function (this: Compiler, _node?: BaseNode) {
+    const prevParent = this.currentParent;
     const hook = this.hooks[context.name as keyof typeof this.hooks];
     const node = { loc: {} } as BaseNode;
+    node.parent = prevParent;
     hook?.enter?.call(this, node);
+    this.currentParent = node;
     const result = target.call(this, node);
+    this.currentParent = prevParent;
     hook?.leave?.call(this, node);
     return result;
   };
