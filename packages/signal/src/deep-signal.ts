@@ -77,6 +77,8 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
       if ((targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) || typeof value === 'function') {
         return Reflect.set(obj, prop, value, receiver);
       }
+      // 在 Reflect.set 之前检查是否为新增属性，避免设置后检查失效
+      const isNewKey = !Reflect.has(obj, prop);
       // 数组项 set 可能出现 Iterator 设置，用 batch 避免 effect 多次执行
       batchStart();
       const success = Reflect.set(obj, prop, value, receiver);
@@ -88,8 +90,8 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
 
       if (targetIsArray) {
         handleArraySet(obj, prop, value, receiver);
-      } else {
-        triggerIter(obj, prop, value, receiver);
+      } else if (isNewKey) {
+        receiver[Keys.Iterator] = (receiver[Keys.Raw][Keys.Iterator] || 0) + 1;
       }
       batchEnd();
       // 保持原始对象干净
@@ -101,10 +103,15 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
       if ((targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) || typeof obj[prop] === 'function') {
         return Reflect.deleteProperty(obj, prop);
       }
-      // 2. 从 Map 中移除，切断引用，允许 GC 回收这个 $() 实例
+      // 从 Map 中移除，切断引用，允许 GC 回收这个 $() 实例
       cells.delete(prop);
-      triggerIter(obj, prop, undefined, proxy);
-      return Reflect.deleteProperty(obj, prop);
+      const result = Reflect.deleteProperty(obj, prop);
+      // 普通对象：删除总是改变键集合
+      // 数组数字索引：仅在非批量操作时触发（用户直接 delete arr[0]），批量操作由方法重写统一管理 Iterator
+      if (!targetIsArray) {
+        proxy[Keys.Iterator] = (obj[Keys.Iterator] || 0) + 1;
+      }
+      return result;
     },
 
     ownKeys(obj) {
@@ -114,7 +121,8 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
       } else {
         proxy[Keys.Iterator];
       }
-      return Reflect.ownKeys(obj);
+      // 过滤内部属性 __AOYE_ITERATOR
+      return Reflect.ownKeys(obj).filter(key => key !== Keys.Iterator);
     }
   });
 

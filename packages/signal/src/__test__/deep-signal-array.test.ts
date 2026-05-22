@@ -114,6 +114,24 @@ describe('Array methods effect tests', () => {
       expect(effectSpy).toHaveBeenCalledTimes(1);
       expect([...arr]).toEqual([1, 'filled', 'filled', 'test']);
     });
+
+    it('should trigger effect when directly subscribing to arr.length and setting length', () => {
+      const local = $([1, 2, 3, 4, 5]);
+      effectSpy = vi.fn();
+
+      effect(() => {
+        const len = local.length;
+        effectSpy(len);
+      });
+
+      expect(effectSpy).toHaveBeenCalledTimes(1);
+      expect(effectSpy).toHaveBeenLastCalledWith(5);
+
+      local.length = 2;
+
+      expect(effectSpy).toHaveBeenCalledTimes(2);
+      expect(effectSpy).toHaveBeenLastCalledWith(2);
+    });
   });
 
   describe('Get - 全等匹配方法', () => {
