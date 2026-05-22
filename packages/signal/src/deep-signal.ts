@@ -3,6 +3,13 @@ import { rawToProxy } from './global';
 import { Computed, Scope, Signal, batchEnd, batchStart, runWithPulling } from './core';
 import { IsStore, Key, Keys, StoreIgnoreKeys } from './type';
 import { toRaw } from './util';
+import {
+  createSharedHandler,
+  createMapHandler,
+  createSetHandler,
+  mergeHandlers,
+  trackIterator
+} from './map-set-handler';
 
 export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
   const isObj = typeof target === 'object' && target !== null;
@@ -13,6 +20,48 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
   // 2. 返回已有代理
   const p = rawToProxy.get(target);
   if (p) return p;
+
+  const targetIsMap = target instanceof Map;
+  const targetIsSet = target instanceof Set;
+
+  // Map/Set 特殊代理
+  if (targetIsMap || targetIsSet) {
+    const cells = new Map<any, Signal>();
+    const meta = { deep, scope, cells };
+    const shared = createSharedHandler(cells, scope, deep, targetIsMap);
+    const specific = targetIsMap
+      ? createMapHandler(cells, scope, deep)
+      : createSetHandler(cells, scope, deep);
+    const instrumentations = mergeHandlers(shared, specific);
+
+    const proxy = new Proxy(target, {
+      get(_obj, prop, receiver) {
+        if (prop === Keys.Raw) return target;
+        if (prop === Keys.Meta) return meta;
+        if (prop === Symbol.toStringTag) return targetIsMap ? 'Map' : 'Set';
+
+        // size getter — 依赖 Iterator，读取原始 target
+        if (prop === 'size') {
+          trackIterator(cells, scope);
+          return Reflect.get(target, 'size', target);
+        }
+
+        // 拦截已知方法
+        if (prop in instrumentations) {
+          const fn = instrumentations[prop];
+          return typeof fn === 'function' ? fn.bind(receiver) : fn;
+        }
+
+        // 其他自定义属性
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value === 'function') return value;
+        return deep ? deepSignal(value, scope) : value;
+      }
+    });
+
+    rawToProxy.set(target, proxy);
+    return proxy;
+  }
 
   // 每个对象维护自己的 cells 闭包
   const cells = new Map<any, Signal>();
