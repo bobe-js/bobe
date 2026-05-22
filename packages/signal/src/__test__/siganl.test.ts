@@ -334,6 +334,31 @@ describe('signal 基础功能测试', () => {
     log.toBe('Set 4');
   });
 
+  it('非响应式值干扰', () => {
+    const log = new Log();
+    const s0 = $(0);
+    const s1 = $(1);
+    const s2 = $(2);
+    let show0 = true;
+    effect(() => {
+      if (show0) {
+        log.call(`s0-${s0.v}`);
+      } else {
+        log.call(`s1-${s1.v}`);
+      }
+      log.call(`s2-${s2.v}`);
+    });
+    // 首次评估：show0=true → 读 s0, s2
+    log.toBe('s0-0', 's2-2');
+
+    // 切换非响应式变量，修改 s2 触发重评估
+    // 重评估时首个依赖从 s0 变为 s1，与旧链头不匹配 → 走 link() case 3
+    // 此前 recTail=null 会导致 crash，修复后应正常
+    show0 = false;
+    s2.v = 3;
+    log.toBe('s1-1', 's2-3');
+  });
+
   it('pullDeep 在 pullRecurse 中应该正确处理依赖关系', () => {
     const log = new Log();
     const a = $(1);

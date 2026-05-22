@@ -81,7 +81,12 @@ export function link(
 
   // 加入 down 链表, 一定不是尾插，只考虑是否头插
   if (recHead) {
-    recTail.nextRecLine = line;
+    if (recTail) {
+      recTail.nextRecLine = line;
+    } else {
+      // recTail 已被重置为 null，说明这是 downstream 新增的第一个 link ，新 link 直接作为新链头
+      down.recHead = line;
+    }
   } else {
     down.recHead = line;
   }
@@ -163,7 +168,11 @@ export function outLink(
 
   // 加入 down 链表, 一定不是尾插，只考虑是否头插
   if (recHead) {
-    recTail.nextRecLine = line;
+    if (recTail) {
+      recTail.nextRecLine = line;
+    } else {
+      down.recHead = line;
+    }
   } else {
     down.recHead = line;
   }
