@@ -16,7 +16,7 @@ describe('Store 测试', () => {
         }
       }
 
-      const store = new TestStore();
+      const store = TestStore.new();
       expect(store.count).toBe(0);
       expect(store.name).toBe('test');
 
@@ -37,7 +37,7 @@ describe('Store 测试', () => {
         }
       }
 
-      const store = new CounterStore();
+      const store = CounterStore.new();
       expect(store.value).toBe(0);
 
       store.setValue(5);
@@ -55,7 +55,7 @@ describe('Store 测试', () => {
         message = 'hello';
       }
 
-      const store = new ReactiveStore();
+      const store = ReactiveStore.new();
       let accessCount = 0;
       let capturedValue = '';
 
@@ -89,7 +89,7 @@ describe('Store 测试', () => {
         };
       }
 
-      const store = new NestedStore();
+      const store = NestedStore.new();
       let accessCount = 0;
       let capturedName = '';
       let capturedAge = 0;
@@ -119,7 +119,7 @@ describe('Store 测试', () => {
         items = [1, 2, 3];
       }
 
-      const store = new ArrayStore();
+      const store = ArrayStore.new();
       let accessCount = 0;
       let capturedItems: number[] = [];
       let capturedLength = 0;
@@ -152,7 +152,7 @@ describe('Store 测试', () => {
         unwatched = 0;
       }
 
-      const store = new SelectiveTrackingStore();
+      const store = SelectiveTrackingStore.new();
       let accessCount = 0;
       let capturedWatched = 0;
 
@@ -195,14 +195,14 @@ describe('Store 测试', () => {
       }
 
       // 创建父 store
-      const parentCounter = new CounterStore();
+      const parentCounter = CounterStore.new();
       parentCounter.count = 100;
 
       // 设置当前父 store 上下文
       CounterStore.Current = parentCounter;
 
       // 创建子 store
-      const sharedStore = new SharedStore();
+      const sharedStore = SharedStore.new();
 
       // 验证共享是否生效
       // 注意：实际实现需要根据具体的 shareSignal 函数逻辑来调整
@@ -224,7 +224,7 @@ describe('Store 测试', () => {
         parentRef = ChildStore.new({ childValue: 'parentValue' });
       }
 
-      const parent = new ParentStore();
+      const parent = ParentStore.new();
 
       // 验证多层嵌套的共享行为
       // 这里需要根据实际的共享机制来验证
@@ -241,7 +241,7 @@ describe('Store 测试', () => {
         }
       }
 
-      const store = new MethodReactiveStore();
+      const store = MethodReactiveStore.new();
       let effectCallCount = 0;
       let capturedDoubled = 0;
 
@@ -289,9 +289,81 @@ describe('Store 测试', () => {
         }
       }
 
-      const b = new B();
+      const b = B.new();
       b.changeA();
       expect(b.foo.baz).toBe(4);
+    });
+  });
+
+  describe('Store.new 表达式传值', () => {
+    it('字符串表达式 `a+b` 应通过 Computed 计算（parentStore 上不存在该 key）', () => {
+      class Child extends Store {
+        sum: number;
+      }
+      class Parent extends Store {
+        a = 10;
+        b = 20;
+        child = Child.new({ sum: 'a+b' });
+      }
+      const p = Parent.new();
+      expect(p.child.sum).toBe(30);
+
+      p.a = 5;
+      expect(p.child.sum).toBe(25);
+    });
+
+    it('函数表达式应通过 Computed 计算', () => {
+      class Child extends Store {
+        product: number;
+      }
+      class Parent extends Store {
+        x = 3;
+        y = 4;
+        child = Child.new({ product: (parent: any) => parent.x * parent.y });
+      }
+      const p = Parent.new();
+      expect(p.child.product).toBe(12);
+
+      p.x = 5;
+      expect(p.child.product).toBe(20);
+    });
+
+    it('字符串为 parentStore 上的 key 时应走 shareSignal 双向共享', () => {
+      class Child extends Store {
+        value: string;
+      }
+      class Parent extends Store {
+        value = 'hello';
+        child = Child.new({ value: 'value' });
+      }
+      const p = Parent.new();
+      expect(p.child.value).toBe('hello');
+
+      // shareSignal 双向：子组件修改 → 父组件可见
+      p.child.value = 'world';
+      expect(p.child.value).toBe('world');
+      expect(p.value).toBe('world');
+
+      // 父组件修改 → 子组件可见
+      p.value = 'both';
+      expect(p.child.value).toBe('both');
+    });
+
+    it('应支持表达式 keyMap + staticMap 组合使用', () => {
+      class Child extends Store {
+        doubled: number;
+        tag: string;
+      }
+      class Parent extends Store {
+        x = 10;
+        child = Child.new({ doubled: 'x*2' }, { tag: 'static' });
+      }
+      const p = Parent.new();
+      expect(p.child.doubled).toBe(20);
+      expect(p.child.tag).toBe('static');
+
+      p.x = 100;
+      expect(p.child.doubled).toBe(200);
     });
   });
 
@@ -309,7 +381,7 @@ describe('Store 测试', () => {
         raw = 'also ignored';
       }
 
-      const store = new TestStore();
+      const store = TestStore.new();
 
       effect(() => {
         store.normalProp;
@@ -334,7 +406,7 @@ describe('Store 测试', () => {
         raw = 'also normal';
       }
 
-      const store = new TestStore();
+      const store = TestStore.new();
 
       effect(() => {
         store.myIgnore;
@@ -384,7 +456,7 @@ describe('Store 测试', () => {
         }
       }
 
-      const store = new ExtendedStore();
+      const store = ExtendedStore.new();
       let effectCallCount = 0;
       let capturedValues = { base: '', extended: '' };
 
