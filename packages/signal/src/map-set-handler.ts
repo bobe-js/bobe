@@ -14,10 +14,10 @@ export const trackIterator = (cells: Map<any, Signal>, scope: Scope) => {
   iter.get();
 };
 
-const triggerIterator = (cells: Map<any, Signal>, raw: any) => {
+const triggerIterator = (cells: Map<any, Signal>) => {
   const iter = cells.get(Keys.Iterator);
   if (iter) {
-    iter.set((raw[Keys.Iterator] || 0) + 1);
+    iter.set((iter.value || 0) + 1);
   }
 };
 
@@ -80,7 +80,7 @@ export const createSharedHandler = (cells: Map<any, Signal>, scope: Scope, deep:
       if (had) {
         triggerKey(cells, key);
         cells.delete(key);
-        triggerIterator(cells, target);
+        triggerIterator(cells);
       }
       batchEnd();
       return result;
@@ -96,7 +96,7 @@ export const createSharedHandler = (cells: Map<any, Signal>, scope: Scope, deep:
       cells.clear();
       if (iterCell) cells.set(Keys.Iterator, iterCell);
       if (hadItems) {
-        triggerIterator(cells, target);
+        triggerIterator(cells);
       }
       batchEnd();
     },
@@ -157,7 +157,7 @@ export const createMapHandler = (cells: Map<any, Signal>, scope: Scope, deep: bo
       cell.set(value);
     }
     // 新增或修改已有 key 都触发 Iterator，因为迭代器（forEach/entries 等）依赖值变化
-    triggerIterator(cells, target);
+    triggerIterator(cells);
     batchEnd();
     return this;
   }
@@ -183,7 +183,7 @@ export const createSetHandler = (cells: Map<any, Signal>, scope: Scope, _deep: b
       cell.set(value);
     }
     if (!had) {
-      triggerIterator(cells, target);
+      triggerIterator(cells);
     }
     batchEnd();
     return this;

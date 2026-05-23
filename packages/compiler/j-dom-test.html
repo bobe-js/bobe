@@ -436,7 +436,7 @@
   }
 
   const root2 = document.getElementById('root')
-  const [_, store] = render(Keyed, root2)
+  const [_, store] = render(TestFor2, root2)
   window.store = store;
   window.cel = (obj, key) => {
     const cells = obj['__AOYE_META'].cells;

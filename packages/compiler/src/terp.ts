@@ -345,6 +345,53 @@ export class Interpreter {
     return node;
   }
 
+  formatForCollection(collection: any) {
+    // 不调 toRaw：让 proxy 的 forEach 负责 trackIterator + deepSignal 包装 item
+    const res = {
+      arr: [] as any[],
+      keys: null as string[] | null
+    };
+
+    // 数组
+    if (Array.isArray(collection)) {
+      res.arr = collection;
+      return res;
+    }
+
+    // Map
+    if (collection instanceof Map) {
+      res.keys = [];
+      collection.forEach((v, k) => {
+        res.arr.push(v);
+        res.keys.push(k);
+      });
+      return res;
+    }
+
+    // 集合
+    if (typeof collection === 'object' && collection !== null) {
+      if (collection[Symbol.iterator]) {
+        res.arr = Array.from(collection);
+        return res;
+      }
+
+      res.arr = Object.values(collection);
+      res.keys = Object.keys(collection);
+      return res;
+    }
+
+    if (typeof collection === 'number') {
+      res.arr = Array.from({ length: collection });
+      return res;
+    }
+
+    if (typeof collection === 'string') {
+      res.arr = collection.split('');
+      return res;
+    }
+
+    return res;
+  }
   forDeclaration() {
     const arrExp = this.tokenizer.jsExp().value as string;
     this.tokenizer.nextToken(); // 分号
@@ -385,6 +432,8 @@ export class Interpreter {
       realBefore: prevSibling?.realAfter || prevSibling,
       realAfter: null,
       arr: null,
+      reactiveArr: null,
+      keys: null,
       arrSignal: null,
       itemExp,
       indexName,
@@ -418,13 +467,18 @@ export class Interpreter {
 
     let isFirstRender = true;
     forNode.effect = new this.Effect(() => {
-      let arr: any[] = arrSignal.get();
-      // 订阅 iter
+      const collection = arrSignal.get();
+      const { arr: formattedArr, keys } = this.formatForCollection(collection);
+      let arr: any = formattedArr;
+      // 订阅 Iterator：数组/Map/Set 的结构变更
       arr[Keys.Iterator];
       const prevCtx = getPulling();
       setPulling(null);
-      // 使用原始数组避免 index 依赖
-      forNode.arr = arr = toRaw(arr);
+      // reactiveArr：数组为 proxy 支持 index 级响应式，Map/Set item 已被 deepSignal 包装
+      forNode.reactiveArr = formattedArr;
+      // arr（diff 用）：数组用 toRaw 避免 index 级依赖，Map/Set 本就是普通数组
+      forNode.arr = Array.isArray(collection) ? toRaw(arr) : arr;
+      forNode.keys = keys;
       const children = forNode.children;
       // 首屏渲染
       if (isFirstRender) {
@@ -470,7 +524,7 @@ export class Interpreter {
           for (let i = minLen; i--; ) {
             const child = children[i];
             newChildren[i] = child;
-            this.reuseForItem(child, arr[i], itemExp, i, indexName);
+            this.reuseForItem(child, arr[i], itemExp, i, indexName, keys?.[i]);
           }
         }
         // 带 key 列表
@@ -486,7 +540,7 @@ export class Interpreter {
             const key = forNode.getKey(itemData);
             if (old === key) {
               newChildren[s] = child;
-              this.reuseForItem(child, arr[s], itemExp, s, indexName);
+              this.reuseForItem(child, arr[s], itemExp, s, indexName, keys?.[s]);
               s++;
             } else {
               break;
@@ -500,7 +554,7 @@ export class Interpreter {
             const key = forNode.getKey(itemData);
             if (old === key) {
               newChildren[e2] = child;
-              this.reuseForItem(child, arr[e2], itemExp, e2, indexName);
+              this.reuseForItem(child, arr[e2], itemExp, e2, indexName, keys?.[e2]);
               e1--;
               e2--;
             } else {
@@ -554,7 +608,7 @@ export class Interpreter {
               const child = children[i];
               // 复用
               newChildren[newI] = child;
-              this.reuseForItem(child, arr[newI], itemExp, newI, indexName);
+              this.reuseForItem(child, arr[newI], itemExp, newI, indexName, keys?.[newI]);
               new2oldI[newI - s2] = i;
               // 剩余的 key 是新增
               key2new.delete(key);
@@ -675,15 +729,23 @@ export class Interpreter {
     child.effect.dispose();
   }
 
-  reuseForItem(child: ForItemNode, data: any, itemExp: string | ((value: any) => any), i: number, indexName?: string) {
+  reuseForItem(
+    child: ForItemNode,
+    data: any,
+    itemExp: string | ((value: any) => any),
+    i: number,
+    indexName?: string,
+    /** Map/Set 等有 key 时，index 值为 key */
+    indexValue?: any
+  ) {
     if (typeof itemExp === 'string') {
       child.data[itemExp] = data;
       if (indexName) {
-        child.data[indexName] = i;
+        child.data[indexName] = indexValue ?? i;
       }
     } else {
       indexName = indexName || KEY_INDEX;
-      child.data[indexName] = i;
+      child.data[indexName] = indexValue ?? i;
     }
   }
 
@@ -738,7 +800,7 @@ export class Interpreter {
   }
 
   getItemData(forNode: ForNode, i: number, parentData: any) {
-    const { arr, itemExp, vars, arrSignal, getKey } = forNode;
+    const { arr, itemExp, vars, arrSignal, getKey, keys } = forNode;
     let indexName = forNode.indexName;
     let data: Record<any, any>;
     if (typeof itemExp === 'string') {
@@ -746,7 +808,7 @@ export class Interpreter {
         indexName
           ? {
               [itemExp]: arr[i],
-              [indexName]: i
+              [indexName]: keys?.[i] ?? i
             }
           : {
               [itemExp]: arr[i]
@@ -755,9 +817,21 @@ export class Interpreter {
       );
     } else {
       indexName = indexName ?? KEY_INDEX;
-      const rawData = { [indexName]: i };
+      const rawData = { [indexName]: keys?.[i] ?? i };
       data = deepSignal(rawData, getPulling());
-      const computedData = new Computed(() => itemExp(arrSignal.get()[getKey ? data[indexName] : i]));
+      // 下标来源：
+      // - getKey：用 data[indexName]（reactive），key 表达式求值结果作为下标，下标变更时 Computed 自动重算
+      // - keys 无 getKey：用 (data[indexName], i) — 下标是静态 i（扁平数组按位置索引），
+      //   但通过逗号表达式读 data[indexName] 建立依赖：reuseForItem 更新 indexName 后 Computed 感知变化并重算
+      //   （Map/Set 的 reactiveArr 是 plain array，无 proxy get 陷阱，必须额外订阅 indexName）
+      // - 无 keys 无 getKey：用 i — 普通数组，reactiveArr 是 proxy，reactiveArr[i] 的 get 陷阱自带 index 级依赖
+      const computedData = new Computed(() =>
+        itemExp(
+          (arrSignal.get(), forNode.reactiveArr)[
+            getKey ? data[indexName] : keys ? (data[indexName], i) : i
+          ]
+        )
+      );
       const cells = data[Keys.Meta].cells;
       for (let i = 0; i < vars.length; i++) {
         const name = vars[i];
@@ -853,7 +927,7 @@ export class Interpreter {
       const boundStore = render.boundStore;
       // 使用原型链来继承 store 的数据
       child = deepSignal({}, getPulling(), true);
-      if(boundStore) {
+      if (boundStore) {
         Object.setPrototypeOf(child, boundStore);
       }
       tokenizer = render(true);

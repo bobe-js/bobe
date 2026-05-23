@@ -199,6 +199,9 @@ export type ForNode = Omit<LogicNode, 'data'> & {
   indexName?: string;
   getKey?: (data: any) => any;
   arr: any[];
+  /** 响应式版本：数组为 proxy、Map/Set 的 item 已被 deepSignal 包装 */
+  reactiveArr: any[];
+  keys: string[] | null;
   arrSignal: Signal<any[]> | Computed<any[]>;
   effect: Effect;
   i: number;

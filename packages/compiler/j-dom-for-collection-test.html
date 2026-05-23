@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bobe - For Collection Test</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "aoye": "./node_modules/aoye/dist/aoye.esm.js",
+      "bobe-shared": "./node_modules/bobe-shared/dist/bobe-shared.esm.js",
+      "bobe": "./dist/bobe.esm.js"
+    }
+  }
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+<script type="module">
+  import { bobe, Store, customRender } from 'bobe';
+
+  const render = customRender({
+    createNode(name) {
+      if (name === 'text') return document.createTextNode('');
+      return document.createElement(name);
+    },
+    setProp(node, key, value) {
+      if (key === 'text') node.textContent = value;
+      else if (key.startsWith('on')) {
+        const evtName = key.slice(2);
+        node.addEventListener(evtName, value);
+        return () => node.removeEventListener(evtName, value);
+      } else if (node.tagName === 'INPUT' && (key === 'value' || key === 'checked')) {
+        node[key] = value;
+      } else {
+        node.setAttribute(key, value);
+      }
+    },
+    insertAfter(parent, node, prev) {
+      if (!prev) parent.insertBefore(node, parent.firstChild);
+      else parent.insertBefore(node, prev.nextSibling);
+    },
+    createAnchor(name) {
+      return document.createComment(name);
+    },
+    remove(node) {
+      node.remove();
+    },
+    firstChild(node) {
+      return node.firstChild;
+    },
+    nextSib(node) {
+      return node.nextSibling;
+    },
+  });
+
+  // ============ 1. Map 循环 ============
+  class ForMap extends Store {
+    mapData = new Map([
+      ['a', 'Apple'],
+      ['b', 'Banana'],
+      ['c', 'Cherry']
+    ]);
+
+    newKey = '';
+    newVal = '';
+    onNewKey = (e) => { this.newKey = e.target.value; }
+    onNewVal = (e) => { this.newVal = e.target.value; }
+    addItem = () => {
+      if (this.newKey && this.newVal) {
+        this.mapData.set(this.newKey, this.newVal);
+        this.newKey = '';
+        this.newVal = '';
+      }
+    }
+    delItem = (key) => { this.mapData.delete(key); }
+    updateItem = (key) => { this.mapData.set(key, this.mapData.get(key) + '!'); }
+    replaceAll = () => {
+      this.mapData = new Map([['x', 'XRay'], ['y', 'Yellow'], ['z', 'Zebra']]);
+    }
+
+    ui = bobe`
+      h2 text="Map 循环 (key 作为 index)"
+      div style="display: flex; gap: 8px; margin-bottom: 8px;"
+        input placeholder="key" value={newKey} oninput={onNewKey}
+        input placeholder="value" value={newVal} oninput={onNewVal}
+        button onclick={addItem} text="添加"
+        button onclick={replaceAll} text="整体替换"
+      ul
+        for mapData; item key
+          li style="display: flex; gap: 8px; align-items: center;"
+            span text={key + ': ' + item}
+            button onclick={() => delItem(key)} text="删除"
+            button onclick={() => updateItem(key)} text="追加!"
+    `;
+  }
+
+  // ============ 2. Map 循环 (对象 value，解构) ============
+  class ForMapDestruct extends Store {
+    users = new Map([
+      [1, { name: 'Alice', age: 25 }],
+      [2, { name: 'Bob', age: 30 }],
+      [3, { name: 'Charlie', age: 35 }]
+    ]);
+
+    delUser = (id) => { this.users.delete(id); }
+    changeName = (id) => {
+      const u = this.users.get(id);
+      if (u) u.name = u.name + '~';
+    }
+
+    ui = bobe`
+      h2 text="Map 循环 (对象 value，解构)"
+      ul
+        for users; { name, age } id
+          li style="display: flex; gap: 8px; align-items: center;"
+            span text={'id=' + id + ': ' + name + ', ' + age + '岁'}
+            button onclick={() => delUser(id)} text="删除"
+            button onclick={() => changeName(id)} text="改名"
+    `;
+  }
+
+  // ============ 3. Set 循环 ============
+  class ForSet extends Store {
+    tags = new Set(['JavaScript', 'TypeScript', 'CSS']);
+
+    newTag = '';
+    onInput = (e) => { this.newTag = e.target.value; }
+    addTag = () => {
+      if (this.newTag) {
+        this.tags.add(this.newTag);
+        this.newTag = '';
+      }
+    }
+    delTag = (tag) => { this.tags.delete(tag); }
+
+    ui = bobe`
+      h2 text="Set 循环"
+      div style="display: flex; gap: 8px; margin-bottom: 8px;"
+        input placeholder="新标签" value={newTag} oninput={onInput}
+        button onclick={addTag} text="添加"
+      ul
+        for tags; tag i
+          li style="display: flex; gap: 8px; align-items: center;"
+            span text={tag}
+            button onclick={() => delTag(tag)} text="删除"
+    `;
+  }
+
+  // ============ 4. 普通对象循环（Object.values + keys） ============
+  class ForObject extends Store {
+    objData = { zh: '中文', en: 'English', ja: '日本語' };
+
+    delLang = (key) => { delete this.objData[key]; }
+    addLang = () => {
+      this.objData = { ...this.objData, fr: 'Français' };
+    }
+
+    ui = bobe`
+      h2 text="普通对象 {values + keys} 循环"
+      button onclick={addLang} text="添加法语"
+      ul
+        for objData; name key
+          li style="display: flex; gap: 8px; align-items: center;"
+            span text={key + ': ' + name}
+            button onclick={() => delLang(key)} text="删除"
+    `;
+  }
+
+  // ============ 5. 数字循环（repeat N） ============
+  class ForNumber extends Store {
+    count = 5;
+
+    inc = () => { this.count++; }
+    dec = () => { this.count = Math.max(0, this.count - 1); }
+
+    ui = bobe`
+      h2 text="数字循环 (重复 N 次)"
+      div style="display: flex; gap: 8px; margin-bottom: 8px;"
+        button onclick={inc} text="+1"
+        span text={count}
+        button onclick={dec} text="-1"
+      ul
+        for count; noop i
+          li text={'第 ' + (i + 1) + ' 项'}
+    `;
+  }
+
+  // ============ 6. 字符串循环 ============
+  class ForString extends Store {
+    text = 'Hello';
+
+    change = () => { this.text = this.text === 'Hello' ? 'World!' : 'Hello'; }
+
+    ui = bobe`
+      h2 text="字符串循环 (逐字符)"
+      button onclick={change} text="切换"
+      ul
+        for text; char i
+          li text={'[' + i + '] = ' + char}
+    `;
+  }
+
+  // ============ 根 Store ============
+  class App extends Store {
+    active = 'map';
+
+    setActive = (name) => { this.active = name; }
+
+    ui = bobe`
+      h1 text="For Collection 功能验证"
+      div style="display: flex; gap: 8px; margin-bottom: 16px;"
+        button onclick={() => setActive('map')} text="Map"
+        button onclick={() => setActive('mapDestruct')} text="Map解构"
+        button onclick={() => setActive('set')} text="Set"
+        button onclick={() => setActive('object')} text="Object"
+        button onclick={() => setActive('number')} text="Number"
+        button onclick={() => setActive('string')} text="String"
+      if active === 'map'
+        ${ForMap}
+      else active === 'mapDestruct'
+        ${ForMapDestruct}
+      else active === 'set'
+        ${ForSet}
+      else active === 'object'
+        ${ForObject}
+      else active === 'number'
+        ${ForNumber}
+      else active === 'string'
+        ${ForString}
+    `;
+  }
+
+  const root = document.getElementById('root');
+  render(App, root);
+  console.log('✅ For Collection test page loaded');
+</script>
+
+</html>
