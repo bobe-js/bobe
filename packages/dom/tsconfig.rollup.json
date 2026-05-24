@@ -1,0 +1,7 @@
+{
+  "extends": "../../config/tsconfig.rollup.json",
+  "compilerOptions": {
+    "baseUrl": "./" /* Base directory to resolve non-absolute module names. */,
+    "outDir": "dist",
+  }
+}

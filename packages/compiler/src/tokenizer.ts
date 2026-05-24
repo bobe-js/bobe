@@ -229,6 +229,7 @@ export class Tokenizer {
   isEof() {
     // 刚开始时 token 不存在
     if (!this.token) return false;
+    if (this.i >= this.code.length && !this.waitingTokens.len) return true;
     return this.token.type & TokenType.Identifier && this.token.value === Tokenizer.EofId;
     // return this.code[this.i] === undefined;
   }

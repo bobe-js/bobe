@@ -1241,7 +1241,7 @@ export class Interpreter {
     }
   }
 
-  createNode(name: string) {
+  createNode(name: string): any {
     return {
       name,
       props: {},
@@ -1257,7 +1257,7 @@ export class Interpreter {
     return node.firstChild;
   }
 
-  createAnchor(name: string) {
+  createAnchor(name: string): any {
     return {
       name,
       nextSibling: null
@@ -1293,7 +1293,7 @@ export class Interpreter {
     }
   }
 
-  setProp(node: any, key: string, value: any, hookI?: number): void | undefined | (() => void) {
+  setProp(node: any, key: string, value: any, hookI?: number): any | (() => void) {
     node.props[key] = value;
   }
 

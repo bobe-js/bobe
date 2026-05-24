@@ -1,0 +1,39 @@
+{
+  "name": "bobe-dom",
+  "version": "0.0.54",
+  "main": "dist/bobe-dom.cjs.js",
+  "module": "dist/bobe-dom.esm.js",
+  "browser": "dist/bobe-dom.umd.js",
+  "types": "dist/index.d.ts",
+  "private": false,
+  "dependencies": {
+    "bobe": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.7"
+  },
+  "scripts": {
+    "build": "rm -rf ./dist && rollup -c",
+    "dev": "rollup -c -w",
+    "tw": "vitest"
+  },
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "bobe-dom",
+    "smooth",
+    "cat"
+  ],
+  "author": "smooth-cat",
+  "repository": {
+    "type": "git",
+    "url": "git+git@github.com:bobe-js/bobe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bobe-js/bobe/issues"
+  },
+  "homepage": "https://github.com/bobe-js/bobe#readme",
+  "description": "Bobe customize render for DOM"
+}

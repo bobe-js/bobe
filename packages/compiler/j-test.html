@@ -38,7 +38,7 @@
       this.count++;
     };
     ui = bobe`
-      if {show}
+      if show
         node1 k1=10
       else  
         ${B} kb={10}
@@ -89,7 +89,9 @@
   });
 
   function log () {
-    $('#output').text(JSON.stringify(childToArray(root), undefined, 2));
+    setTimeout(() => {
+      $('#output').text(JSON.stringify(childToArray(root), undefined, 2));
+    })
   }
 
   function childToArray (node) {

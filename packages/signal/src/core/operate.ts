@@ -205,6 +205,13 @@ export function flushMicroEffect() {
     });
   }
 }
+export function flushMicroEffectManual() {
+  if (schedulerStatus !== ScheduleStatus.Running && multiScheduler.hasTask) {
+    schedulerStatus = ScheduleStatus.Running;
+    multiScheduler.flushAllTask();
+    schedulerStatus = ScheduleStatus.Idle;
+  }
+}
 
 let _batchDeep = 0;
 export const batchStart = () => _batchDeep++;

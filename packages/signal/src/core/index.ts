@@ -4,7 +4,7 @@ import { Effect } from './effect';
 import { Scope, NoopEffect, noopEffect } from './scope';
 
 export { Signal, Computed, Effect, Scope, NoopEffect, noopEffect };
-export { clean, batchStart, batchEnd, batchDeep } from './operate';
+export { clean, batchStart, batchEnd, batchDeep, flushMicroEffectManual } from './operate';
 export * from './global';
 export * from './type';
 

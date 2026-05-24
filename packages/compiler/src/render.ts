@@ -1,4 +1,4 @@
-import { Store } from 'aoye';
+import { flushMicroEffectManual, Store } from 'aoye';
 import { Interpreter } from './terp';
 import { Tokenizer } from './tokenizer';
 import { UI, ComponentNode, CustomRenderConf, FakeType } from './type';
@@ -33,6 +33,8 @@ export function customRender(option: CustomRenderConf) {
     };
 
     terp.program(root, componentNode);
+
+    flushMicroEffectManual();
     // ui => bobe`` 返回的函数
     return [componentNode, store];
   };
