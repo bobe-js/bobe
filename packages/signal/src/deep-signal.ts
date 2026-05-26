@@ -105,7 +105,17 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
         if (targetIsArray) {
           return arrayMethodReWrites[prop] || value;
         } else {
-          return value;
+          if (!Object.prototype.hasOwnProperty.call(obj, prop)) {
+            return value;
+          }
+          let s = cells.get(prop);
+          if (s) {
+            return s.get();
+          }
+          s = new Signal(value);
+          s.scope = scope;
+          cells.set(prop, s);
+          return s.get();
         }
       }
 
@@ -123,7 +133,7 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
     },
 
     set(obj, prop, value, receiver) {
-      if ((targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) || typeof value === 'function') {
+      if (targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) {
         return Reflect.set(obj, prop, value, receiver);
       }
       // 在 Reflect.set 之前检查是否为新增属性，避免设置后检查失效
@@ -131,10 +141,9 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
       // 数组项 set 可能出现 Iterator 设置，用 batch 避免 effect 多次执行
       batchStart();
       const success = Reflect.set(obj, prop, value, receiver);
-      // 已有对应 Signal，更新 signal 值
       const cell = cells.get(prop);
       if (cell) {
-        cell.set(deep ? deepSignal(value, scope) : value);
+        cell.set((typeof value === 'function' || !deep) ? value : deepSignal(value, scope));
       }
 
       if (targetIsArray) {
@@ -149,7 +158,10 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
 
     // 【核心修改】拦截 delete 操作
     deleteProperty(obj, prop) {
-      if ((targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) || typeof obj[prop] === 'function') {
+      if (targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) {
+        return Reflect.deleteProperty(obj, prop);
+      }
+      if (typeof obj[prop] === 'function' && !Object.prototype.hasOwnProperty.call(obj, prop)) {
         return Reflect.deleteProperty(obj, prop);
       }
       // 从 Map 中移除，切断引用，允许 GC 回收这个 $() 实例

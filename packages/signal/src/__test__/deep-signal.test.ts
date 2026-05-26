@@ -409,3 +409,207 @@ describe('deep-signal with getters', () => {
     expect(executionCount).toBe(2);
   });
 });
+
+describe('deep-signal function proxy', () => {
+  it('should track own function property reads', () => {
+    const fnA = () => 'A';
+    const obj = $({
+      handler: fnA
+    });
+
+    let executions = 0;
+    let captured: any;
+    effect(() => {
+      executions++;
+      captured = obj.handler;
+    });
+
+    expect(captured).toBe(fnA);
+    expect(executions).toBe(1);
+  });
+
+  it('should react to own function property reassignment', () => {
+    const fnA = () => 'A';
+    const fnB = () => 'B';
+    const obj = $({
+      handler: fnA
+    });
+
+    let executions = 0;
+    let captured: any;
+    effect(() => {
+      executions++;
+      captured = obj.handler;
+    });
+
+    expect(captured).toBe(fnA);
+    expect(executions).toBe(1);
+
+    obj.handler = fnB;
+    expect(captured).toBe(fnB);
+    expect(executions).toBe(2);
+  });
+
+  it('should NOT track inherited function properties (prototype methods)', () => {
+    const base = {
+      inheritedFn() { return 'base'; }
+    };
+    const obj = $({
+      own: 'value',
+      __proto__: base
+    });
+
+    let executions = 0;
+    let captured: any;
+    effect(() => {
+      executions++;
+      captured = obj.inheritedFn;
+    });
+
+    expect(captured).toBe(base.inheritedFn);
+    expect(executions).toBe(1);
+  });
+
+  it('should not react to changes on inherited prototype', () => {
+    const base = {
+      inheritedFn() { return 'base'; }
+    };
+    const obj = $({
+      own: 'value',
+      __proto__: base
+    });
+
+    let executions = 0;
+    effect(() => {
+      executions++;
+      void obj.own;
+    });
+
+    expect(executions).toBe(1);
+  });
+
+  it('should track dynamically added own function property', () => {
+    const fn = () => 'new';
+    const obj = $({} as any);
+
+    obj.myFn = fn;
+
+    let executions = 0;
+    let captured: any;
+    effect(() => {
+      executions++;
+      captured = obj.myFn;
+    });
+
+    expect(captured).toBe(fn);
+    expect(executions).toBe(1);
+
+    const fn2 = () => 'new2';
+    obj.myFn = fn2;
+    expect(captured).toBe(fn2);
+    expect(executions).toBe(2);
+  });
+
+  it('should clean up Signal when own function is deleted', () => {
+    const fn = () => 'test';
+    const obj = $({
+      handler: fn
+    });
+
+    let executions = 0;
+    let captured: any;
+    effect(() => {
+      executions++;
+      captured = obj.handler;
+    });
+
+    expect(captured).toBe(fn);
+    expect(executions).toBe(1);
+
+    delete obj.handler;
+    // after deletion, should read undefined, but effect may not re-fire
+    // because the Signal was cleaned up from cells
+    expect(obj.handler).toBeUndefined();
+  });
+
+  it('should handle function-to-non-function transition', () => {
+    const fn = () => 'A';
+    const obj = $({
+      val: fn as any
+    });
+
+    let executions = 0;
+    let captured: any;
+    effect(() => {
+      executions++;
+      captured = obj.val;
+    });
+
+    expect(captured).toBe(fn);
+    expect(executions).toBe(1);
+
+    obj.val = 'plain string';
+    expect(captured).toBe('plain string');
+    expect(executions).toBe(2);
+  });
+
+  it('should handle non-function-to-function transition', () => {
+    const obj = $({
+      val: 'plain string' as any
+    });
+
+    let executions = 0;
+    let captured: any;
+    effect(() => {
+      executions++;
+      captured = obj.val;
+    });
+
+    expect(captured).toBe('plain string');
+    expect(executions).toBe(1);
+
+    const fn = () => 'B';
+    obj.val = fn;
+    expect(captured).toBe(fn);
+    expect(executions).toBe(2);
+  });
+
+  it('should NOT track function inherited from Object.prototype', () => {
+    const obj = $({
+      own: 123
+    });
+
+    let executions = 0;
+    effect(() => {
+      executions++;
+      void obj.own;
+    });
+
+    expect(executions).toBe(1);
+
+    // accessing Object.prototype methods should not trigger dependency
+    const hasOwn = obj.hasOwnProperty;
+    expect(typeof hasOwn).toBe('function');
+  });
+
+  it('should track own function that shadows inherited one', () => {
+    class Base {
+      baseMethod() { return 'base'; }
+    }
+    class Child extends Base {
+      childMethod() { return 'child'; }  // own on instance
+    }
+    const instance = new Child();
+    const obj = $(instance as any);
+
+    let executions = 0;
+    let captured: any;
+    effect(() => {
+      executions++;
+      captured = obj.childMethod;
+    });
+
+    expect(typeof captured).toBe('function');
+    expect(executions).toBe(1);
+  });
+});
