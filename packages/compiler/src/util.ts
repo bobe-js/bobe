@@ -1,3 +1,7 @@
+import { isStore, Keys } from "aoye";
+import { UI } from "./type";
+import type { Tokenizer } from "./tokenizer";
+
 export function macInc(arr: number[]) {
   const len = arr.length;
   /** 候选者数组的尾项在 arr 中的 index */
@@ -47,3 +51,18 @@ export function macInc(arr: number[]) {
   }
   return candyLast;
 }
+
+
+export class InlineFragment {
+  [Keys.ProxyFreeObject] = true;
+  constructor(
+    public snapshot: Partial<Tokenizer>,
+    public data: any,
+    public key: string,
+    public tokenizer: Tokenizer
+  ) {}
+}
+
+export const isUI = (fn: any): fn is UI => typeof fn === 'function' && fn.__BOBE_IS_UI;
+
+export const isRenderAble = (val: any) => isStore(val) || isUI(val) || val instanceof InlineFragment

@@ -5,6 +5,7 @@ import {
   Effect,
   effect,
   getPulling,
+  isStore,
   Keys,
   noopEffect,
   NoopEffect,
@@ -35,11 +36,13 @@ import {
   ForNode,
   ForItemNode,
   ContextNode,
-  ContextBit
+  ContextBit,
+  DynamicNode,
+  CtxProviderBit
 } from './type';
-import { date32, jsVarRegexp } from 'bobe-shared';
+import { date32, jsVarRegexp, pick, pickInPlace } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
-import { macInc } from './util';
+import { InlineFragment, isRenderAble, isUI, macInc } from './util';
 import { KEY_INDEX, setCtxStack } from './global';
 
 export class Interpreter {
@@ -106,7 +109,7 @@ export class Interpreter {
                 (ctx.current.__logicType & ContextBit ? NodeSort.Context : 0) |
                 (ctx.current.__logicType === FakeType.Component ? NodeSort.Component : 0) |
                 // context 节点， 不提供 data 上下文，其余 Fake 节点提供 CtxProvider
-                (ctx.current.__logicType !== FakeType.Context ? NodeSort.CtxProvider : 0)
+                (ctx.current.__logicType & CtxProviderBit ? NodeSort.CtxProvider : 0)
         );
         if (ctx.current.__logicType) {
           // 父节点是逻辑节点
@@ -279,12 +282,14 @@ export class Interpreter {
       // 静态 1. Component，2. bobe 返回的 render 方法
       if (hookType === 'static') {
         // 传组件 class 或 片段
-        if (typeof value === 'function') {
+        if (isRenderAble(value)) {
           _node = this.componentOrFragmentDeclaration(value, ctx);
         }
         // 其余类型不允许静态插值
         else {
-          throw new SyntaxError(`declaration 不支持 ${value} 类型的静态插值`);
+          _node = this.createNode('text');
+          _node.text = String(value);
+          // throw new SyntaxError(`declaration 不支持 ${value} 类型的静态插值`);
         }
       }
       // 动态插值
@@ -294,17 +299,17 @@ export class Interpreter {
       // 3. 返回  片段
       // TODO: 后续考虑动态组件
       else {
-        const valueIsMapKey = Reflect.has(data[Keys.Raw], value);
-        const val = data[Keys.Raw][value];
-        if (typeof val === 'function' || val instanceof InlineFragment) {
-          _node = this.componentOrFragmentDeclaration(val, ctx);
-        }
-        // 字符
-        else {
-          const str = valueIsMapKey ? value : this.getFn(data, value);
-          _node = this.createNode('text');
-          this.onePropParsed(data, _node, 'text', str, valueIsMapKey, false);
-        }
+        return this.dynamicDeclaration(data, value, ctx);
+        // const val = data[Keys.Raw][value];
+        // if (isRenderAble(val)) {
+        //   _node = this.componentOrFragmentDeclaration(val, ctx);
+        // }
+        // // 字符
+        // else {
+        //   _node = this.createNode('text');
+        //   const str = valueIsMapKey ? value : this.getFn(data, value);
+        //   this.onePropParsed(data, _node, 'text', str, valueIsMapKey, false);
+        // }
       }
     } else {
       _node = this.createNode(value);
@@ -325,6 +330,105 @@ export class Interpreter {
     }
     return _node;
   }
+
+  dynamicDeclaration(pData: any, value: string, ctx: ProgramCtx) {
+    const valueIsMapKey = Reflect.has(pData[Keys.Raw], value);
+    let node: DynamicNode = {
+      __logicType: null,
+      realParent: null,
+      tokenizer: null,
+      effect: null,
+      textNode: null,
+      owner: ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node,
+      snapshot: this.tokenizer.snapshot(['dentStack']),
+      parentDataProvider: ctx.stack.peekByType(NodeSort.CtxProvider)?.node
+    };
+    let isUpdate = false;
+    // 不论是否执行 if 都应该插入 anchor 节点用于后续
+    node.realAfter = this.insertAfterAnchor(`dynamic-after`);
+    node.effect = this.effect(
+      ({ old, val }) => {
+        let { __logicType: oldLogicType, textNode: oldTextNode } = node;
+        // 删除组件旧 dom
+        if (oldLogicType) {
+          this.removeLogicNode(node as LogicNode);
+          pickInPlace(node, ['realParent', 'realBefore', 'realAfter', , 'owner', 'snapshot', 'parentDataProvider']);
+        }
+
+        let logicType: FakeType | undefined;
+        if (isRenderAble(val)) {
+          // text -> component
+          if (oldTextNode) {
+            this.remove(oldTextNode);
+          }
+          const info = this.createComponentData(val);
+          logicType = info.__logicType;
+          Object.assign(node, info);
+          /*----------------- 参考主 Declaration -----------------*/
+          this.onePropParsed = info.onePropParsed;
+          // 更新时切换 owner 的 tokenizer 来获取数据
+          if (isUpdate) {
+            this.tokenizer = node.owner.tokenizer;
+            this.tokenizer.resume(node.snapshot);
+            this.ctx.stack.push({ node: node.parentDataProvider, prev: null }, NodeSort.CtxProvider);
+          }
+          this.tokenizer.nextToken(); // 跳过 node 本身，token -> id
+          this.headerLineAndExtensions(node);
+          if (isUpdate) {
+            this.ctx.stack.pop();
+          }
+          // 组件用完，切换回 真实node 的方法
+          this.onePropParsed = this.oneRealPropParsed;
+          this.tokenizer = node.tokenizer;
+          // 切换到子 tokenizer 时如有快照，则指定
+          if (node.fragmentSnapshot) {
+            // TODO: 考虑使用 dent 处理时，的初始化 indent。这个行为应与 Tokenizer constructor 中逻辑一致
+            this.tokenizer.resume(node.fragmentSnapshot);
+            this.tokenizer.useDedentAsEof = true;
+            this.tokenizer.initIndentWhenUseDedentAsEof();
+          }
+          if (isUpdate) {
+            this.program(node.realParent, node.owner, node.realBefore, node);
+          }
+        } else {
+          node.__logicType = FakeType.DynamicText;
+          // component/text/undefined -> text
+          let textNode = oldTextNode;
+          const isNewTextNode = !textNode;
+          if (isNewTextNode) {
+            textNode = node.textNode = this.createNode('text');
+          }
+          textNode.text = String(val);
+          if (isNewTextNode) {
+            if (isUpdate) {
+              this.handleInsert(node.realParent, textNode, node.realBefore);
+            } else {
+              this.tokenizer.nextToken();
+              this.headerLineAndExtensions(node);
+              const { realParent, prevSibling } = this.ctx;
+              this.handleInsert(realParent, textNode, prevSibling);
+            }
+          }
+        }
+
+        isUpdate = true;
+        return (isDestroy: boolean) => {
+          if (isDestroy) {
+            this.removeLogicNode(node as LogicNode);
+          }
+        };
+      },
+      [
+        () => {
+          const val = valueIsMapKey ? pData[value] : this.getFn(pData, value)();
+          return val;
+        }
+      ],
+      { type: 'render' }
+    );
+    return node;
+  }
+
   createContextNode() {
     const child = deepSignal({}, getPulling());
     const parentContext: any = this.ctx.stack.peekByType(NodeSort.Context)?.node?.context;
@@ -826,11 +930,7 @@ export class Interpreter {
       //   （Map/Set 的 reactiveArr 是 plain array，无 proxy get 陷阱，必须额外订阅 indexName）
       // - 无 keys 无 getKey：用 i — 普通数组，reactiveArr 是 proxy，reactiveArr[i] 的 get 陷阱自带 index 级依赖
       const computedData = new Computed(() =>
-        itemExp(
-          (arrSignal.get(), forNode.reactiveArr)[
-            getKey ? data[indexName] : keys ? (data[indexName], i) : i
-          ]
-        )
+        itemExp((arrSignal.get(), forNode.reactiveArr)[getKey ? data[indexName] : keys ? (data[indexName], i) : i])
       );
       const cells = data[Keys.Meta].cells;
       for (let i = 0; i < vars.length; i++) {
@@ -891,59 +991,69 @@ export class Interpreter {
 
   oneRealPropParsed: Interpreter['onePropParsed'] = this.onePropParsed.bind(this);
 
-  componentOrFragmentDeclaration(ComponentOrRender: UI | typeof Store | InlineFragment, ctx: ProgramCtx) {
-    // 先进行 attr 映射，或建立 signal 连接，才能开始 render
-    // 必须等待 attr 解析完毕
-    let Component: typeof Store,
-      tokenizer: Tokenizer,
+  private createComponentData(ComponentOrRender: UI | typeof Store | InlineFragment) {
+    let tokenizer: Tokenizer,
       child: any,
       fragmentSnapshot: Partial<Tokenizer>,
-      resumeSnapshot: Partial<Tokenizer>;
+      resumeSnapshot: Partial<Tokenizer>,
+      __logicType: FakeType.Component | FakeType.Fragment;
 
     const isCC = (ComponentOrRender as any).prototype instanceof Store;
     if (isCC) {
-      Component = ComponentOrRender as any;
+      const Component = ComponentOrRender as any;
       child = Component.new();
-      // @ts-ignore
       tokenizer = child.ui(true);
+      __logicType = FakeType.Component;
     } else if (ComponentOrRender instanceof InlineFragment) {
-      const conf = ComponentOrRender as InlineFragment;
-      // 使用原型链来继承 store 的数据
+      const conf = ComponentOrRender;
       child = deepSignal({}, getPulling(), true);
       Object.setPrototypeOf(child, conf.data);
       tokenizer = conf.tokenizer;
       fragmentSnapshot = conf.snapshot;
-      // 考虑根组件，useDedentAsEof 与子组件不同
+      __logicType = FakeType.Fragment;
       resumeSnapshot = tokenizer.snapshot([
+        'dentStack',
         'token',
         'needIndent',
         'isFirstToken',
-        'dentStack',
         'isFirstToken',
         'useDedentAsEof'
       ]);
     } else {
       const render = ComponentOrRender as UI;
       const boundStore = render.boundStore;
-      // 使用原型链来继承 store 的数据
       child = deepSignal({}, getPulling(), true);
       if (boundStore) {
         Object.setPrototypeOf(child, boundStore);
       }
       tokenizer = render(true);
+      __logicType = FakeType.Fragment;
     }
 
+    return {
+      data: child,
+      tokenizer,
+      onePropParsed: createStoreOnePropParsed(child),
+      fragmentSnapshot,
+      resumeSnapshot,
+      __logicType
+    };
+  }
+
+  componentOrFragmentDeclaration(ComponentOrRender: UI | typeof Store | InlineFragment, ctx: ProgramCtx) {
+    const { data, tokenizer, onePropParsed, fragmentSnapshot, resumeSnapshot, __logicType } =
+      this.createComponentData(ComponentOrRender);
     const node: ComponentNode = {
-      __logicType: isCC ? FakeType.Component : FakeType.Fragment,
+      __logicType,
       realParent: ctx.realParent,
       realBefore: null,
       realAfter: null,
-      data: child,
+      data,
       tokenizer,
       fragmentSnapshot,
       resumeSnapshot
     };
-    this.onePropParsed = createStoreOnePropParsed(child);
+    this.onePropParsed = onePropParsed;
     node.realAfter = this.insertAfterAnchor('component-after');
     return node;
   }
@@ -1190,7 +1300,7 @@ export class Interpreter {
         if (key === 'ref') {
           const valueIsMapKey = Reflect.has(data[Keys.Raw], value);
           let refValue = _node;
-          if (_node.__logicType === FakeType.Component) {
+          if (_node.__logicType & TokenizerSwitcherBit) {
             refValue = _node.data;
           } else {
             refValue[Keys.ProxyFreeObject] = true;
@@ -1224,8 +1334,8 @@ export class Interpreter {
         else {
           this.onePropParsed(data, _node, key, value, false, isFn, hookI);
         }
-        key = null;
-        eq = null;
+        key = undefined;
+        eq = undefined;
       }
       this.tokenizer.nextToken();
     }
@@ -1327,14 +1437,4 @@ function createStoreOnePropParsed(child: any) {
     }
   };
   return onePropParsed;
-}
-
-export class InlineFragment {
-  [Keys.ProxyFreeObject] = true;
-  constructor(
-    public snapshot: Partial<Tokenizer>,
-    public data: any,
-    public key: string,
-    public tokenizer: Tokenizer
-  ) {}
 }

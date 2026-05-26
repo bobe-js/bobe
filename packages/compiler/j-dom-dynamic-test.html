@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bobe - Dynamic Component Test</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "aoye": "./node_modules/aoye/dist/aoye.esm.js",
+      "bobe-shared": "./node_modules/bobe-shared/dist/bobe-shared.esm.js",
+      "bobe": "./dist/bobe.esm.js"
+    }
+  }
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+<script type="module">
+  import { bobe, Store, customRender, effect } from 'bobe';
+
+  const render = customRender({
+    createNode (name) {
+      if (name === 'text') return document.createTextNode('');
+      return document.createElement(name);
+    },
+    setProp (node, key, value, hookI) {
+      if (key === 'text') {
+        node.textContent = value;
+      } else if (key.startsWith('on')) {
+        const evtName = key.slice(2);
+        node.addEventListener(evtName, value);
+        return () => node.removeEventListener(evtName, value);
+      } else if (node.tagName === 'INPUT' && (key === 'value' || key === 'checked')) {
+        node[key] = value;
+      } else {
+        node.setAttribute(key, value);
+      }
+    },
+    insertAfter (parent, node, prev) {
+      if (!prev) {
+        parent.insertBefore(node, parent.firstChild);
+      } else {
+        parent.insertBefore(node, prev.nextSibling);
+      }
+    },
+    createAnchor (name) {
+      return document.createComment(name);
+    },
+    remove (node) {
+      node.remove();
+    },
+    firstChild (node) {
+      return node.firstChild;
+    },
+    nextSib (node) {
+      return node.nextSibling;
+    },
+  });
+
+  // ============ Sub Components ============
+
+  class CompA extends Store {
+    msg = 'Component A';
+    count = 0;
+    add = () => { this.count++; };
+    ui = bobe`
+      div style="border: 2px solid #e74c3c; padding: 12px; margin: 8px 0; border-radius: 6px;"
+        h2 text={msg}
+        p text={'count: ' + count}
+        button onclick={add} text="increment"
+    `;
+  }
+
+  class CompB extends Store {
+    msg = 'Component B';
+    val = '';
+    oninput = (e) => { this.val = e.target.value; };
+    ui = bobe`
+      div style="border: 2px solid #3498db; padding: 12px; margin: 8px 0; border-radius: 6px;"
+        h2 text={msg}
+        {children}
+        input value={val} oninput={oninput} placeholder="type something..."
+        p text={'input: ' + val}
+    `;
+  }
+
+  class CompC extends Store {
+    parentTitle = 'default title';
+    ui = bobe`
+      div style="border: 2px solid #2ecc71; padding: 12px; margin: 8px 0; border-radius: 6px;"
+        h2 text={parentTitle}
+    `;
+  }
+
+  // ============ App ============
+  class App extends Store {
+    // IMPORTANT: wrap component in object because proxy doesn't
+    // collect dependencies for function-type properties
+    state = {
+      comp: CompA
+    };
+
+    switchToA = () => {
+      this.state = { comp: CompA };
+    };
+
+    switchToB = () => {
+      this.state = { comp: CompB };
+    };
+
+    switchToC = () => {
+      this.state = { comp: CompC };
+    };
+
+    switchToText = () => {
+      this.state = { comp: '==== TEXT MODE ====' };
+    };
+
+    ui = bobe`
+      div style="font-family: sans-serif; max-width: 600px; margin: 40px auto;"
+        h1 text="Dynamic Component Test"
+        p text="component 必须包裹在对象中，因为 proxy 对函数类型属性不做依赖收集"
+        div style="display: flex; gap: 8px; margin: 16px 0;"
+          button onclick={switchToA} text="Component A"
+          button onclick={switchToB} text="Component B"
+          button onclick={switchToC} text="Component C"
+          button onclick={switchToText} text="Text"
+        p text={'current: ' + (state.comp?.name || state.comp || 'null')}
+        {state.comp} parentTitle="hello from parent"
+          span text="inline child"
+    `;
+  }
+
+  const root = document.getElementById('root');
+  const [_, store] = render(App, root);
+  window.store = store;
+</script>
+
+</html>

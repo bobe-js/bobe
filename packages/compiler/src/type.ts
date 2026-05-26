@@ -35,11 +35,13 @@ export enum FakeType {
   Component = 0b0000_0000_0000_0000_0000_0000_0001_0000,
   Fragment = 0b0000_0000_0000_0000_0000_0000_0010_0000,
   ForItem = 0b0000_0000_0000_0000_0000_0000_0100_0000,
-  Context = 0b0000_0000_0000_0000_0000_0000_1000_0000
+  Context = 0b0000_0000_0000_0000_0000_0000_1000_0000,
+  DynamicText = 0b0000_0000_0000_0000_0000_0001_0000_0000
 }
 
 export const CondBit = FakeType.If | FakeType.Fail | FakeType.Else;
-export const LogicalBit = FakeType.If | FakeType.Fail | FakeType.Else | FakeType.For | FakeType.ForItem;
+export const LogicalBit =
+  FakeType.If | FakeType.Fail | FakeType.Else | FakeType.For | FakeType.ForItem;
 export const CtxProviderBit =
   FakeType.If |
   FakeType.Fail |
@@ -47,7 +49,8 @@ export const CtxProviderBit =
   FakeType.For |
   FakeType.ForItem |
   FakeType.Component |
-  FakeType.Fragment;
+  FakeType.Fragment |
+  FakeType.DynamicText;
 
 /** 条件节点、ForItem节点、Context节点  */
 export const ContextBit = FakeType.If | FakeType.Fail | FakeType.Else | FakeType.ForItem | FakeType.Context;
@@ -172,6 +175,7 @@ export type ProgramCtx = {
 export type UI<T = any> = {
   /** 在哪个 Store 声明的 */
   boundStore: Store;
+  __BOBE_IS_UI: true;
   /** 用户声明片段内可用的 props */
   defineProps?: T;
   (isSub: boolean): Tokenizer;
@@ -233,8 +237,24 @@ export type ContextNode = Omit<LogicNode, 'data'> & {
   context: any;
 };
 
+export type DynamicNode = Omit<LogicNode, 'data'> & {
+  tokenizer: Tokenizer;
+  /** 模版片段快照 */
+  fragmentSnapshot?: ReturnType<Tokenizer['snapshot']>;
+  /** 渲染模版片段前的 快照，渲染完成后用于恢复 */
+  resumeSnapshot?: ReturnType<Tokenizer['snapshot']>;
+  snapshot: ReturnType<Tokenizer['snapshot']>;
+  owner: ComponentNode | FragmentNode; 
+  data?: any;
+  parentDataProvider: any;
+  effect: Effect;
+  textNode: any;
+};
+
 export type FragmentNode = LogicNode & {
   tokenizer: Tokenizer;
+  fragmentSnapshot?: ReturnType<Tokenizer['snapshot']>;
+  resumeSnapshot?: ReturnType<Tokenizer['snapshot']>;
 };
 export type ComponentNode = LogicNode & {
   tokenizer: Tokenizer;

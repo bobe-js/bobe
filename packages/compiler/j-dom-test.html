@@ -365,6 +365,7 @@
       {header}
       h4
         {children} childTitle={childTitle}
+      div text="收尾"  
     `
   }
 
@@ -374,6 +375,7 @@
       {header}
       h4
         {children} childTitle={childTitle}
+      div text="收尾"
     `
   }
 
@@ -436,7 +438,7 @@
   }
 
   const root2 = document.getElementById('root')
-  const [_, store] = render(TestFor2, root2)
+  const [_, store] = render(Keyed, root2)
   window.store = store;
   window.cel = (obj, key) => {
     const cells = obj['__AOYE_META'].cells;

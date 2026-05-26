@@ -80,3 +80,5 @@ export class Store {
     this.parent = null;
   }
 }
+
+export const isStore = (s: any): s is typeof Store => typeof s === 'function' && s[IsStore];

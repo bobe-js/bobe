@@ -12,6 +12,7 @@ export function bobe<T extends Record<any, any> = any>(fragments: TemplateString
     return tokenizer;
   };
   ui.boundStore = Store.Current as any;
+  ui.__BOBE_IS_UI = true;
   return ui;
 }
 

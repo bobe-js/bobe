@@ -161,6 +161,15 @@ export function pick<T, K extends keyof T>(obj: T, keys: K[]) {
   );
 }
 
+export function pickInPlace<T, K extends keyof T>(obj: T, keys: K[]) {
+  const set = new Set(keys);
+  for (const key in obj) {
+    if (!set.has(key as any as K)) {
+      obj[key] = undefined;
+    }
+  }
+}
+
 const NatureNum = /^(0|[1-9]\d*)$/;
 export const isNatureNumStr = (val: unknown) => typeof val === 'string' && NatureNum.test(val);
 /**
