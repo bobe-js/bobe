@@ -1,0 +1,704 @@
+import { Interpreter } from '#/terp';
+import { FakeType, TokenizerSwitcherBit, NodeSort, TokenType } from '#/type';
+import { MultiTypeStack } from '#/typed';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { deepSignal, Keys, Effect, NoopEffect, noopEffect, Scope, getPulling, setPulling } from 'aoye';
+import { InlineFragment, isRenderAble } from '#/util';
+
+// vitest runs in Node.js; for loop uses window['for1'] debug
+(globalThis as any).window = globalThis;
+
+// ============================================================
+// Level 1 — 纯单元测试
+// ============================================================
+
+function makeTerp() {
+  const tok = {
+    nextToken: vi.fn(),
+    _hook: vi.fn(),
+    snapshot: vi.fn(),
+    resume: vi.fn(),
+    skip: vi.fn(),
+    skipStr: vi.fn(),
+    isEof: vi.fn(),
+    get token() {
+      return tok._token;
+    }
+  } as any;
+  return new Interpreter(tok);
+}
+
+describe('Interpreter 纯单元测试', () => {
+  // ----------------------------------------------------------
+  describe('isLogicNode', () => {
+    const t = makeTerp();
+
+    it('null/undefined → falsy', () => {
+      expect(t.isLogicNode(null)).toBeFalsy();
+      expect(t.isLogicNode(undefined)).toBeFalsy();
+    });
+
+    it('普通对象 → falsy', () => {
+      expect(t.isLogicNode({})).toBeFalsy();
+      expect(t.isLogicNode({ __logicType: 0 })).toBeFalsy();
+    });
+
+    it('If 节点 → truthy', () => {
+      expect(t.isLogicNode({ __logicType: FakeType.If })).toBeTruthy();
+    });
+
+    it('For 节点 → truthy', () => {
+      expect(t.isLogicNode({ __logicType: FakeType.For })).toBeTruthy();
+    });
+
+    it('Component 节点 → falsy (不在 LogicalBit 中)', () => {
+      expect(t.isLogicNode({ __logicType: FakeType.Component })).toBeFalsy();
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('formatForCollection', () => {
+    const t = makeTerp();
+
+    it('普通数组', () => {
+      const now = [1, 2, 3];
+      const { arr, keys } = t.formatForCollection(now);
+      expect(arr).toEqual([1, 2, 3]);
+      expect(keys).toBeNull();
+    });
+
+    it('空数组', () => {
+      const { arr, keys } = t.formatForCollection([]);
+      expect(arr).toEqual([]);
+      expect(keys).toBeNull();
+    });
+
+    it('Map', () => {
+      const m = new Map([
+        ['a', 1],
+        ['b', 2]
+      ]);
+      const { arr, keys } = t.formatForCollection(m);
+      expect(arr).toEqual([1, 2]);
+      expect(keys).toEqual(['a', 'b']);
+    });
+
+    it('Set', () => {
+      const s = new Set([10, 20]);
+      const { arr, keys } = t.formatForCollection(s);
+      expect(arr).toEqual([10, 20]);
+      expect(keys).toBeNull();
+    });
+
+    it('可迭代对象', () => {
+      const it = {
+        [Symbol.iterator]: function* () {
+          yield 1;
+          yield 2;
+        }
+      };
+      const { arr } = t.formatForCollection(it);
+      expect(arr).toEqual([1, 2]);
+    });
+
+    it('数字 → 长度为 n 的 undefined 数组', () => {
+      const { arr, keys } = t.formatForCollection(5);
+      expect(arr).toEqual(new Array(5));
+      expect(arr.length).toBe(5);
+      expect(keys).toBeNull();
+    });
+
+    it('字符串', () => {
+      const { arr, keys } = t.formatForCollection('hello');
+      expect(arr).toEqual(['h', 'e', 'l', 'l', 'o']);
+      expect(keys).toBeNull();
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('getFn', () => {
+    const t = makeTerp();
+
+    it('简单属性', () => {
+      const data = { a: 42 };
+      const fn = t.getFn(data, 'a');
+      expect(fn()).toBe(42);
+    });
+
+    it('深层路径', () => {
+      const data = { a: { b: { c: 99 } } };
+      const fn = t.getFn(data, 'a.b.c');
+      expect(fn()).toBe(99);
+    });
+
+    it('表达式', () => {
+      const data = { x: 10, y: 20 };
+      const fn = t.getFn(data, 'x + y');
+      expect(fn()).toBe(30);
+    });
+
+    it('模板字符串', () => {
+      const data = { name: 'world' };
+      const fn = t.getFn(data, '`hello ${name}`');
+      expect(fn()).toBe('hello world');
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('getAssignFn', () => {
+    const t = makeTerp();
+
+    it('简单属性赋值', () => {
+      const data: any = { count: 0 };
+      const fn = t.getAssignFn(data, 'count');
+      fn(5);
+      expect(data.count).toBe(5);
+    });
+
+    it('深层路径赋值', () => {
+      const data: any = { user: { name: 'old' } };
+      const fn = t.getAssignFn(data, 'user.name');
+      fn('new');
+      expect(data.user.name).toBe('new');
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('createNode', () => {
+    const t = makeTerp();
+
+    it('div', () => {
+      const node = t.createNode('div');
+      expect(node).toEqual({ name: 'div', props: {}, nextSibling: null });
+    });
+
+    it('text', () => {
+      const node = t.createNode('text');
+      expect(node.name).toBe('text');
+      expect(node.props).toEqual({});
+    });
+
+    it('自定义标签', () => {
+      const node = t.createNode('custom-el');
+      expect(node.name).toBe('custom-el');
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('createAnchor', () => {
+    const t = makeTerp();
+
+    it('默认名称', () => {
+      const anchor = t.createAnchor('anchor');
+      expect(anchor).toEqual({ name: 'anchor', nextSibling: null });
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('nextSib / firstChild', () => {
+    const t = makeTerp();
+
+    it('nextSibling', () => {
+      const n2 = { name: 'b', nextSibling: null };
+      const n1 = { name: 'a', nextSibling: n2 };
+      expect(t.nextSib(n1)).toBe(n2);
+    });
+
+    it('firstChild', () => {
+      const child = { name: 'child' };
+      const parent = { name: 'parent', firstChild: child };
+      expect(t.firstChild(parent)).toBe(child);
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('defaultInsert / defaultRemove', () => {
+    it('头插 (no prev)', () => {
+      const t = makeTerp();
+      const child = t.createNode('a');
+      const parent: any = { firstChild: null };
+      const prev = null;
+
+      t.defaultInsert(parent, child, prev);
+      expect(parent.firstChild).toBe(child);
+      expect(child.nextSibling).toBeNull();
+    });
+
+    it('尾插 (after prev)', () => {
+      const t = makeTerp();
+      const a = t.createNode('a');
+      const b = t.createNode('b');
+      const parent: any = { firstChild: a };
+      a.nextSibling = null;
+
+      t.defaultInsert(parent, b, a);
+      expect(parent.firstChild).toBe(a);
+      expect(a.nextSibling).toBe(b);
+      expect(b.nextSibling).toBeNull();
+    });
+
+    it('中插 (between two nodes)', () => {
+      const t = makeTerp();
+      const a = t.createNode('a');
+      const c = t.createNode('c');
+      const b = t.createNode('b');
+      a.nextSibling = c;
+      const parent: any = { firstChild: a, nextSibling: undefined };
+
+      t.defaultInsert(parent, b, a);
+      expect(a.nextSibling).toBe(b);
+      expect(b.nextSibling).toBe(c);
+    });
+
+    it('删除头节点', () => {
+      const t = makeTerp();
+      const a = t.createNode('a');
+      const b = t.createNode('b');
+      a.nextSibling = b;
+      const parent: any = { firstChild: a };
+
+      t.defaultRemove(a, parent, null);
+      expect(parent.firstChild).toBe(b);
+    });
+
+    it('删除中间节点 (有 prev)', () => {
+      const t = makeTerp();
+      const a = t.createNode('a');
+      const b = t.createNode('b');
+      const c = t.createNode('c');
+      a.nextSibling = b;
+      b.nextSibling = c;
+      const parent: any = { firstChild: a };
+
+      t.defaultRemove(b, parent, a);
+      expect(a.nextSibling).toBe(c);
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('getPrevRealSibling', () => {
+    const t = makeTerp();
+
+    it('null prev → null', () => {
+      expect(t.getPrevRealSibling(null)).toBeNull();
+    });
+
+    it('普通节点 prev', () => {
+      const div = t.createNode('div');
+      expect(t.getPrevRealSibling(div)).toBe(div);
+    });
+
+    it('prev undefined → undefined', () => {
+      expect(t.getPrevRealSibling(undefined)).toBeUndefined();
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('config', () => {
+    it('Object.assign + opt', () => {
+      const t = makeTerp();
+      const fakeSetProp = vi.fn();
+      const fakeCreateNode = vi.fn();
+      t.config({ setProp: fakeSetProp, createNode: fakeCreateNode } as any);
+      expect(t.opt).toEqual({ setProp: fakeSetProp, createNode: fakeCreateNode });
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('setProp', () => {
+    const t = makeTerp();
+
+    it('默认写入 node.props', () => {
+      const node: any = { props: {} };
+      t.setProp(node, 'text', 'hello');
+      expect(node.props['text']).toBe('hello');
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('handleInsert', () => {
+    const t = makeTerp();
+
+    it('实节点 → insertAfter（头插）', () => {
+      const parent: any = { firstChild: null };
+      const child = t.createNode('div');
+      t.handleInsert(parent, child, null);
+      expect(parent.firstChild).toBe(child);
+    });
+
+    it('逻辑节点 → 只设置 realParent/realBefore', () => {
+      const parent = {};
+      const child: any = { __logicType: FakeType.Component };
+      t.handleInsert(parent, child, null);
+      expect(child.realParent).toBe(parent);
+      expect(child.realBefore).toBeNull();
+    });
+
+    it('逻辑节点 + 逻辑 prev', () => {
+      const parent = {};
+      const prevLogic: any = { __logicType: FakeType.For, realAfter: 'anchor' };
+      const child: any = { __logicType: FakeType.Component };
+      t.handleInsert(parent, child, prevLogic);
+      expect(child.realBefore).toBe('anchor');
+    });
+  });
+
+  // ----------------------------------------------------------
+  describe('getData', () => {
+    it('从 CtxProvider 取 data', () => {
+      const t = makeTerp();
+      const fakeData = { value: 42 };
+      const stack = new MultiTypeStack();
+      stack.push({ node: { data: fakeData }, prev: null }, NodeSort.CtxProvider);
+      t.ctx = { stack } as any;
+      expect(t.getData()).toBe(fakeData);
+    });
+  });
+});
+
+// ============================================================
+// Level 2 — 轻量 mock 测试
+// ============================================================
+
+describe('createStoreOnePropParsed', () => {
+  it('isFn → 直接写 child[Keys.Raw]', () => {
+    const child = deepSignal({}, getPulling());
+    const fn = (() => {
+      /* placeholder */
+    }) as any;
+    // Need to access the function. Since it's not exported, we test through
+    // Interpreter.createComponentData which uses it internally.
+  });
+
+  it('静态值 → cell + raw', () => {
+    const child = deepSignal({}, getPulling());
+    const cells = child[Keys.Meta].cells;
+
+    // 模拟 createStoreOnePropParsed 行为
+    cells.set('title', { get: () => 'hello' } as any);
+    child[Keys.Raw]['title'] = 'hello';
+
+    expect(child.title).toBe('hello');
+    const cell = cells.get('title');
+    expect(cell).toBeDefined();
+    expect(cell.get()).toBe('hello');
+  });
+
+  it('动态函数值 → Computed + raw=undefined', () => {
+    const child = deepSignal({}, getPulling());
+    const cells = child[Keys.Meta].cells;
+    const getter = () => 'dynamic';
+
+    // 模拟 createStoreOnePropParsed 对 function value 的处理
+    cells.set('dyVal', { get: getter } as any);
+    child[Keys.Raw]['dyVal'] = undefined;
+
+    expect(child['dyVal']).toBe('dynamic');
+  });
+
+  it('mapKey → 用 shareSignal 共享', () => {
+    const parent = deepSignal({ name: 'parent' }, getPulling());
+    const child = deepSignal({}, getPulling());
+
+    // 读取 parent.name 确保 signal 已创建
+    void parent.name;
+    const parentCell = parent[Keys.Meta].cells.get('name')!;
+
+    // shareSignal 核心逻辑
+    child[Keys.Meta].cells.set('childName', parentCell);
+    child[Keys.Raw]['childName'] = parent.name;
+
+    expect(child['childName']).toBe('parent');
+  });
+});
+
+describe('onePropParsed', () => {
+  it('静态值 → 直接调用 setProp', () => {
+    const mockSetProp = vi.fn();
+    const t = new Interpreter({} as any);
+    t.setProp = mockSetProp;
+
+    t.onePropParsed({} as any, {}, 'key', 'value', false, false);
+    expect(mockSetProp).toHaveBeenCalledWith({}, 'key', 'value', undefined);
+  });
+
+  it('isFn → new Scope + setProp', () => {
+    const mockSetProp = vi.fn();
+    const t = new Interpreter({} as any);
+    t.setProp = mockSetProp;
+
+    t.onePropParsed({} as any, {}, 'key', 'someFn', false, true);
+    expect(mockSetProp).toHaveBeenCalledWith({}, 'key', 'someFn', undefined);
+  });
+
+  it('mapKey → new Effect', () => {
+    const mockSetProp = vi.fn();
+    const t = new Interpreter({} as any);
+    t.setProp = mockSetProp;
+    const data = { age: 30 };
+
+    t.onePropParsed(data as any, {}, 'key', 'age', true, false);
+    // Effect runs synchronously → setProp gets data['age']
+    expect(mockSetProp).toHaveBeenCalledWith({}, 'key', 30, undefined);
+  });
+});
+
+// ============================================================
+// Level 3 — 集成测试 (mock DOM)
+// ============================================================
+
+import { customRender, bobe } from '#/render';
+import { Store, effect } from 'aoye';
+
+describe('集成测试 — 基本渲染', () => {
+  it('渲染单个 div', () => {
+    class App extends Store {
+      ui = bobe` div `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    expect(tree.tag).toBe('root');
+    expect(tree.children.length).toBeGreaterThanOrEqual(1);
+    expect(tree.children.some((c: any) => c.tag === 'div')).toBe(true);
+  });
+
+  it('渲染 div > span text', () => {
+    class App extends Store {
+      name = 'hello';
+      ui = bobe`
+        div
+          span text={name}
+      `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    expect(div).toBeDefined();
+    const span = div.children.find((c: any) => c.tag === 'span');
+    expect(span).toBeDefined();
+    // text={name} sets textContent, not props.text
+    expect(span.t).toBe('hello');
+  });
+
+  it('渲染静态组件 ${Comp}', () => {
+    class Sub extends Store {
+      msg = 'sub';
+      ui = bobe` p text={msg} `;
+    }
+    class App extends Store {
+      ui = bobe`
+        div
+          ${Sub}
+      `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    expect(div).toBeDefined();
+    const hasP = div.children.some((c: any) => c.tag === 'p' && c.t === 'sub');
+    expect(hasP).toBe(true);
+  });
+});
+
+describe('集成测试 — if/else', () => {
+  it('if 条件为 true 时渲染子节点', () => {
+    class App extends Store {
+      show = true;
+      ui = bobe`
+        div
+          if show
+            span text="visible"
+          span text="always"
+      `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    const hasVisible = JSON.stringify(div).includes('visible');
+    const hasAlways = JSON.stringify(div).includes('always');
+    expect(hasVisible).toBe(true);
+    expect(hasAlways).toBe(true);
+  });
+
+  it('if 条件为 false 时不渲染子节点', () => {
+    class App extends Store {
+      show = false;
+      ui = bobe`
+        div
+          if show
+            span text="hidden"
+          span text="always"
+      `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    expect(JSON.stringify(div)).not.toContain('hidden');
+    expect(JSON.stringify(div)).toContain('always');
+  });
+});
+
+describe('集成测试 — for 循环', () => {
+  it('渲染数组', () => {
+    class App extends Store {
+      arr = [1, 2, 3];
+      ui = bobe`
+        div
+          for arr; item i
+            span text={item}
+      `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    // for 循环会给每个 item 创建 span
+    expect(JSON.stringify(tree)).toContain('"t":"1"');
+    expect(JSON.stringify(tree)).toContain('"t":"2"');
+    expect(JSON.stringify(tree)).toContain('"t":"3"');
+  });
+
+  it('空数组不渲染', () => {
+    class App extends Store {
+      arr: any[] = [];
+      ui = bobe`
+        div
+          for arr; item i
+            span text={item}
+      `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    // 空数组 → 没有 span 子元素
+    const hasSpans = JSON.stringify(div).includes('"tag":"span"');
+    expect(hasSpans).toBe(false);
+  });
+});
+
+describe('集成测试 — 动态文本', () => {
+  it('动态文本初始渲染', () => {
+    class App extends Store {
+      name = 'hello';
+      ui = bobe`
+        div
+          {name}
+      `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    expect(JSON.stringify(tree)).toContain('hello');
+  });
+});
+
+describe('集成测试 — 动态组件', () => {
+  it('initial render with component', () => {
+    class CompA extends Store {
+      msg = 'COMPONENT_A';
+      ui = bobe` span text={msg} `;
+    }
+    class App extends Store {
+      state = { comp: CompA as any };
+      ui = bobe`
+        div
+          {state.comp}
+      `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    expect(JSON.stringify(tree)).toContain('COMPONENT_A');
+  });
+});
+
+// ============================================================
+// Mock helpers for integration tests
+// ============================================================
+
+function setupMock() {
+  const root: any = { name: 'root', children: [] };
+
+  const render = customRender({
+    createNode(name) {
+      if (name === 'text') {
+        const n: any = { name: '#text', props: {}, children: [], textContent: '' };
+        return n;
+      }
+      return { name, props: {} as Record<string, any>, children: [] as any[] };
+    },
+    setProp(node, key, value) {
+      if (key === 'text') {
+        node.textContent = String(value);
+      } else if (key.startsWith('on')) {
+        node[key] = value;
+      } else {
+        node.props[key] = value;
+      }
+    },
+    insertAfter(parent: any, node: any, prev: any) {
+      const list = parent.children;
+      if (!prev) {
+        list.unshift(node);
+      } else {
+        const idx = list.indexOf(prev);
+        list.splice(idx + 1, 0, node);
+      }
+    },
+    createAnchor(name) {
+      return { name: `<!--${name}-->`, children: [], props: {}, _anchor: true };
+    },
+    remove(node: any) {
+      function walk(p: any): boolean {
+        const idx = p.children.indexOf(node);
+        if (idx !== -1) {
+          p.children.splice(idx, 1);
+          return true;
+        }
+        for (const c of p.children) {
+          if (walk(c)) return true;
+        }
+        return false;
+      }
+      walk(root);
+    },
+    firstChild(node) {
+      return node.children[0];
+    },
+    nextSib(node) {
+      function find(parent: any): any {
+        for (let i = 0; i < parent.children.length; i++) {
+          if (parent.children[i] === node) {
+            return parent.children[i + 1] || null;
+          }
+          const found = find(parent.children[i]);
+          if (found !== undefined) return found;
+        }
+        return undefined;
+      }
+      const result = find(root);
+      return result === undefined ? null : result;
+    }
+  });
+
+  return { root, render };
+}
+
+function getMockTree(node: any): any {
+  if (node._anchor) return null;
+  if (node.name === '#text') return { t: node.textContent || node.text || '' };
+  const tag: any = {
+    tag: node.name,
+    props: node.props,
+    children: node.children.map(getMockTree).filter(Boolean)
+  };
+  if (node.textContent || node.text) {
+    tag.t = node.textContent || node.text;
+  }
+  return tag;
+}

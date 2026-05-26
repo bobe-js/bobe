@@ -100,24 +100,22 @@
   class App extends Store {
     // IMPORTANT: wrap component in object because proxy doesn't
     // collect dependencies for function-type properties
-    state = {
-      comp: CompA
-    };
+    comp = CompA;
 
     switchToA = () => {
-      this.state = { comp: CompA };
+      this.comp = CompA;
     };
 
     switchToB = () => {
-      this.state = { comp: CompB };
+      this.comp = CompB;
     };
 
     switchToC = () => {
-      this.state = { comp: CompC };
+      this.comp = CompC;
     };
 
     switchToText = () => {
-      this.state = { comp: '==== TEXT MODE ====' };
+      this.comp = '==== TEXT MODE ====';
     };
 
     ui = bobe`
@@ -129,8 +127,8 @@
           button onclick={switchToB} text="Component B"
           button onclick={switchToC} text="Component C"
           button onclick={switchToText} text="Text"
-        p text={'current: ' + (state.comp?.name || state.comp || 'null')}
-        {state.comp} parentTitle="hello from parent"
+        p text={'current: ' + (comp?.name || comp || 'null')}
+        {comp} parentTitle="hello from parent"
           span text="inline child"
     `;
   }
