@@ -678,7 +678,7 @@ describe('集成测试 — props 展开', () => {
 
     expect(target.props.title).toBe('v2');
     expect(target.props.b).toBe('2');
-    // NOTE: 旧 key 'a' 不会自动从 DOM 移除（setProp 无 cleanup），属于已知限制
+    expect(target.props.a).toBeUndefined();
   });
 
   it('props 增加新 key', () => {
@@ -728,9 +728,7 @@ describe('集成测试 — props 展开', () => {
     (store as App).delKey();
     flushEffects();
 
-    // NOTE: 删除 key 后，Iterator 触发父 Effect 重跑，keys 不含 toDelete，
-    // 但 setProp 无 cleanup，旧 DOM 属性残留（已知限制）
-    expect(target.props.toDelete).toBe('remove-me');
+    expect(target.props.toDelete).toBeUndefined();
   });
 
   it('props=null 不报错且后续可恢复正常', () => {
@@ -764,6 +762,111 @@ describe('集成测试 — props 展开', () => {
     }
     const { render, root } = setupMock();
     expect(() => render(App, root)).not.toThrow();
+  });
+});
+
+describe('集成测试 — 动态组件 + props 展开', () => {
+  it('savedDefaults: 清除 props 后恢复子组件默认值', () => {
+    class CompB extends Store {
+      a = 20;
+      b = 'foo';
+      ui = bobe`
+        div
+          span text={a}
+          span text={b}
+      `;
+    }
+
+    class App extends Store {
+      comp: any = CompB;
+      myProps = {} as any;                        // 初始为空
+      setA = () => { this.myProps = { a: 31 }; };
+      clearA = () => { this.myProps = {}; };
+      ui = bobe`
+        div
+          button onclick={setA} text="set a=31"
+          button onclick={clearA} text="clear"
+          {comp} props={myProps}
+      `;
+    }
+
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // 初始 props={} → CompB 使用默认 a=20, b=foo
+    expect(findSpanText(root, '20')).toBeTruthy();
+    expect(findSpanText(root, 'foo')).toBeTruthy();
+
+    // 设置 props={a:31}
+    (store as App).setA();
+    flushEffects();
+
+    // shareSignal → raw['a'] = 31，覆盖默认 20
+    expect(findSpanText(root, '31')).toBeTruthy();
+    expect(findSpanText(root, '20')).toBeFalsy();
+    expect(findSpanText(root, 'foo')).toBeTruthy();
+
+    // 清除 props → {}
+    (store as App).clearA();
+    flushEffects();
+
+    // cleanup → _node.data['a'] = undefined
+    // cleanup → _node.data['a'] = savedDefaults.get('a') = 20 ✅ 恢复默认
+    expect(findSpanText(root, '31')).toBeFalsy();
+    expect(findSpanText(root, '20')).toBeTruthy();
+    expect(findSpanText(root, 'foo')).toBeTruthy();
+  });
+
+  it('同时切换组件和 props，子组件未被覆盖的 key 保持默认值', () => {
+    class CompA extends Store {
+      a = 10;
+      ui = bobe` span text={a} `;
+    }
+    class CompB extends Store {
+      a = 20;
+      b = 'foo';
+      ui = bobe`
+        div
+          span text={a}
+          if b
+            span text={b}
+      `;
+    }
+
+    class App extends Store {
+      comp: any = CompA;
+      myProps: any = { a: 31 };
+      switchBoth = () => {
+        this.comp = CompB;
+        this.myProps = { b: 'world' };
+      };
+      ui = bobe`
+        div
+          button onclick={switchBoth} text="switch"
+          {comp} props={myProps}
+      `;
+    }
+
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    expect(findSpanText(root, '31')).toBeTruthy();
+    expect(findSpanText(root, '10')).toBeFalsy();
+    expect(findSpanText(root, '20')).toBeFalsy();
+    expect(findSpanText(root, 'world')).toBeFalsy();
+    expect(findSpanText(root, 'foo')).toBeFalsy();
+
+    (store as App).switchBoth();
+    flushEffects();
+
+    // a 不在新 props 中 → CompB 默认 a=20，savedDefaults 无记录 → 不被覆盖
+    expect(findSpanText(root, '20')).toBeTruthy();
+    expect(findSpanText(root, '31')).toBeFalsy();
+    // b 在新 props 中 → b='world'，覆盖默认 'foo'
+    expect(findSpanText(root, 'world')).toBeTruthy();
+    expect(findSpanText(root, 'foo')).toBeFalsy();
   });
 });
 
@@ -880,4 +983,16 @@ function getMockTree(node: any): any {
     tag.t = node.textContent || node.text;
   }
   return tag;
+}
+
+function findSpanText(root: any, text: string): any {
+  function walk(node: any): any {
+    if (node.textContent === text || node.t === text) return node;
+    for (const c of node.children || []) {
+      const found = walk(c);
+      if (found) return found;
+    }
+    return null;
+  }
+  return walk(root);
 }

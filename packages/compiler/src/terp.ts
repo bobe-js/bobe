@@ -1269,7 +1269,6 @@ export class Interpreter {
     this.onePropParsed(data, _node, key, value, false, true);
   }
 
-
   /**
    * 属性列表：
    * 可以是空的，或者包含多个属性
@@ -1282,7 +1281,6 @@ export class Interpreter {
    */
   attributeList(_node: any, data: any) {
     let key: string, eq: any;
-
     while ((this.tokenizer.token.type & TokenType.NewLine) === 0) {
       // 取 key
       if (key == null) {
@@ -1299,15 +1297,52 @@ export class Interpreter {
         const isFn = typeof rawVal === 'function';
 
         if (key === 'props') {
+          let prevKeys = new Set<any>();
+          const savedDefaults = new Map<string, any>();
           new this.Effect(() => {
             const props = isFn ? rawVal : Reflect.has(data[Keys.Raw], value) ? data[value] : this.getFn(data, value)();
-            if (!props || typeof props !== 'object') return;
+            const isComponent = _node.__logicType & TokenizerSwitcherBit;
+            const rawTarget = isComponent ? _node.data[Keys.Raw] : null;
+
+            const cleanupKeys = (keysToClean: Set<string>) => {
+              for (const k of keysToClean) {
+                if (k.startsWith('on')) continue;
+                if (isComponent) {
+                  _node.data[k] = savedDefaults.has(k) ? savedDefaults.get(k) : undefined;
+                } else {
+                  this.setProp(_node, k, undefined, hookI);
+                }
+              }
+            };
+
+            if (!props || typeof props !== 'object') {
+              cleanupKeys(prevKeys);
+              prevKeys.clear();
+              return;
+            }
+
             props[Keys.Iterator];
             const raw = props[Keys.Raw] || props;
             const keys = Object.keys(raw);
+            const newKeys = new Set();
             for (let i = 0; i < keys.length; i++) {
-              this.onePropParsed(props, _node, keys[i], keys[i], true, false, hookI);
+              const k = keys[i];
+              newKeys.add(k);
+              prevKeys.delete(k);
+              if (isComponent) {
+                const savedK = savedDefaults.has(k);
+                if (!savedK && Object.prototype.hasOwnProperty.call(rawTarget, k)) {
+                  savedDefaults.set(k, rawTarget[k]);
+                }
+                const val = props[k];
+                _node.data[k] = val === undefined && savedK ? savedDefaults.get(k) : val;
+              } else {
+                this.onePropParsed(props, _node, k, k, true, false, hookI);
+              }
             }
+
+            cleanupKeys(prevKeys);
+            prevKeys = newKeys;
           }, ScheduleType.Render);
         }
         // ref 应该将对应 key 值分配给 ref
