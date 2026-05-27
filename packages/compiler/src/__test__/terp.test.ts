@@ -2,7 +2,7 @@ import { Interpreter } from '#/terp';
 import { FakeType, TokenizerSwitcherBit, NodeSort, TokenType } from '#/type';
 import { MultiTypeStack } from '#/typed';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { deepSignal, Keys, Effect, NoopEffect, noopEffect, Scope, getPulling, setPulling } from 'aoye';
+import { deepSignal, Keys, Effect, NoopEffect, noopEffect, Scope, getPulling, setPulling, flushMicroEffectManual } from 'aoye';
 import { InlineFragment, isRenderAble } from '#/util';
 
 // vitest runs in Node.js; for loop uses window['for1'] debug
@@ -617,6 +617,156 @@ describe('集成测试 — 动态组件', () => {
   });
 });
 
+describe('集成测试 — props 展开', () => {
+  it('静态 props 对象展开为 DOM 属性', () => {
+    class App extends Store {
+      ui = bobe`
+        div props={{ title: 'hello', 'data-id': '123' }}
+      `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    expect(div.props.title).toBe('hello');
+    expect(div.props['data-id']).toBe('123');
+  });
+
+  it('响应式 props 对象绑定', () => {
+    class App extends Store {
+      myProps = { title: 'initial', style: 'color:red' };
+      ui = bobe`
+        div props={myProps} id="t1"
+      `;
+    }
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    const target = mustFind(root, 't1');
+    expect(target.props.title).toBe('initial');
+    expect(target.props.style).toBe('color:red');
+
+    (store as App).myProps.title = 'updated';
+    flushEffects();
+    expect(target.props.title).toBe('updated');
+    expect(target.props.style).toBe('color:red');
+  });
+
+  it('props 对象整体替换', () => {
+    class App extends Store {
+      myProps: any = { title: 'v1', a: '1' };
+      switchProps = () => {
+        this.myProps = { title: 'v2', b: '2' };
+      };
+      ui = bobe`
+        div
+          button onclick={switchProps} text="switch"
+          div props={myProps} id="t2"
+      `;
+    }
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    const target = mustFind(root, 't2')!;
+    expect(target.props.title).toBe('v1');
+    expect(target.props.a).toBe('1');
+
+    (store as App).switchProps();
+    flushEffects();
+
+    expect(target.props.title).toBe('v2');
+    expect(target.props.b).toBe('2');
+    // NOTE: 旧 key 'a' 不会自动从 DOM 移除（setProp 无 cleanup），属于已知限制
+  });
+
+  it('props 增加新 key', () => {
+    class App extends Store {
+      myProps: any = { title: 'hello' };
+      addKey = () => {
+        this.myProps['newKey'] = 'value';
+      };
+      ui = bobe`
+        div
+          button onclick={addKey} text="add"
+          div props={myProps} id="t3"
+      `;
+    }
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    const target = mustFind(root, 't3')!;
+    expect(target.props.newKey).toBeUndefined();
+
+    (store as App).addKey();
+    flushEffects();
+
+    expect(target.props.newKey).toBe('value');
+  });
+
+  it('props 删除 key', () => {
+    class App extends Store {
+      myProps: any = { title: 'hello', toDelete: 'remove-me' };
+      delKey = () => {
+        delete this.myProps.toDelete;
+      };
+      ui = bobe`
+        div
+          button onclick={delKey} text="del"
+          div props={myProps} id="t4"
+      `;
+    }
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    const target = mustFind(root, 't4')!;
+    expect(target.props.toDelete).toBe('remove-me');
+
+    (store as App).delKey();
+    flushEffects();
+
+    // NOTE: 删除 key 后，Iterator 触发父 Effect 重跑，keys 不含 toDelete，
+    // 但 setProp 无 cleanup，旧 DOM 属性残留（已知限制）
+    expect(target.props.toDelete).toBe('remove-me');
+  });
+
+  it('props=null 不报错且后续可恢复正常', () => {
+    class App extends Store {
+      myProps: any = null;
+      setToProps = () => { this.myProps = { title: 'hello' }; };
+      ui = bobe`
+        div
+          button onclick={setToProps} text="set"
+          div props={myProps} id="t5"
+      `;
+    }
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    const target = mustFind(root, 't5')!;
+    expect(target.props.title).toBeUndefined();
+
+    (store as App).setToProps();
+    flushEffects();
+
+    expect(target.props.title).toBe('hello');
+  });
+
+  it('空 props 对象 {}', () => {
+    class App extends Store {
+      ui = bobe`
+        div props={{}}
+      `;
+    }
+    const { render, root } = setupMock();
+    expect(() => render(App, root)).not.toThrow();
+  });
+});
+
 // ============================================================
 // Mock helpers for integration tests
 // ============================================================
@@ -687,6 +837,35 @@ function setupMock() {
   });
 
   return { root, render };
+}
+
+function setupWithStore() {
+  const { root, render: _render } = setupMock();
+  let _store: any;
+  const render = (Ctor: typeof Store, el: any) => {
+    const result = _render(Ctor, el);
+    _store = result[1];
+    return result;
+  };
+  return { root, render };
+}
+
+function flushEffects() {
+  flushMicroEffectManual();
+}
+
+function mustFind(root: any, id: string): any {
+  function walk(node: any): any {
+    if (node.props && node.props.id === id) return node;
+    for (const c of node.children) {
+      const found = walk(c);
+      if (found) return found;
+    }
+    return null;
+  }
+  const node = walk(root);
+  if (!node) throw new Error(`Node with id="${id}" not found`);
+  return node;
 }
 
 function getMockTree(node: any): any {

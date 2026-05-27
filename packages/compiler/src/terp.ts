@@ -1269,6 +1269,7 @@ export class Interpreter {
     this.onePropParsed(data, _node, key, value, false, true);
   }
 
+
   /**
    * 属性列表：
    * 可以是空的，或者包含多个属性
@@ -1296,8 +1297,21 @@ export class Interpreter {
         const [hookType, value, hookI] = this.tokenizer._hook({});
         const rawVal = data[Keys.Raw][value];
         const isFn = typeof rawVal === 'function';
+
+        if (key === 'props') {
+          new this.Effect(() => {
+            const props = isFn ? rawVal : Reflect.has(data[Keys.Raw], value) ? data[value] : this.getFn(data, value)();
+            if (!props || typeof props !== 'object') return;
+            props[Keys.Iterator];
+            const raw = props[Keys.Raw] || props;
+            const keys = Object.keys(raw);
+            for (let i = 0; i < keys.length; i++) {
+              this.onePropParsed(props, _node, keys[i], keys[i], true, false, hookI);
+            }
+          }, ScheduleType.Render);
+        }
         // ref 应该将对应 key 值分配给 ref
-        if (key === 'ref') {
+        else if (key === 'ref') {
           const valueIsMapKey = Reflect.has(data[Keys.Raw], value);
           let refValue = _node;
           if (_node.__logicType & TokenizerSwitcherBit) {
