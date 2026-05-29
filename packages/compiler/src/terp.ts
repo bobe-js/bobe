@@ -89,6 +89,9 @@ export class Interpreter {
       if (this.tokenizer.isEof()) {
         if (!ctx.prevSibling) ctx.prevSibling = before;
         this.handleInsert(root, ctx.current, ctx.prevSibling, componentNode);
+        if (ctx.current) {
+          ctx.current.__logicType ? this.leaveLogicNode?.(ctx.current, false) : this.leaveNode?.(ctx.current, false);
+        }
         break;
       }
 
@@ -112,6 +115,7 @@ export class Interpreter {
                 (ctx.current.__logicType & CtxProviderBit ? NodeSort.CtxProvider : 0)
         );
         if (ctx.current.__logicType) {
+          this.beforeLogicIndent?.(ctx.current);
           // 父节点是逻辑节点
           if (isLogicNode) {
             // 保证 if 子逻辑节点能被其 effect 管理
@@ -124,6 +128,12 @@ export class Interpreter {
         // 父节点是原生节点时才修改 ctx.prevSibling
         else {
           if (ctx.current) {
+            if (this.beforeIndent?.(ctx.current) === false) {
+              const dentLen = this.tokenizer.dentStack[this.tokenizer.dentStack.length - 1];
+              this.tokenizer.skip(dentLen);
+              ctx.current = null;
+              continue;
+            }
             ctx.realParent = ctx.current;
           }
           ctx.prevSibling = null;
@@ -138,6 +148,7 @@ export class Interpreter {
           ctx.prevSibling = before;
         }
         this.handleInsert(ctx.realParent, ctx.current, ctx.prevSibling);
+        ctx.current.__logicType ? this.leaveLogicNode?.(ctx.current, false) : this.leaveNode?.(ctx.current, false);
       }
       // 下一个 token 是 Dedent
       if (this.tokenizer.token.type & TokenType.Dedent) {
@@ -173,6 +184,8 @@ export class Interpreter {
           if (parent.__logicType === FakeType.ForItem) {
             const { forNode } = parent as ForItemNode;
             const { i, arr, snapshot } = forNode;
+            // 每个 for-item 不会走 handleInsert
+            this.leaveLogicNode?.(parent, false);
             if (i + 1 < arr.length) {
               // 恢复后 token null, 下一个是 \n, Indent
               this.tokenizer.resume(snapshot);
@@ -200,10 +213,10 @@ export class Interpreter {
     return componentNode;
   }
 
-  insertAfterAnchor(name = 'anchor') {
+  insertAnchor(name = 'anchor', isBefore = false) {
     const { realParent, prevSibling, stack, before } = this.ctx;
     // 先将 after 插入
-    const afterAnchor = this.createAnchor(name);
+    const afterAnchor = this.createAnchor(name, isBefore);
     this.ctx.prevSibling = stack.length === 2 && !prevSibling ? before : prevSibling;
     this.handleInsert(realParent, afterAnchor, prevSibling);
     return afterAnchor;
@@ -288,7 +301,7 @@ export class Interpreter {
         // 其余类型不允许静态插值
         else {
           _node = this.createNode('text');
-          _node.text = String(value);
+          this.setProp(_node, 'text', String(value));
           // throw new SyntaxError(`declaration 不支持 ${value} 类型的静态插值`);
         }
       }
@@ -345,7 +358,7 @@ export class Interpreter {
     };
     let isUpdate = false;
     // 不论是否执行 if 都应该插入 anchor 节点用于后续
-    node.realAfter = this.insertAfterAnchor(`dynamic-after`);
+    node.realAfter = this.insertAnchor(`dynamic-after`);
     node.effect = this.effect(
       ({ old, val }) => {
         let { __logicType: oldLogicType, textNode: oldTextNode } = node;
@@ -384,11 +397,15 @@ export class Interpreter {
           if (node.fragmentSnapshot) {
             // TODO: 考虑使用 dent 处理时，的初始化 indent。这个行为应与 Tokenizer constructor 中逻辑一致
             this.tokenizer.resume(node.fragmentSnapshot);
-            this.tokenizer.useDedentAsEof = true;
-            this.tokenizer.initIndentWhenUseDedentAsEof();
           }
           if (isUpdate) {
+            this.tokenizer.useDedentAsEof = false;
             this.program(node.realParent, node.owner, node.realBefore, node);
+          }
+          // 首屏采用 useDedentAsEof
+          else {
+            this.tokenizer.useDedentAsEof = true;
+            this.tokenizer.initIndentWhenUseDedentAsEof();
           }
         } else {
           node.__logicType = FakeType.DynamicText;
@@ -398,7 +415,8 @@ export class Interpreter {
           if (isNewTextNode) {
             textNode = node.textNode = this.createNode('text');
           }
-          textNode.text = String(val);
+          this.setProp(textNode, 'text', String(val));
+          // this.onePropParsed(pData, textNode, 'text', String(val), valueIsMapKey, false);
           if (isNewTextNode) {
             if (isUpdate) {
               this.handleInsert(node.realParent, textNode, node.realBefore);
@@ -408,6 +426,7 @@ export class Interpreter {
               const { realParent, prevSibling } = this.ctx;
               this.handleInsert(realParent, textNode, prevSibling);
             }
+            this.leaveNode?.(textNode, false);
           }
         }
 
@@ -445,7 +464,7 @@ export class Interpreter {
       realBefore: null,
       realAfter: null
     };
-    node.realAfter = this.insertAfterAnchor('context-after');
+    node.realAfter = this.insertAnchor('context-after');
     return node;
   }
 
@@ -564,7 +583,7 @@ export class Interpreter {
         new Computed(this.getFn(data, arrExp));
     forNode.arrSignal = arrSignal;
     // 由于此处 snapshot 多配置了2个属性，更新渲染时 应该忽略这个两个属性
-    forNode.realAfter = this.insertAfterAnchor('for-after');
+    forNode.realAfter = this.insertAnchor('for-after');
 
     // 去除 dentStack 和 isFirstToken
     const { dentStack, isFirstToken, ...snapshotForUpdate } = forNode.snapshot;
@@ -589,8 +608,8 @@ export class Interpreter {
         const len = arr.length;
         for (let i = len; i--; ) {
           const item = this.createForItem(forNode, i, data);
-          item.realAfter = this.insertAfterAnchor('for-item-after');
-          item.realBefore = this.insertAfterAnchor('for-item-before');
+          item.realAfter = this.insertAnchor('for-item-after');
+          item.realBefore = this.insertAnchor('for-item-before', true);
           item.realParent = forNode.realParent;
           children[i] = item;
         }
@@ -806,7 +825,7 @@ export class Interpreter {
     let realAfter = this.createAnchor('for-item-after');
     this.handleInsert(forNode.realParent, realAfter, before);
 
-    let realBefore = this.createAnchor('for-item-before');
+    let realBefore = this.createAnchor('for-item-before', true);
     this.handleInsert(forNode.realParent, realBefore, before);
 
     item.realBefore = realBefore;
@@ -1054,7 +1073,7 @@ export class Interpreter {
       resumeSnapshot
     };
     this.onePropParsed = onePropParsed;
-    node.realAfter = this.insertAfterAnchor('component-after');
+    node.realAfter = this.insertAnchor('component-after');
     return node;
   }
   getFn(data: any, expression: string | number) {
@@ -1165,7 +1184,7 @@ export class Interpreter {
 
     ifNode.condition = signal;
     // 不论是否执行 if 都应该插入 anchor 节点用于后续
-    ifNode.realAfter = this.insertAfterAnchor(`${keyWord.value}-after`);
+    ifNode.realAfter = this.insertAnchor(`${keyWord.value}-after`);
 
     const ef = this.effect(
       ({ val }) => {
@@ -1416,10 +1435,11 @@ export class Interpreter {
     return node.firstChild;
   }
 
-  createAnchor(name: string): any {
+  createAnchor(name: string, isBefore?: boolean): any {
     return {
       name,
-      nextSibling: null
+      nextSibling: null,
+      isBefore
     };
   }
 
@@ -1455,6 +1475,11 @@ export class Interpreter {
   setProp(node: any, key: string, value: any, hookI?: number): any | (() => void) {
     node.props[key] = value;
   }
+
+  beforeIndent?: (node: any) => boolean | void;
+  leaveNode?: (node: any, isDedent: boolean) => void;
+  beforeLogicIndent?: (node: any) => void;
+  leaveLogicNode?: (node: any, isDedent: boolean) => void;
 
   Effect = Effect;
   effect = effect;

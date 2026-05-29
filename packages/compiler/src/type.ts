@@ -114,13 +114,13 @@ export type HookProps = {
 };
 
 export type TerpConf = Partial<
-  Pick<Interpreter, 'createNode' | 'setProp' | 'insertAfter' | 'remove' | 'createAnchor' | 'firstChild' | 'nextSib'>
+  Pick<Interpreter, 'createNode' | 'setProp' | 'insertAfter' | 'remove' | 'createAnchor' | 'firstChild' | 'nextSib' | 'beforeIndent' | 'leaveNode' | 'leaveLogicNode' | 'beforeLogicIndent'>
 > & {
   noopEffect?: boolean;
 };
 export type CustomRenderConf = Pick<
   TerpConf,
-  'createNode' | 'setProp' | 'insertAfter' | 'remove' | 'createAnchor' | 'firstChild' | 'nextSib'
+  'createNode' | 'setProp' | 'insertAfter' | 'remove' | 'createAnchor' | 'firstChild' | 'nextSib' | 'beforeIndent' | 'leaveNode' | 'leaveLogicNode' | 'beforeLogicIndent' | 'noopEffect'
 >;
 
 export type Hook = (props: HookProps) => any;

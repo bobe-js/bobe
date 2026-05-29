@@ -229,7 +229,6 @@ export class Tokenizer {
   isEof() {
     // 刚开始时 token 不存在
     if (!this.token) return false;
-    if (this.i >= this.code.length && !this.waitingTokens.len) return true;
     return this.token.type & TokenType.Identifier && this.token.value === Tokenizer.EofId;
     // return this.code[this.i] === undefined;
   }
@@ -266,6 +265,8 @@ export class Tokenizer {
       if (this.isEof()) {
         return this.token;
       }
+      // 所有代码已读完且无等待 token，直接返回当前 token 防止死循环
+      if (this.i >= this.code.length && !this.waitingTokens.len) return this.token;
       this.token = undefined as any;
       if (this.waitingTokens.len) {
         const item = this.waitingTokens.shift()!;

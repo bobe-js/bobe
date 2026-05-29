@@ -34,15 +34,29 @@ export class Scope {
 }
 
 export class NoopEffect {
-  constructor(public callback: () => OnClean | any) {
+  constructor(
+    public callback: () => OnClean | any,
+    _type?: any
+  ) {
     const scope = new Scope(callback);
     scope.get();
     return scope;
   }
 }
 
-export const noopEffect = (callback: () => OnClean | any) => {
-  const scope = new Scope(callback);
+export const noopEffect = (callback: Function, deps?: any[], _opt?: any) => {
+  if (deps && deps.length > 0) {
+    const scope = new Scope(() => {
+      const vs = deps.map((d: any) => ({
+        old: undefined,
+        val: typeof d === 'function' ? d() : d.get()
+      }));
+      callback(...vs);
+    });
+    scope.get();
+    return scope;
+  }
+  const scope = new Scope(callback as any);
   scope.get();
   return scope;
 };
