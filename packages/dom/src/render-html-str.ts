@@ -80,20 +80,61 @@ const createNode = (name: string) => {
 const setProp = (node: Text | Element, key: string, value: any) => {
   if (node.startClosed) return;
   if (key.startsWith('on') || key === 'ref') return;
+
+  // 0. text
   if (key === 'text') {
+    if (value == null) return;
     node.textContent = value;
     return;
   }
+
+  // 1. html
   if (key === 'html') {
-    node._innerHtml = value == null ? '' : String(value);
+    if (value == null) return;
+    node._innerHtml = String(value);
     return;
   }
+
+  // 2. class — 对齐 Browser：支持对象/字符串/null
+  if (key === 'class') {
+    if (value == null) return;
+    let classStr: string;
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      classStr = Object.entries(value as Record<string, any>)
+        .filter(([, v]) => !!v)
+        .map(([k]) => k)
+        .join(' ');
+    } else {
+      classStr = typeof value === 'boolean' ? (value ? 'true' : '') : String(value);
+    }
+    if (classStr) ctx.root.value += ` class="${escapeAttr(classStr)}"`;
+    return;
+  }
+
+  // 3. style — 对齐 Browser
+  if (key === 'style') {
+    if (value == null) return;
+    ctx.root.value += ` style="${escapeAttr(String(value))}"`;
+    return;
+  }
+
+  // 4. 布尔属性
   if (BOOLEAN_ATTRS.has(key)) {
     if (value !== false && value !== null && value !== undefined) {
       ctx.root.value += ` ${key}`;
     }
     return;
   }
+
+  // 5. data-* / aria-* — 对齐 Browser：null 时不输出
+  if (key.startsWith('data-') || key.startsWith('aria-')) {
+    if (value == null) return;
+    ctx.root.value += ` ${key}="${escapeAttr(value)}"`;
+    return;
+  }
+
+  // 6. 其余属性 — 对齐 Browser：null 时不输出
+  if (value == null) return;
   ctx.root.value += ` ${key}="${escapeAttr(value)}"`;
 };
 

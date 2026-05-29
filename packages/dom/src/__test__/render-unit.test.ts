@@ -127,9 +127,15 @@ describe('setProp', () => {
       expect(el.innerHTML).toBe('<span>hi</span>');
     });
 
-    it('should clear innerHTML for null', () => {
+    it('should not modify innerHTML for null', () => {
       el.innerHTML = '<b>old</b>';
       setProp(el, 'html', null);
+      expect(el.innerHTML).toBe('<b>old</b>');
+    });
+
+    it('should clear innerHTML for empty string', () => {
+      el.innerHTML = '<b>old</b>';
+      setProp(el, 'html', '');
       expect(el.innerHTML).toBe('');
     });
   });

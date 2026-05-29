@@ -58,6 +58,44 @@ describe('ssrRender — attributes', () => {
     }
     expect(renderHtml(App)).toBe('<div title="tooltip">hi</div>');
   });
+
+  it('should omit attribute when value is null', () => {
+    class App extends Store {
+      ui = bobe`div title={null} text="hi"`;
+    }
+    expect(renderHtml(App)).toBe('<div>hi</div>');
+  });
+
+  it('should omit data-* attribute when value is null', () => {
+    class App extends Store {
+      val: any = null;
+      ui = bobe`div data-x={val} text="hi"`;
+    }
+    expect(renderHtml(App)).toBe('<div>hi</div>');
+  });
+
+  it('should render class from object', () => {
+    class App extends Store {
+      cls = { active: true, hidden: false };
+      ui = bobe`div class={cls} text="hi"`;
+    }
+    expect(renderHtml(App)).toBe('<div class="active">hi</div>');
+  });
+
+  it('should render class from string', () => {
+    class App extends Store {
+      cls = 'btn primary';
+      ui = bobe`div class={cls} text="hi"`;
+    }
+    expect(renderHtml(App)).toBe('<div class="btn primary">hi</div>');
+  });
+
+  it('should render style attribute', () => {
+    class App extends Store {
+      ui = bobe`div style="color: red" text="hi"`;
+    }
+    expect(renderHtml(App)).toBe('<div style="color: red">hi</div>');
+  });
 });
 
 describe('ssrRender — text and html', () => {

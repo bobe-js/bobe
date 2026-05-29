@@ -45,11 +45,15 @@ export const createNode = (name: string): Node => {
   return document.createElement(name);
 };
 
+const CONTENT_FLAG = Symbol('hasContent');
+
 export const setProp = (node: Node, key: string, value: any): (() => void) | undefined => {
   const el = node as HTMLElement;
 
   // 0. text
   if (key === 'text') {
+    (node as any)[CONTENT_FLAG] = value != null;
+    if (value == null) return;
     node.textContent = value;
     return;
   }
@@ -100,7 +104,9 @@ export const setProp = (node: Node, key: string, value: any): (() => void) | und
 
   // 4. html
   if (key === 'html') {
-    (node as Element).innerHTML = value == null ? '' : String(value);
+    (node as any)[CONTENT_FLAG] = value != null;
+    if (value == null) return;
+    (node as Element).innerHTML = String(value);
     return;
   }
 
@@ -163,6 +169,19 @@ export const firstChild = (node: Node) => node.firstChild;
 
 export const nextSib = (node: Node) => node.nextSibling;
 
+export const beforeIndent = (node: Node): boolean | void => {
+  if ((node as any)[CONTENT_FLAG]) {
+    const tag = (node as Element).tagName?.toLowerCase();
+    const hasText = (node as HTMLElement).textContent != null;
+    console.warn(`<${tag}> has ${hasText ? 'text' : 'html'} content and child elements — children ignored`);
+    return false;
+  }
+};
+
+// 浏览器渲染器中 leave 不需要额外操作（DOM 插入已由 insertAfter 完成）
+export const leaveNode = () => {};
+export const leaveLogicNode = () => {};
+
 export const render = customRender({
   createNode,
   setProp,
@@ -170,5 +189,8 @@ export const render = customRender({
   createAnchor,
   remove,
   firstChild,
-  nextSib
+  nextSib,
+  beforeIndent,
+  leaveNode,
+  leaveLogicNode
 });
