@@ -8,10 +8,10 @@
   <script type="importmap">
   {
     "imports": {
-      "aoye": "../../../compiler/node_modules/aoye/dist/aoye.esm.js",
-      "bobe-shared": "../../../compiler/node_modules/bobe-shared/dist/bobe-shared.esm.js",
-      "bobe": "../../../compiler/dist/bobe.esm.js",
-      "bobe-dom": "../../dist/bobe-dom.esm.js"
+      "aoye": "../../compiler/node_modules/aoye/dist/aoye.esm.js",
+      "bobe-shared": "../../compiler/node_modules/bobe-shared/dist/bobe-shared.esm.js",
+      "bobe": "../../compiler/dist/bobe.esm.js",
+      "bobe-dom": "../dist/bobe-dom.esm.js"
     }
   }
   </script>
@@ -45,12 +45,12 @@
 
   <script type="module">
     import { bobe, Store } from 'bobe';
-    import { ssrRender } from 'bobe-dom';
+    import { renderHtmlStr } from 'bobe-dom';
     import { hydrate } from 'bobe-dom';
 
     function mountHydrate(Ctor, containerId) {
       const container = document.getElementById(containerId);
-      const { html } = ssrRender(Ctor);
+      const { html } = renderHtmlStr(Ctor);
       container.innerHTML = html;
       const root = container.firstElementChild;
       if (!root) return {};

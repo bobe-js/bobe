@@ -267,7 +267,7 @@ const firstChild = (node: SSRNode) => node.firstChild;
 
 const nextSib = (node: SSRNode) => node.nextSibling;
 
-export const ssrRender = (ComponentClass: typeof Store) => {
+export const renderHtmlStr = (ComponentClass: typeof Store) => {
   cleanCtx();
   const root = new Root('');
   ctx.root = ctx.current = root;

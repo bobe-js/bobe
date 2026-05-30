@@ -1,12 +1,12 @@
 import { bobe, Store } from 'bobe';
-import { ssrRender } from '#/render-html-str';
+import { renderHtmlStr } from '#/render-html-str';
 
 function renderHtml<T extends typeof Store>(Ctor: T) {
-  const { html } = ssrRender(Ctor as any);
+  const { html } = renderHtmlStr(Ctor as any);
   return html;
 }
 
-describe('ssrRender — basic elements', () => {
+describe('renderHtmlStr — basic elements', () => {
   it('should render a simple div with text', () => {
     class App extends Store {
       ui = bobe`div text="hello world"`;
@@ -37,7 +37,7 @@ describe('ssrRender — basic elements', () => {
   });
 });
 
-describe('ssrRender — attributes', () => {
+describe('renderHtmlStr — attributes', () => {
   it('should set id and class', () => {
     class App extends Store {
       ui = bobe`div id="myId" class="my-class" text="hello"`;
@@ -98,7 +98,7 @@ describe('ssrRender — attributes', () => {
   });
 });
 
-describe('ssrRender — text and html', () => {
+describe('renderHtmlStr — text and html', () => {
   it('should render text attribute as textContent', () => {
     class App extends Store {
       ui = bobe`p text="Hello & welcome"`;
@@ -147,7 +147,7 @@ describe('ssrRender — text and html', () => {
   });
 });
 
-describe('ssrRender — boolean attributes', () => {
+describe('renderHtmlStr — boolean attributes', () => {
   it('should output boolean attr in minimal form when true', () => {
     class App extends Store {
       ui = bobe`input disabled=true`;
@@ -170,7 +170,7 @@ describe('ssrRender — boolean attributes', () => {
   });
 });
 
-describe('ssrRender — void elements', () => {
+describe('renderHtmlStr — void elements', () => {
   it('should self-close br', () => {
     class App extends Store {
       ui = bobe`br`;
@@ -215,7 +215,7 @@ describe('ssrRender — void elements', () => {
   });
 });
 
-describe('ssrRender — events', () => {
+describe('renderHtmlStr — events', () => {
   it('should NOT render onclick in HTML', () => {
     class App extends Store {
       handler = () => {};
@@ -241,7 +241,7 @@ describe('ssrRender — events', () => {
   });
 });
 
-describe('ssrRender — conditional rendering', () => {
+describe('renderHtmlStr — conditional rendering', () => {
   it('should render if branch when condition is true', () => {
     class App extends Store {
       show = true;
@@ -323,7 +323,7 @@ describe('ssrRender — conditional rendering', () => {
   });
 });
 
-describe('ssrRender — for loop', () => {
+describe('renderHtmlStr — for loop', () => {
   it('should render array items', () => {
     class App extends Store {
       items = ['a', 'b', 'c'];
@@ -378,7 +378,7 @@ describe('ssrRender — for loop', () => {
   });
 });
 
-describe('ssrRender — component rendering', () => {
+describe('renderHtmlStr — component rendering', () => {
   it('should render child component via static interpolation', () => {
     class Child extends Store {
       ui = bobe`span text="child"`;
@@ -414,7 +414,7 @@ describe('ssrRender — component rendering', () => {
   });
 });
 
-describe('ssrRender — reactive initial values', () => {
+describe('renderHtmlStr — reactive initial values', () => {
   it('should render initial reactive text value', () => {
     class App extends Store {
       name = 'Alice';
@@ -432,7 +432,7 @@ describe('ssrRender — reactive initial values', () => {
   });
 });
 
-describe('ssrRender — HTML escaping', () => {
+describe('renderHtmlStr — HTML escaping', () => {
   it('should escape text content with HTML characters', () => {
     class App extends Store {
       text = '<script>alert("xss")</script>';
@@ -466,7 +466,7 @@ describe('ssrRender — HTML escaping', () => {
   });
 });
 
-describe('ssrRender — text node (dynamic text without tag)', () => {
+describe('renderHtmlStr — text node (dynamic text without tag)', () => {
   it('should render raw text node', () => {
     class App extends Store {
       msg = 'Hello';
@@ -490,7 +490,7 @@ describe('ssrRender — text node (dynamic text without tag)', () => {
   });
 });
 
-describe('ssrRender — inline fragment (children prop)', () => {
+describe('renderHtmlStr — inline fragment (children prop)', () => {
   it('should render inline fragment passed as children', () => {
     class App extends Store {
       fragment = bobe`
@@ -505,7 +505,7 @@ describe('ssrRender — inline fragment (children prop)', () => {
   });
 });
 
-describe('ssrRender — context node', () => {
+describe('renderHtmlStr — context node', () => {
   it('should render context provider with children', () => {
     class Child extends Store {
       ui = bobe`span text="child"`;
@@ -523,7 +523,7 @@ describe('ssrRender — context node', () => {
   });
 });
 
-describe('ssrRender — fail keyword', () => {
+describe('renderHtmlStr — fail keyword', () => {
   it('should render fail as catch-all when preceding conditions are false', () => {
     class App extends Store {
       show = false;

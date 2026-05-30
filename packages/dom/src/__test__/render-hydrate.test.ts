@@ -2,11 +2,11 @@
  * @vitest-environment jsdom
  */
 import { bobe, Store } from 'bobe';
-import { ssrRender } from '#/render-html-str';
+import { renderHtmlStr } from '#/render-html-str';
 import { hydrate } from '#/render-hydrate';
 
 function renderAndHydrate<T extends typeof Store>(Ctor: T) {
-  const { html } = ssrRender(Ctor as any);
+  const { html } = renderHtmlStr(Ctor as any);
   document.body.innerHTML = html;
   const root = document.body.firstChild as Element;
   hydrate(Ctor as any, root);
@@ -15,7 +15,7 @@ function renderAndHydrate<T extends typeof Store>(Ctor: T) {
 
 /** 与 Browser render.test.ts 一致的 mount 模式，返回 store 用于触发更新 */
 function mountHydrate<T extends typeof Store>(Ctor: T) {
-  const { html } = ssrRender(Ctor as any);
+  const { html } = renderHtmlStr(Ctor as any);
   document.body.innerHTML = html;
   const root = document.body.firstChild as Element;
   const [, store] = hydrate(Ctor as any, root);
@@ -29,7 +29,7 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
     class App extends Store {
       ui = bobe`div text="hello"`;
     }
-    const { html } = ssrRender(App as any);
+    const { html } = renderHtmlStr(App as any);
     document.body.innerHTML = html;
     const root = document.body.firstChild as Element;
 
@@ -49,7 +49,7 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
           p text="Paragraph"
       `;
     }
-    const { html } = ssrRender(App as any);
+    const { html } = renderHtmlStr(App as any);
     document.body.innerHTML = html;
     const root = document.body.firstChild as Element;
     const h1 = root.firstElementChild!;
@@ -70,7 +70,7 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
             span text="visible"
       `;
     }
-    const { html } = ssrRender(App as any);
+    const { html } = renderHtmlStr(App as any);
     document.body.innerHTML = html;
     const root = document.body.firstChild as Element;
     // SSR 输出: <div><span>visible</span><!--if-after--></div>
@@ -93,7 +93,7 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
             li text={item}
       `;
     }
-    const { html } = ssrRender(App as any);
+    const { html } = renderHtmlStr(App as any);
     document.body.innerHTML = html;
     const root = document.body.firstChild as Element;
     const lis = Array.from(root.querySelectorAll('li'));
