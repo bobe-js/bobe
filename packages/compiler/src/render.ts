@@ -1,4 +1,4 @@
-import { flushMicroEffectManual, Store } from 'aoye';
+import { flushMicroEffectManual, Keys, Store } from 'aoye';
 import { Interpreter } from './terp';
 import { Tokenizer } from './tokenizer';
 import { UI, ComponentNode, CustomRenderConf, FakeType } from './type';
@@ -12,6 +12,7 @@ export function bobe<T extends Record<any, any> = any>(fragments: TemplateString
     return tokenizer;
   };
   ui.boundStore = Store.Current as any;
+  ui[Keys.ProxyFreeObject] = true;
   ui.__BOBE_IS_UI = true;
   return ui;
 }

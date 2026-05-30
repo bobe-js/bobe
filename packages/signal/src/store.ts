@@ -9,6 +9,7 @@ const isParentKey = (parentStore: any, expr: string) => expr in parentStore[Keys
 export class Store {
   static [IsStore] = true;
   static [StoreIgnoreKeys]: Key[] = ['ui', 'raw'];
+  static [Keys.ProxyFreeObject] = true;
   static Current: Store = null;
   constructor() {
     const proxy = deepSignal(this, getPulling(), true);
