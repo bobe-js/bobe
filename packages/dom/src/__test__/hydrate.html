@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bobe Hydrate Test</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "aoye": "../../../compiler/node_modules/aoye/dist/aoye.esm.js",
+      "bobe-shared": "../../../compiler/node_modules/bobe-shared/dist/bobe-shared.esm.js",
+      "bobe": "../../../compiler/dist/bobe.esm.js",
+      "bobe-dom": "../../dist/bobe-dom.esm.js"
+    }
+  }
+  </script>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    section { margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+    h3 { margin: 0 0 10px 0; color: #333; }
+    button { margin: 2px 4px; cursor: pointer; }
+    input { margin: 4px; padding: 4px; }
+  </style>
+</head>
+
+<body>
+  <h1>Bobe Hydrate 手动测试</h1>
+  <p>打开控制台查看可能的 warn/error</p>
+
+  <section>
+    <h3>1. 基本渲染 + 事件（计数器）</h3>
+    <div id="app1"></div>
+  </section>
+
+  <section>
+    <h3>2. if 条件切换</h3>
+    <div id="app2"></div>
+  </section>
+
+  <section>
+    <h3>3. for 循环 + 添加项</h3>
+    <div id="app3"></div>
+  </section>
+
+  <script type="module">
+    import { bobe, Store } from 'bobe';
+    import { ssrRender } from 'bobe-dom';
+    import { hydrate } from 'bobe-dom';
+
+    function mountHydrate(Ctor, containerId) {
+      const container = document.getElementById(containerId);
+      const { html } = ssrRender(Ctor);
+      container.innerHTML = html;
+      const root = container.firstElementChild;
+      if (!root) return {};
+      const [, store] = hydrate(Ctor, root);
+      return { root, store };
+    }
+
+    // ====== 1. 计数器 ======
+    class CounterApp extends Store {
+      count = 0;
+      htm = `<div><span>innerHTML:</span><input/></div>`
+      add = () => { this.count++; };
+      ui = bobe`
+        div
+          div html={htm}
+          h2 id='shower' text={'计数: ' + count}
+          button onclick={add} text="+1"
+      `;
+    }
+    mountHydrate(CounterApp, 'app1');
+
+    // ====== 2. if 切换 ======
+    class IfApp extends Store {
+      show = true;
+      toggle = () => { this.show = !this.show; };
+      ui = bobe`
+        div
+          button onclick={toggle} text={'切换 show=' + show}
+          if show
+            p style="color: blue" text="✅ 可见内容"
+          else
+            p style="color: gray" text="❌ 隐藏状态"
+      `;
+    }
+    mountHydrate(IfApp, 'app2');
+
+    // ====== 3. for 循环 + 输入添加 ======
+    class ForApp extends Store {
+      items = ['苹果', '香蕉', '橘子'];
+      value = '';
+      oninput = (e) => { this.value = e.target.value; };
+      addItem = () => {
+        if (this.value.trim()) {
+          this.items.push(this.value.trim());
+          this.value = '';
+        }
+      };
+      ui = bobe`
+        div
+          h2 text="水果列表"
+          input value={value} oninput={oninput} placeholder="输入新水果"
+          button onclick={addItem} text="添加"
+          ul
+            for items; item i
+              li text={item}
+      `;
+    }
+    mountHydrate(ForApp, 'app3');
+  </script>
+</body>
+
+</html>

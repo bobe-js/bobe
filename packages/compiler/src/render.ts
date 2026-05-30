@@ -35,6 +35,8 @@ export function customRender(option: CustomRenderConf) {
 
     terp.program(root, componentNode);
 
+    option.onBeforeFlush?.();
+
     flushMicroEffectManual();
     // ui => bobe`` 返回的函数
     return [componentNode, store];

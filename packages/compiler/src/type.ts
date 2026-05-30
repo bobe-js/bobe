@@ -121,7 +121,10 @@ export type TerpConf = Partial<
 export type CustomRenderConf = Pick<
   TerpConf,
   'createNode' | 'setProp' | 'insertAfter' | 'remove' | 'createAnchor' | 'firstChild' | 'nextSib' | 'beforeIndent' | 'leaveNode' | 'leaveLogicNode' | 'beforeLogicIndent' | 'noopEffect'
->;
+> & {
+  /** program() 之后、flushMicroEffectManual() 之前调用 */
+  onBeforeFlush?: () => void;
+};
 
 export type Hook = (props: HookProps) => any;
 

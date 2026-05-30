@@ -45,7 +45,7 @@ export const createNode = (name: string): Node => {
   return document.createElement(name);
 };
 
-const CONTENT_FLAG = Symbol('hasContent');
+export const CONTENT_FLAG = Symbol('hasContent');
 
 export const setProp = (node: Node, key: string, value: any): (() => void) | undefined => {
   const el = node as HTMLElement;
