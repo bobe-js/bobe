@@ -1,6 +1,6 @@
 {
   "name": "bobe-dom",
-  "version": "0.0.58",
+  "version": "0.0.59",
   "main": "dist/bobe-dom.cjs.js",
   "module": "dist/bobe-dom.esm.js",
   "browser": "dist/bobe-dom.umd.js",
