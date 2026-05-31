@@ -42,7 +42,7 @@ import {
 } from './type';
 import { date32, jsVarRegexp, pick, pickInPlace } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
-import { InlineFragment, isRenderAble, isUI, macInc } from './util';
+import { InlineFragment, isRenderAble, isUI, macInc, safe } from './util';
 import { KEY_INDEX, setCtxStack } from './global';
 
 export class Interpreter {
@@ -353,7 +353,7 @@ export class Interpreter {
       effect: null,
       textNode: null,
       owner: ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node,
-      snapshot: this.tokenizer.snapshot(['dentStack']),
+      snapshot: this.tokenizer.snapshot(['dentStack', 'isFirstToken']),
       parentDataProvider: ctx.stack.peekByType(NodeSort.CtxProvider)?.node
     };
     let isUpdate = false;
@@ -365,7 +365,7 @@ export class Interpreter {
         // 删除组件旧 dom
         if (oldLogicType) {
           this.removeLogicNode(node as LogicNode);
-          pickInPlace(node, ['realParent', 'realBefore', 'realAfter', , 'owner', 'snapshot', 'parentDataProvider']);
+          pickInPlace(node, ['realParent', 'realBefore', 'realAfter', 'owner', 'snapshot', 'parentDataProvider']);
         }
 
         let logicType: FakeType | undefined;
@@ -400,7 +400,7 @@ export class Interpreter {
           }
           if (isUpdate) {
             this.tokenizer.useDedentAsEof = false;
-            this.program(node.realParent, node.owner, node.realBefore, node);
+            this.program(node.realParent, node as any, node.realBefore);
           }
           // 首屏采用 useDedentAsEof
           else {
@@ -568,7 +568,8 @@ export class Interpreter {
       i: 0
     };
     if (keyExp) {
-      forNode.getKey = new Function('data', `let v;with(data){v=${keyExp}\n};return v;`) as any;
+      const rawGetKey = new Function('data', `with(data){return (${keyExp})}`) as any;
+      forNode.getKey = (data: any) => rawGetKey(safe(data));
     }
     window['for1'] = forNode;
 
@@ -1077,7 +1078,7 @@ export class Interpreter {
     return node;
   }
   getFn(data: any, expression: string | number) {
-    return new Function('data', `let v;with(data){v=${expression}};return v;`).bind(undefined, data);
+    return new Function('data', `with(data){return (${expression})}`).bind(undefined, safe(data));
   }
   getAssignFn(data: any, expression: string | number) {
     const valueId = `value_bobe_${date32()}`;

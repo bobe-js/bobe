@@ -133,8 +133,33 @@
     `;
   }
 
+  // ============ Edge Case: dynamic at end of template (last token) ============
+  class EdgeApp extends Store {
+    page = CompA;
+
+    switchA = () => { this.page = CompA; };
+    switchB = () => { this.page = CompB; };
+    switchC = () => { this.page = CompC; };
+
+    ui = bobe`
+      div style="font-family: sans-serif; max-width: 600px; margin: 40px auto;"
+        h2 text="Edge Case: Dynamic at End"
+        div style="display: flex; gap: 8px; margin: 16px 0;"
+          button onclick={switchA} text="Component A"
+          button onclick={switchB} text="Component B"
+          button onclick={switchC} text="Component C"
+        {page}
+    `;
+  }
+
+  const edgeRoot = document.createElement('div');
+  edgeRoot.id = 'edge-root';
+  document.body.appendChild(edgeRoot);
+  const [, edgeStore] = render(EdgeApp, edgeRoot);
+  window.edgeStore = edgeStore;
+
   const root = document.getElementById('root');
-  const [_, store] = render(App, root);
+  const [, store] = render(App, root);
   window.store = store;
 </script>
 

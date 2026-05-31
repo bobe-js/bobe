@@ -66,3 +66,18 @@ export class InlineFragment {
 export const isUI = (fn: any): fn is UI => typeof fn === 'function' && fn.__BOBE_IS_UI;
 
 export const isRenderAble = (val: any) => isStore(val) || isUI(val) || val instanceof InlineFragment
+
+const SAFE_HANDLER: ProxyHandler<object> = {
+  has: () => true,
+  get: (t, k) => {
+    // 返回原型上的值，缺失返回 undefined
+    if (typeof k === 'symbol') return (t as any)[k];
+    return k in t ? (t as any)[k] : undefined;
+  },
+};
+
+/**
+ * 包装 data 为 safe proxy，解决 with(data) 中访问不存在的标识符抛出
+ * ReferenceError 的问题。缺失的属性返回 undefined，可选链自然兼容。
+ */
+export const safe = (data: any) => new Proxy(data, SAFE_HANDLER);

@@ -870,6 +870,85 @@ describe('集成测试 — 动态组件 + props 展开', () => {
   });
 });
 
+describe('集成测试 — 动态组件更新切换', () => {
+  it('切换 CompA → CompB（含 children 插槽）', () => {
+    class CompA extends Store {
+      msg = 'A';
+      ui = bobe` span text={msg} `;
+    }
+    class CompB extends Store {
+      msg = 'B';
+      ui = bobe`
+        div
+          h2 text={msg}
+          {children}
+          p text={'after children'}
+      `;
+    }
+    class App extends Store {
+      state = { comp: CompA as any };
+      ui = bobe`
+        div
+          button onclick={() => this.state.comp = CompB} text="switch"
+          {state.comp}
+            span text="inline child"
+      `;
+    }
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // 初始状态：CompA
+    expect(findSpanText(root, 'A')).toBeTruthy();
+
+    // 切换到 CompB
+    (store as any).state = { comp: CompB };
+    flushEffects();
+
+    // CompB 的 h2, children, p 都应该渲染
+    expect(findSpanText(root, 'B')).toBeTruthy();
+    expect(findSpanText(root, 'inline child')).toBeTruthy();
+    expect(findSpanText(root, 'after children')).toBeTruthy();
+  });
+});
+
+describe('集成测试 — 动态组件在模板末尾 (Edge Case)', () => {
+  it('{page} 作为模板最后一个 token 切换组件', () => {
+    class CompA extends Store {
+      msg = 'A';
+      ui = bobe` span text={msg} `;
+    }
+    class CompB extends Store {
+      msg = 'B';
+      ui = bobe`
+        div
+          h2 text={msg}
+          p text={'detail'}
+      `;
+    }
+    class App extends Store {
+      page: any = CompA;
+      ui = bobe`
+        div
+          button onclick={() => this.page = CompB} text="switch"
+          {page}
+      `;
+    }
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    expect(findSpanText(root, 'A')).toBeTruthy();
+
+    (store as any).page = CompB;
+    flushEffects();
+
+    // {page} 在模板末尾，更新后 CompB 应正常渲染
+    expect(findSpanText(root, 'B')).toBeTruthy();
+    expect(findSpanText(root, 'detail')).toBeTruthy();
+  });
+});
+
 // ============================================================
 // Mock helpers for integration tests
 // ============================================================
