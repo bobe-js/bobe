@@ -34,7 +34,7 @@ export type Menu = {
   /** 文件路径，目录有 index 时等于 dir 路径，否则为空 */
   path?: string;
   /** 子菜单 */
-  children: Menu[];
+  children?: Menu[];
 };
 
 /** 路由匹配结果 */

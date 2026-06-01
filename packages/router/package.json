@@ -9,6 +9,16 @@
   "dependencies": {
     "aoye": "workspace:*"
   },
+  "exports": {
+    ".": {
+      "import": "./dist/bobe-router.esm.js",
+      "require": "./dist/bobe-router.cjs.js"
+    },
+    "./plugin": {
+      "import": "./dist/plugin.esm.js",
+      "require": "./dist/plugin.cjs.js"
+    }
+  },
   "devDependencies": {},
   "scripts": {
     "build": "rm -rf ./dist && rollup -c",
