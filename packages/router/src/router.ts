@@ -45,13 +45,39 @@ export class Router extends Store {
   /** 当前正在加载的组件数 */
   private loadingCount = 0;
 
-  /** 首屏初始化就绪后可继续操作 */
-  ready: Promise<void>;
+  /**
+   * 注册首屏就绪回调。
+   * - 已初始化 → 同步执行 cb
+   * - 未初始化 → 入队，首屏加载完成后执行
+   * 支持多次调用。
+   */
+  ready(cb: () => void): void;
+
+  ready(cb: () => void): void {
+    if (this.#inited) {
+      cb();
+    } else {
+      this.#readyQueue.push(cb);
+    }
+  }
+
+  #inited = false;
+  #readyQueue: (() => void)[] = [];
 
   constructor(routes?: RouteMap, initialPath?: string) {
     super();
-    if (routes) this.routes = routes;
-    this.ready = this.#init(initialPath ?? (typeof location !== 'undefined' ? location.pathname : '/'));
+
+    // 1. routes 优先级：SSR 注入 > 用户传入 > 空
+    this.routes = (globalThis as any).__BOBE_INIT_ROUTES__
+      || routes
+      || {};
+
+    // 2. path 优先级：SSR 注入 > 用户传入 > location > '/'
+    const path = (globalThis as any).__BOBE_INIT_PATH__
+      || initialPath
+      || (typeof location !== 'undefined' ? location.pathname : '/');
+
+    this.#init(path);
   }
 
   // ====== 初始化 ======
@@ -60,35 +86,34 @@ export class Router extends Store {
     // 1. 初始化 idleSet（在加载首屏前，让预加载尽早启动）
     this.#initIdleSet();
 
-    // 2. 预加载首屏组件
+    // 2. 首屏：匹配路由，已有 component 则跳过 load
     const result = match(path, this.routes);
     if (result) {
-      await this.#loadComponent(result.path);
       const route = this.routes[result.path];
+
+      if (route?.component) {
+        // SSR 注入或构造函数传入的 component，直接复用
+        route.status = 'loaded';
+      } else {
+        await this.#loadComponent(result.path);
+      }
 
       this.active = {
         path,
         params: result.params,
-        component: route.component,
+        component: route?.component,
       };
-    }
-
-    // 2. 浏览器端从 SSR 注入获取首屏组件
-    if (typeof window !== 'undefined') {
-      const preloaded = (window as any).__INIT_ROUTE__?.[path];
-      if (preloaded) {
-        const route = this.routes[path];
-        if (route) {
-          route.component = preloaded;
-          route.status = 'loaded';
-          if (this.active) this.active.component = preloaded;
-        }
-      }
     }
 
     this.stack = [{ path, params: this.active?.params ?? {} }];
     this.stackIndex = 0;
     this.#initBrowser();
+
+    // 3. 就绪：同步执行所有排队回调
+    this.#inited = true;
+    const q = this.#readyQueue;
+    this.#readyQueue = [];
+    for (const cb of q) cb();
   }
 
   // ====== 浏览器初始化 ======
