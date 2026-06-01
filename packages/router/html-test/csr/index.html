@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/packages/router/html-test/csr/">
+  <title>Bobe Router CSR Test</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "aoye": "../../../compiler/node_modules/aoye/dist/aoye.esm.js",
+      "bobe-shared": "../../../compiler/node_modules/bobe-shared/dist/bobe-shared.esm.js",
+      "bobe": "../../../compiler/dist/bobe.esm.js",
+      "bobe-dom": "../../../dom/dist/bobe-dom.esm.js",
+      "bobe-router": "../../dist/bobe-router.esm.js"
+    }
+  }
+  </script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui; max-width: 800px; margin: 0 auto; padding: 20px; }
+    nav { display: flex; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #eee; }
+    nav a { color: #333; text-decoration: none; padding: 4px 12px; border-radius: 4px; }
+    nav a:hover { background: #f0f0f0; }
+    nav a.active { background: #e0e0ff; color: #3333cc; font-weight: bold; }
+    .page { padding: 20px; }
+    h1 { margin-bottom: 10px; }
+    p { margin-bottom: 8px; color: #666; }
+    a { color: #3333cc; }
+    nav a.router-active { background: #e0e0ff; color: #3333cc; font-weight: bold; border-radius: 4px; }
+  </style>
+</head>
+
+<body>
+  <h2>Bobe Router — CSR 测试</h2>
+  <div id="app"></div>
+
+  <script type="module">
+    import { bobe, Store } from 'bobe';
+    import { render } from 'bobe-dom';
+    import { Router, createRouteRecord } from 'bobe-router';
+
+    // ====== 路由表 + 预加载首屏组件 ======
+    const routes = {
+      '/':      createRouteRecord({ import: () => import('./home.js') }),
+      '/about': createRouteRecord({ import: () => import('./about.js') }),
+      '/post':  createRouteRecord({ import: () => import('./post.js') }),
+    };
+
+    const router = new Router(routes);
+    await router.ready;  // 等待首屏组件加载完成 + 注册链接劫持 + popstate
+
+    // ====== App 模板 ======
+    class App extends Store {
+      router = router;
+      ui = bobe`
+        div
+          nav
+            a href="/" class={router.active?.path === '/' ? 'router-active' : ''} text="首页"
+            a href="/about" class={router.active?.path === '/about' ? 'router-active' : ''} text="关于"
+            a href="/post" class={router.active?.path === '/post' ? 'router-active' : ''} text="文章"
+          div
+            {router.active.component}
+      `;
+    }
+
+    // 渲染 App
+    render(App, document.getElementById('app'));
+  </script>
+</body>
+
+</html>
