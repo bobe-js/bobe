@@ -1,7 +1,10 @@
 import { scanDir } from '#/plugin/scan';
-import { generateCsrInit, generateSsgInit, generateMenus } from '#/plugin/generate';
+import { generateCsrInit, generateSsgInit } from '#/plugin/generate';
+import { GlobalKey } from '#/global';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { resolve } from 'path';
+
+const { Routes } = GlobalKey;
 
 const TEST_DIR = resolve(__dirname, '__plugin_test_pages');
 
@@ -29,9 +32,9 @@ describe('scanDir', () => {
 
   it('should scan flat pages with order', () => {
     setup(TEST_DIR, {
-      '01#home#首页.ts': '',
-      '02#about#关于.ts': '',
-      '03#contact#联系我们.ts': '',
+      '01_home_首页.ts': '',
+      '02_about_关于.ts': '',
+      '03_contact_联系我们.ts': '',
     });
 
     const { routes, menus } = scanDir(TEST_DIR);
@@ -51,11 +54,11 @@ describe('scanDir', () => {
 
   it('should handle nested directory with index', () => {
     setup(TEST_DIR, {
-      '01#home#首页.ts': '',
-      '02#articles#文章': '__DIR__',
-      '02#articles#文章/index#.ts': '',
-      '02#articles#文章/01#react#React 入门.ts': '',
-      '02#articles#文章/02#vue#Vue 入门.ts': '',
+      '01_home_首页.ts': '',
+      '02_articles_文章': '__DIR__',
+      '02_articles_文章/index_.ts': '',
+      '02_articles_文章/01_react_React 入门.ts': '',
+      '02_articles_文章/02_vue_Vue 入门.ts': '',
     });
 
     const { routes, menus } = scanDir(TEST_DIR);
@@ -77,8 +80,8 @@ describe('scanDir', () => {
 
   it('should handle missing menuName', () => {
     setup(TEST_DIR, {
-      '01#home.ts': '',
-      '02#about.ts': '',
+      '01_home.ts': '',
+      '02_about.ts': '',
     });
 
     const { routes, menus } = scanDir(TEST_DIR);
@@ -90,9 +93,9 @@ describe('scanDir', () => {
 
   it('should handle directory without menuName', () => {
     setup(TEST_DIR, {
-      '01#products': '__DIR__',
-      '01#products/index#.ts': '',
-      '01#products/01#detail.ts': '',
+      '01_products': '__DIR__',
+      '01_products/index_.ts': '',
+      '01_products/01_detail.ts': '',
     });
 
     const { routes, menus } = scanDir(TEST_DIR);
@@ -111,7 +114,7 @@ describe('scanDir', () => {
 
   it('should convert dot in pathPart to slash', () => {
     setup(TEST_DIR, {
-      '01#category.product#分类.ts': '',
+      '01_category.product_分类.ts': '',
     });
 
     const { routes } = scanDir(TEST_DIR);
@@ -127,9 +130,21 @@ describe('generateCsrInit', () => {
     ]);
 
     expect(code).toBe(
-      "globalThis.__BOBE_INIT_ROUTES__ = {\n" +
+      `globalThis['${Routes}'] = {\n` +
       "  '/': { import: () => import('/pages/index.ts') },\n" +
       "  '/about': { import: () => import('/pages/about.ts') }\n" +
+      "};"
+    );
+  });
+
+  it('should keep _ in import paths (URL-safe)', () => {
+    const code = generateCsrInit([
+      { url: '/home', file: '/pages/01_home_首页.ts' },
+    ]);
+
+    expect(code).toBe(
+      `globalThis['${Routes}'] = {\n` +
+      "  '/home': { import: () => import('/pages/01_home_首页.ts') }\n" +
       "};"
     );
   });
@@ -143,9 +158,18 @@ describe('generateSsgInit', () => {
 
     expect(code).toBe(
       "import __route_0 from '/pages/index.ts';\n\n" +
-      "globalThis.__BOBE_INIT_ROUTES__ = {\n" +
+      `globalThis['${Routes}'] = {\n` +
       "  '/': { component: __route_0 }\n" +
-      "};"
+      "};\n" +
+      "export const __bobe_routes = [__route_0];"
     );
+  });
+
+  it('should keep _ in static import paths (URL-safe)', () => {
+    const code = generateSsgInit([
+      { url: '/home', file: '/pages/01_home_首页.ts' },
+    ]);
+
+    expect(code).toContain("import __route_0 from '/pages/01_home_首页.ts';");
   });
 });

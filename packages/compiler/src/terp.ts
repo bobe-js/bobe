@@ -571,7 +571,6 @@ export class Interpreter {
       const rawGetKey = new Function('data', `with(data){return (${keyExp})}`) as any;
       forNode.getKey = (data: any) => rawGetKey(safe(data));
     }
-    window['for1'] = forNode;
 
     const data = this.getData();
 

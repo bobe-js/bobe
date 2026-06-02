@@ -1,6 +1,7 @@
 import { Store, StoreIgnoreKeys } from 'aoye';
-import type { RouteMap, RouteEntry, RouteRecord, GuardResult, Menu } from './type';
+import type { RouteMap, RouteEntry, RouteRecord, GuardResult, Menu, RouterOptions } from './type';
 import { match } from './match';
+import { GlobalKey } from './global';
 
 /** 创建带初始数据的 RouteRecord */
 export function createRouteRecord(
@@ -50,31 +51,40 @@ export class Router extends Store {
    * - 已初始化 → 同步执行 cb
    * - 未初始化 → 入队，首屏加载完成后执行
    * 支持多次调用。
+   * 无参数时返回 Promise。
    */
+  ready(): Promise<void>;
   ready(cb: () => void): void;
-
-  ready(cb: () => void): void {
-    if (this.#inited) {
-      cb();
-    } else {
-      this.#readyQueue.push(cb);
+  ready(cb?: () => void): Promise<void> | void {
+    if (cb) {
+      if (this.#inited) { cb(); }
+      else { this.#readyQueue.push(cb); }
+      return;
     }
+    return new Promise<void>(resolve => this.ready(resolve));
   }
 
   #inited = false;
   #readyQueue: (() => void)[] = [];
 
-  constructor(routes?: RouteMap, initialPath?: string) {
+  constructor(opt?: RouterOptions) {
     super();
 
-    // 1. routes 优先级：SSR 注入 > 用户传入 > 空
-    this.routes = (globalThis as any).__BOBE_INIT_ROUTES__
-      || routes
+    const routes = opt?.routes;
+    const initialPath = opt?.initialPath;
+
+    // 1. routes 优先级：用户传入 > SSR 注入 > 空
+    this.routes = routes
+      || (globalThis as any)[GlobalKey.Routes]
       || {};
 
-    // 2. path 优先级：SSR 注入 > 用户传入 > location > '/'
-    const path = (globalThis as any).__BOBE_INIT_PATH__
-      || initialPath
+    // 2. menus 优先级：SSR 注入 > 空
+    const injectedMenus = (globalThis as any)[GlobalKey.Menus];
+    if (injectedMenus) this.menus = injectedMenus;
+
+    // 3. path 优先级：用户传入 > SSR 注入 > location > '/'
+    const path = initialPath
+      || (globalThis as any)[GlobalKey.Path]
       || (typeof location !== 'undefined' ? location.pathname : '/');
 
     this.#init(path);
@@ -109,7 +119,7 @@ export class Router extends Store {
     this.stackIndex = 0;
     this.#initBrowser();
 
-    // 3. 就绪：同步执行所有排队回调
+    // 就绪：执行所有排队回调
     this.#inited = true;
     const q = this.#readyQueue;
     this.#readyQueue = [];

@@ -1,5 +1,11 @@
 import type { Store } from 'aoye';
 
+/** Router 构造选项 */
+export interface RouterOptions {
+  routes?: RouteMap;
+  initialPath?: string;
+}
+
 /** 路由表中每条记录 */
 export type RouteRecord = {
   /** 异步 import 组件的函数（客户端 SPA 用） */
@@ -33,6 +39,8 @@ export type Menu = {
   name: string;
   /** 文件路径，目录有 index 时等于 dir 路径，否则为空 */
   path?: string;
+  /** 是否有对应组件（目录无 index 时为 false） */
+  hasComponent: boolean;
   /** 子菜单 */
   children?: Menu[];
 };

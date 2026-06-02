@@ -1,26 +1,29 @@
+import { GlobalKey } from '#/global';
 import { Menu } from '#/type';
 import type { ScanItem } from './scan';
 
-/** CSR：HTML 注入用 import() 动态导入 */
+const { Routes, Menus } = GlobalKey;
+
 export function generateCsrInit(items: ScanItem[]): string {
   const entries = items.map(({ url, file }) =>
     `  '${url}': { import: () => import('${file}') }`
   );
-  return 'globalThis.__BOBE_INIT_ROUTES__ = {\n' + entries.join(',\n') + '\n};';
+  return `globalThis['${Routes}'] = {\n` + entries.join(',\n') + '\n};';
 }
 
-/** SSG：SSR 虚拟模块用静态 import */
 export function generateSsgInit(items: ScanItem[]): string {
   const imports = items.map(({ file }, i) =>
     `import __route_${i} from '${file}';`
   );
+  const names = items.map((_, i) => `__route_${i}`);
   const entries = items.map(({ url }, i) =>
     `  '${url}': { component: __route_${i} }`
   );
-  return imports.join('\n') + '\n\nglobalThis.__BOBE_INIT_ROUTES__ = {\n' + entries.join(',\n') + '\n};';
+  return imports.join('\n')
+    + `\n\nglobalThis['${Routes}'] = {\n` + entries.join(',\n') + '\n};'
+    + `\nexport const __bobe_routes = [${names.join(', ')}];`;
 }
 
-/** 虚拟模块 virtual:bobe-menus 代码 */
-export function generateMenus(menus: Menu[]): string {
-  return `export const menus = ${JSON.stringify(menus, null, 2)};`;
+export function generateCsrMenus(menus: Menu[]): string {
+  return `globalThis['${Menus}'] = ${JSON.stringify(menus)};`;
 }

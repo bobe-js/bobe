@@ -11,10 +11,12 @@
   },
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/bobe-router.esm.js",
       "require": "./dist/bobe-router.cjs.js"
     },
     "./plugin": {
+      "types": "./dist/plugin.d.ts",
       "import": "./dist/plugin.esm.js",
       "require": "./dist/plugin.cjs.js"
     }

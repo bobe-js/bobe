@@ -1,6 +1,8 @@
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createConfig, createPlugins } from '../../config/rollup.js';
+import dts from 'rollup-plugin-dts';
+import alias from '@rollup/plugin-alias';
 import fs from 'fs';
 import path from 'path';
 
@@ -10,8 +12,8 @@ const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, './package.json')
 // 基础构建（src/index.ts）
 const base = createConfig(pkg, __dirname);
 
-// plugin 构建（src/plugin/index.ts → dist/plugin.cjs.js / dist/plugin.esm.js）
-const pluginCfg = {
+// plugin 代码构建
+const pluginJs = {
   input: 'src/plugin/index.ts',
   output: [
     { file: 'dist/plugin.cjs.js', format: 'cjs', sourcemap: true },
@@ -31,4 +33,11 @@ const pluginCfg = {
   external: [...Object.keys(pkg.dependencies || {}), 'vite', 'path', 'fs']
 };
 
-export default [...base, pluginCfg];
+// plugin 类型构建
+const pluginDts = {
+  input: 'src/plugin/index.ts',
+  output: { file: 'dist/plugin.d.ts', format: 'es' },
+  plugins: [alias({ entries: [{ find: '#', replacement: path.resolve(__dirname, './src') }] }), dts()]
+};
+
+export default [...base, pluginJs, pluginDts];

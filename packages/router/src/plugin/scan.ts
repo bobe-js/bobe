@@ -8,8 +8,8 @@ export interface ScanItem {
   menuName?: string;
 }
 
-const RE_FILE = /^(?:(\d+)#)?([^#]+?)(?:#(.*))?\.(ts|tsx|js|jsx)$/;
-const RE_DIR = /^(?:(\d+)#)?([^#]+?)(?:#(.+?))?$/;
+const RE_FILE = /^(?:(\d+)_)?([^_]+?)(?:_(.*))?\.(ts|tsx|js|jsx)$/;
+const RE_DIR = /^(?:(\d+)_)?([^_]+?)(?:_(.+?))?$/;
 
 function buildUrl(base: string, part: string): string {
   return (base === '/' ? '' : base) + '/' + part.replace(/\./g, '/');
@@ -44,7 +44,12 @@ function sortEntries(entries: Dirent[]): Dirent[] {
   });
 }
 
-export function scanDir(absDir: string, parentPath = ''): { routes: ScanItem[]; menus: Menu[] } {
+export function scanDir(
+  absDir: string,
+  basePath = absDir,
+  parentPath = '',
+  menuRef?: Menu
+): { routes: ScanItem[]; menus: Menu[] } {
   const routes: ScanItem[] = [];
   const menus: Menu[] = [];
   let entries: Dirent[];
@@ -66,22 +71,34 @@ export function scanDir(absDir: string, parentPath = ''): { routes: ScanItem[]; 
 
     if (ent.isDirectory()) {
       const urlPath = buildUrl(parentPath, pathPart);
-      const child = scanDir(full, urlPath);
+      const menu: Menu = {
+        name: menuName || pathPart,
+        hasComponent: false,
+        children: []
+      };
+      const child = scanDir(full, basePath, urlPath, menu);
       routes.push(...child.routes);
-
-      const selfRoute = child.routes.find(r => r.url === urlPath);
-      const menu: Menu = { name: menuName || pathPart, children: child.menus };
-      if (selfRoute) menu.path = urlPath;
+      menu.children = child.menus;
       menus.push(menu);
     } else if (ent.isFile()) {
       const isIndex = pathPart === 'index';
+      const relFile = '/' + full.slice(basePath.length).replace(/^[/\\]/, '');
+      const urlPath = buildUrl(parentPath, pathPart);
 
       if (isIndex) {
-        routes.push({ url: parentPath || '/', file: full, menuName });
+        const url = parentPath || '/';
+        routes.push({ url, file: relFile, menuName });
+        if (menuRef) {
+          // 直接修改父菜单，不走 push
+          if (menuName) menuRef.name = menuName;
+          menuRef.path = url;
+          menuRef.hasComponent = true;
+        } else if (menuName) {
+          menus.push({ name: menuName, path: '/', hasComponent: true, children: [] });
+        }
       } else {
-        const urlPath = buildUrl(parentPath, pathPart);
-        routes.push({ url: urlPath, file: full, menuName });
-        if (menuName) menus.push({ name: menuName, path: urlPath });
+        routes.push({ url: urlPath, file: relFile, menuName });
+        if (menuName) menus.push({ name: menuName, path: urlPath, hasComponent: true });
       }
     }
   }
