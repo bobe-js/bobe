@@ -1,0 +1,13 @@
+{
+  "name": "test-router-csr",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "bobe-router": "workspace:*",
+    "bobe-dom": "workspace:*",
+    "bobe": "workspace:*"
+  }
+}

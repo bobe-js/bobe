@@ -2,3 +2,5 @@
 packages:
   # 匹配 packages/ 目录下的所有子目录
   - 'packages/**'
+  # 用于测试的模板项目
+  - 'test-templates/**'
