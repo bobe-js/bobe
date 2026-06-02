@@ -8,18 +8,16 @@ import { hydrate } from '#/render-hydrate';
 function renderAndHydrate<T extends typeof Store>(Ctor: T) {
   const { html } = renderHtmlStr(Ctor as any);
   document.body.innerHTML = html;
-  const root = document.body.firstChild as Element;
-  hydrate(Ctor as any, root);
-  return root;
+  hydrate(Ctor as any, document.body);
+  return document.body.firstElementChild as Element;
 }
 
 /** 与 Browser render.test.ts 一致的 mount 模式，返回 store 用于触发更新 */
 function mountHydrate<T extends typeof Store>(Ctor: T) {
   const { html } = renderHtmlStr(Ctor as any);
   document.body.innerHTML = html;
-  const root = document.body.firstChild as Element;
-  const [, store] = hydrate(Ctor as any, root);
-  return { root, store };
+  const [, store] = hydrate(Ctor as any, document.body);
+  return { root: document.body.firstElementChild as Element, store };
 }
 
 const tick = () => new Promise(r => queueMicrotask(() => r(1)));
@@ -31,11 +29,10 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
     }
     const { html } = renderHtmlStr(App as any);
     document.body.innerHTML = html;
-    const root = document.body.firstChild as Element;
-
-    hydrate(App as any, root);
+    hydrate(App as any, document.body);
 
     // 元素节点身份保持不变
+    const root = document.body.firstChild as Element;
     expect(document.body.firstChild).toBe(root);
     // 内容正确（textContent 被 setProp 重设，TextNode 可能被替换）
     expect(root.textContent).toBe('hello');
@@ -55,7 +52,7 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
     const h1 = root.firstElementChild!;
     const p = h1.nextElementSibling!;
 
-    hydrate(App as any, root);
+    hydrate(App as any, document.body);
 
     expect(root.firstElementChild).toBe(h1);
     expect(h1.nextElementSibling).toBe(p);
@@ -77,7 +74,7 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
     const span = root.firstElementChild!;
     const anchor = span.nextSibling as Comment;
 
-    hydrate(App as any, root);
+    hydrate(App as any, document.body);
 
     expect(root.firstElementChild).toBe(span);
     expect(span.nextSibling).toBe(anchor);
@@ -98,7 +95,7 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
     const root = document.body.firstChild as Element;
     const lis = Array.from(root.querySelectorAll('li'));
 
-    hydrate(App as any, root);
+    hydrate(App as any, document.body);
 
     const afterHydrate = root.querySelectorAll('li');
     expect(afterHydrate.length).toBe(2);

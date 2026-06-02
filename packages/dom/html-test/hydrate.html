@@ -49,11 +49,10 @@
     import { hydrate } from 'bobe-dom';
 
     function mountHydrate(Ctor, containerId) {
-      const container = document.getElementById(containerId);
+      const root = document.getElementById(containerId);
       const { html } = renderHtmlStr(Ctor);
-      container.innerHTML = html;
-      const root = container.firstElementChild;
-      if (!root) return {};
+      root.innerHTML = html;
+
       const [, store] = hydrate(Ctor, root);
       return { root, store };
     }
