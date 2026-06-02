@@ -1,0 +1,15 @@
+{
+  "name": "test-router-ssr",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "build": "vite build --outDir dist/client && vite build --ssr src/entry-server.ts --outDir dist/server",
+    "preview": "cross-env NODE_ENV=production node server.js"
+  },
+  "dependencies": {
+    "bobe-router": "workspace:*",
+    "bobe-dom": "workspace:*",
+    "bobe": "workspace:*"
+  }
+}
