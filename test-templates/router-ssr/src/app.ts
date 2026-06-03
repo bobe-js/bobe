@@ -8,6 +8,6 @@ export class App extends Store {
     div
       ${MenuComp} name="导航" menus={router.menus}
       div
-        {router.active.component}
+        {router.active.component} showAside=true
   `;
 }
