@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node server.js",
     "build": "vite build --outDir dist/client && vite build --ssr src/entry-server.ts --outDir dist/server",
+    "build:ssg": "vite build --outDir dist/client && vite build --ssr src/entry-server.ts --outDir dist/server && node build.js",
     "preview": "cross-env NODE_ENV=production node server.js"
   },
   "dependencies": {
