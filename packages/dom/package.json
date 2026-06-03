@@ -7,10 +7,23 @@
   "types": "dist/index.d.ts",
   "private": false,
   "dependencies": {
-    "bobe": "workspace:*"
+    "bobe": "workspace:*",
+    "marked": "^18.0.4"
   },
   "devDependencies": {
     "vitest": "^4.1.7"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/bobe-dom.esm.js",
+      "require": "./dist/bobe-dom.cjs.js"
+    },
+    "./plugin-markdown": {
+      "types": "./dist/markdown.d.ts",
+      "import": "./dist/markdown.esm.js",
+      "require": "./dist/markdown.cjs.js"
+    }
   },
   "scripts": {
     "build": "rm -rf ./dist && rollup -c",

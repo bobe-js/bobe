@@ -239,6 +239,13 @@ export class Router extends Store {
     target.component = this.routes[target.path]?.component;
     this.active = target;
 
+    // hash 滚动
+    const hash = new URL(target.path, location.origin).hash;
+    if (hash) {
+      const el = document.querySelector(decodeURIComponent(hash));
+      if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth' });
+    }
+
     this.#preloadNext();
   }
 
@@ -327,6 +334,9 @@ export class Router extends Store {
     const href = link.getAttribute('href');
     if (!href) return;
 
+    // 纯 hash 链接放行，浏览器原生处理滚动
+    if (href.startsWith('#')) return;
+
     try {
       const url = new URL(href, location.origin);
       // 外部链接不拦截
@@ -350,6 +360,8 @@ export class Router extends Store {
     const idx = this.stack.findLastIndex((r) => r.path === current);
 
     if (idx !== -1) {
+      // 仅 hash 变化，浏览器已更新 URL 并处理滚动，跳过 #navigate（避免 replaceState 抹掉 hash）
+      if (idx === this.stackIndex) return;
       // 在栈中 → Router 产生的历史，移动指针
       this.stackIndex = idx;
       const entry = this.stack[idx];

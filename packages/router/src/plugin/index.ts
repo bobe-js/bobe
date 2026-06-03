@@ -6,11 +6,13 @@ import { generateCsrInit, generateSsgInit, generateCsrMenus } from './generate';
 export interface BobeRouterPluginOptions {
   dir?: string;
   ssg?: boolean;
+  /** 可识别的文件后缀，默认 ['js', 'jsx', 'ts', 'tsx'] */
+  extensions?: string[];
 }
 
 export default function bobeRouter(opt: BobeRouterPluginOptions = {}): Plugin[] {
   const dir = opt.dir || 'pages';
-  const ssg = opt.ssg || false;
+  const extensions = opt.extensions || ['js', 'jsx', 'ts', 'tsx'];
 
   let root: string;
 
@@ -28,7 +30,7 @@ export default function bobeRouter(opt: BobeRouterPluginOptions = {}): Plugin[] 
     load(id) {
       if (id === '\0bobe-router/csr-routes') {
         const absDir = resolve(root, dir);
-        const { routes, menus } = scanDir(absDir, root);
+        const { routes, menus } = scanDir(absDir, root, '', undefined, extensions);
         return generateCsrInit(routes) + (menus.length ? '\n' + generateCsrMenus(menus) : '');
       }
     },
@@ -37,7 +39,7 @@ export default function bobeRouter(opt: BobeRouterPluginOptions = {}): Plugin[] 
     transform(code, id) {
       if (id.includes('entry-server.ts')) {
         const absDir = resolve(root, dir);
-        const { routes, menus } = scanDir(absDir, root);
+        const { routes, menus } = scanDir(absDir, root, '', undefined, extensions);
         const ssg = generateSsgInit(routes) + (menus.length ? '\n' + generateCsrMenus(menus) : '');
         return ssg + '\n' + code;
       }

@@ -8,14 +8,20 @@ export interface ScanItem {
   menuName?: string;
 }
 
-const RE_FILE = /^(?:(\d+)_)?([^_]+?)(?:_(.*))?\.(ts|tsx|js|jsx)$/;
 const RE_DIR = /^(?:(\d+)_)?([^_]+?)(?:_(.+?))?$/;
+
+const DEFAULT_EXTENSIONS = ['js', 'jsx', 'ts', 'tsx'];
+
+function buildFileRegex(extensions: string[]): RegExp {
+  const exts = extensions.map(e => e.replace(/^\./, '')).join('|');
+  return new RegExp(`^(?:(\\d+)_)?([^_]+?)(?:_(.*))?\\.(${exts})$`);
+}
 
 function buildUrl(base: string, part: string): string {
   return (base === '/' ? '' : base) + '/' + part.replace(/\./g, '/');
 }
 
-function parseEntry(name: string): { order: number; pathPart: string; menuName?: string } | null {
+function parseEntry(name: string, fileRe: RegExp): { order: number; pathPart: string; menuName?: string } | null {
   const dirMatch = name.match(RE_DIR);
   const isDir = !name.includes('.');
 
@@ -24,7 +30,7 @@ function parseEntry(name: string): { order: number; pathPart: string; menuName?:
     return { order: orderStr ? parseInt(orderStr, 10) : Infinity, pathPart, menuName };
   }
 
-  const fileMatch = name.match(RE_FILE);
+  const fileMatch = name.match(fileRe);
   if (fileMatch) {
     const [, orderStr, pathPart, menuName] = fileMatch;
     return { order: orderStr ? parseInt(orderStr, 10) : Infinity, pathPart, menuName };
@@ -33,10 +39,10 @@ function parseEntry(name: string): { order: number; pathPart: string; menuName?:
   return null;
 }
 
-function sortEntries(entries: Dirent[]): Dirent[] {
+function sortEntries(entries: Dirent[], fileRe: RegExp): Dirent[] {
   return entries.sort((a, b) => {
-    const pa = parseEntry(a.name);
-    const pb = parseEntry(b.name);
+    const pa = parseEntry(a.name, fileRe);
+    const pb = parseEntry(b.name, fileRe);
     const oa = pa?.order ?? Infinity;
     const ob = pb?.order ?? Infinity;
     if (oa !== ob) return oa - ob;
@@ -48,11 +54,13 @@ export function scanDir(
   absDir: string,
   basePath = absDir,
   parentPath = '',
-  menuRef?: Menu
+  menuRef?: Menu,
+  extensions: string[] = DEFAULT_EXTENSIONS
 ): { routes: ScanItem[]; menus: Menu[] } {
   const routes: ScanItem[] = [];
   const menus: Menu[] = [];
   let entries: Dirent[];
+  const fileRe = buildFileRegex(extensions);
 
   try {
     entries = readdirSync(absDir, { withFileTypes: true });
@@ -60,11 +68,11 @@ export function scanDir(
     return { routes, menus };
   }
 
-  entries = sortEntries(entries);
+  entries = sortEntries(entries, fileRe);
 
   for (const ent of entries) {
     const full = join(absDir, ent.name);
-    const parsed = parseEntry(ent.name);
+    const parsed = parseEntry(ent.name, fileRe);
     if (!parsed) continue;
 
     const { pathPart, menuName } = parsed;
@@ -76,7 +84,7 @@ export function scanDir(
         hasComponent: false,
         children: []
       };
-      const child = scanDir(full, basePath, urlPath, menu);
+      const child = scanDir(full, basePath, urlPath, menu, extensions);
       routes.push(...child.routes);
       menu.children = child.menus;
       menus.push(menu);

@@ -1,6 +1,7 @@
 {
   "extends": "../../config/tsconfig.base.json",
   "compilerOptions": {
+    "moduleResolution": "bundler",
     "experimentalDecorators": true,
     "outDir": "dist",
     "paths": {
