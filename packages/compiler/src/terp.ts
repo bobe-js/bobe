@@ -24,7 +24,6 @@ import {
   ComponentNode,
   CondBit,
   IfNode,
-  LogicalBit,
   LogicNode,
   FakeType,
   NodeSort,
@@ -48,9 +47,6 @@ import { KEY_INDEX, setCtxStack } from './global';
 export class Interpreter {
   opt: TerpConf;
   constructor(private tokenizer: Tokenizer) {}
-  isLogicNode(node: any) {
-    return node && node.__logicType & LogicalBit;
-  }
 
   ctx: ProgramCtx;
   rootComponent: ComponentNode | null = null;
@@ -70,7 +66,7 @@ export class Interpreter {
     if (ctxProvider) {
       stack.push(
         { node: ctxProvider, prev: null },
-        (ctxProvider.__logicType & LogicalBit ? NodeSort.Logic : 0) | NodeSort.CtxProvider
+        (ctxProvider.__logicType && ctxProvider.effect ? NodeSort.EffectNode : 0) | NodeSort.CtxProvider
       );
     }
     const rootLen = stack.length;
@@ -99,7 +95,7 @@ export class Interpreter {
       // 下沉，创建 child0
       if (token.type & TokenType.Indent) {
         this.tokenizer.nextToken(); // token = ID
-        const isLogicNode = this.isLogicNode(ctx.current);
+        const isEffectNode = ctx.current && ctx.current.__logicType && ctx.current.effect;
         stack.push(
           {
             node: ctx.current,
@@ -107,7 +103,7 @@ export class Interpreter {
           },
           !ctx.current.__logicType
             ? NodeSort.Real
-            : (ctx.current.__logicType & LogicalBit ? NodeSort.Logic : 0) |
+            : (isEffectNode ? NodeSort.EffectNode : 0) |
                 (ctx.current.__logicType & TokenizerSwitcherBit ? NodeSort.TokenizerSwitcher : 0) |
                 (ctx.current.__logicType & ContextBit ? NodeSort.Context : 0) |
                 (ctx.current.__logicType === FakeType.Component ? NodeSort.Component : 0) |
@@ -116,8 +112,8 @@ export class Interpreter {
         );
         if (ctx.current.__logicType) {
           this.beforeLogicIndent?.(ctx.current);
-          // 父节点是逻辑节点
-          if (isLogicNode) {
+          // 父节点是带 effect 的 Fake 节点
+          if (isEffectNode) {
             // 保证 if 子逻辑节点能被其 effect 管理
             setPulling(ctx.current.effect);
             if (ctx.current.__logicType & FakeType.ForItem) {
@@ -162,9 +158,9 @@ export class Interpreter {
         // 弹出非原生节点
         else {
           // 考虑 if, for 等获取最后一个插入节点
-          if (sort & NodeSort.Logic) {
+          if (sort & NodeSort.EffectNode) {
             // 找最近的 if for
-            const parentLogic = stack.peekByType(NodeSort.Logic)?.node;
+            const parentLogic = stack.peekByType(NodeSort.EffectNode)?.node;
             if (parentLogic) {
               setPulling(parentLogic.effect);
             } else {

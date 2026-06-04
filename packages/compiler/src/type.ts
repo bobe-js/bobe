@@ -40,8 +40,8 @@ export enum FakeType {
 }
 
 export const CondBit = FakeType.If | FakeType.Fail | FakeType.Else;
-export const LogicalBit =
-  FakeType.If | FakeType.Fail | FakeType.Else | FakeType.For | FakeType.ForItem;
+// export const LogicalBit =
+//   FakeType.If | FakeType.Fail | FakeType.Else | FakeType.For | FakeType.ForItem;
 export const CtxProviderBit =
   FakeType.If |
   FakeType.Fail |
@@ -62,7 +62,7 @@ export type NodeSortBit = number;
  */
 export enum NodeSort {
   /** 逻辑类型 1.if 2.else 3.fail 4.for 5. for item */
-  Logic = 0b0000_0000_0000_0000_0000_0000_0000_0001,
+  EffectNode = 0b0000_0000_0000_0000_0000_0000_0000_0001,
   /** 真实节点 */
   Real = 0b0000_0000_0000_0000_0000_0000_0000_0010,
   /** 组件 */

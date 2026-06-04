@@ -1,9 +1,9 @@
 import { Interpreter } from '#/terp';
-import { FakeType, TokenizerSwitcherBit, NodeSort, TokenType } from '#/type';
+import { FakeType, NodeSort } from '#/type';
 import { MultiTypeStack } from '#/typed';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { deepSignal, Keys, Effect, NoopEffect, noopEffect, Scope, getPulling, setPulling, flushMicroEffectManual } from 'aoye';
-import { InlineFragment, isRenderAble } from '#/util';
+import { describe, it, expect, vi } from 'vitest';
+import { deepSignal, Keys, Store,  getPulling, flushMicroEffectManual, effect } from 'aoye';
+import { customRender, bobe } from '#/render';
 
 // vitest runs in Node.js; for loop uses window['for1'] debug
 (globalThis as any).window = globalThis;
@@ -29,33 +29,6 @@ function makeTerp() {
 }
 
 describe('Interpreter 纯单元测试', () => {
-  // ----------------------------------------------------------
-  describe('isLogicNode', () => {
-    const t = makeTerp();
-
-    it('null/undefined → falsy', () => {
-      expect(t.isLogicNode(null)).toBeFalsy();
-      expect(t.isLogicNode(undefined)).toBeFalsy();
-    });
-
-    it('普通对象 → falsy', () => {
-      expect(t.isLogicNode({})).toBeFalsy();
-      expect(t.isLogicNode({ __logicType: 0 })).toBeFalsy();
-    });
-
-    it('If 节点 → truthy', () => {
-      expect(t.isLogicNode({ __logicType: FakeType.If })).toBeTruthy();
-    });
-
-    it('For 节点 → truthy', () => {
-      expect(t.isLogicNode({ __logicType: FakeType.For })).toBeTruthy();
-    });
-
-    it('Component 节点 → falsy (不在 LogicalBit 中)', () => {
-      expect(t.isLogicNode({ __logicType: FakeType.Component })).toBeFalsy();
-    });
-  });
-
   // ----------------------------------------------------------
   describe('formatForCollection', () => {
     const t = makeTerp();
@@ -446,9 +419,6 @@ describe('onePropParsed', () => {
 // ============================================================
 // Level 3 — 集成测试 (mock DOM)
 // ============================================================
-
-import { customRender, bobe } from '#/render';
-import { Store, effect } from 'aoye';
 
 describe('集成测试 — 基本渲染', () => {
   it('渲染单个 div', () => {
@@ -946,6 +916,179 @@ describe('集成测试 — 动态组件在模板末尾 (Edge Case)', () => {
     // {page} 在模板末尾，更新后 CompB 应正常渲染
     expect(findSpanText(root, 'B')).toBeTruthy();
     expect(findSpanText(root, 'detail')).toBeTruthy();
+  });
+});
+
+describe('集成测试 — 组件销毁验证', () => {
+  it('if 由 true → false 时，{comp} 内子组件的 Effect 被正确销毁', () => {
+    let compDestroyed = false;
+
+    class CompA extends Store {
+      msg = 'A';
+      constructor() {
+        super();
+        effect(() => (isDestroy: boolean) => {
+          if (isDestroy) compDestroyed = true;
+        });
+      }
+      ui = bobe`
+        div 
+          p text={msg} `;
+    }
+
+    class App extends Store {
+      show = true;
+      ui = bobe`
+        div
+          if show
+            ${CompA}
+      `;
+    }
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // 初始状态
+    expect(findSpanText(root, 'A')).toBeTruthy();
+    expect(compDestroyed).toBe(false);
+
+    // if 条件变为 false
+    (store as App).show = false;
+    flushEffects();
+
+    // DOM 清理
+    expect(findSpanText(root, 'A')).toBeFalsy();
+    // CompA 内的 Effect 被销毁，cleanup 回调触发
+    expect(compDestroyed).toBe(true);
+  });
+
+  it('{comp} 切换后旧组件的 Effect 被正确销毁，新组件不受影响', () => {
+    let compADestroyed = false;
+    let compBDestroyed = false;
+
+    class CompA extends Store {
+      msg = 'A';
+      constructor() {
+        super();
+        effect(() => (isDestroy: boolean) => {
+          if (isDestroy) compADestroyed = true;
+        });
+      }
+      ui = bobe`
+        div
+          p text={msg} `;
+    }
+    class CompB extends Store {
+      msg = 'B';
+      constructor() {
+        super();
+        effect(() => (isDestroy: boolean) => {
+          if (isDestroy) compBDestroyed = true;
+        });
+      }
+      ui = bobe` span text={msg} `;
+    }
+
+    class App extends Store {
+      state = { comp: CompA as any };
+      ui = bobe`
+        div
+          {state.comp}
+      `;
+    }
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // 初始状态
+    expect(findSpanText(root, 'A')).toBeTruthy();
+    expect(compADestroyed).toBe(false);
+    expect(compBDestroyed).toBe(false);
+
+    // 切换组件
+    (store as App).state = { comp: CompB };
+    flushEffects();
+
+    // 旧组件 DOM 清理
+    expect(findSpanText(root, 'A')).toBeFalsy();
+    // 旧组件的 Effect 被销毁
+    expect(compADestroyed).toBe(true);
+    // 新组件正常渲染
+    expect(findSpanText(root, 'B')).toBeTruthy();
+    // 新组件未被销毁
+    expect(compBDestroyed).toBe(false);
+  });
+
+  it('if=true 时切换组件与 if=false 时切换组件，Effect 均正确销毁', () => {
+    const onCompADestroy = vi.fn();
+    const onCompBDestroy = vi.fn();
+
+    class CompA extends Store {
+      msg = 'A';
+      constructor() {
+        super();
+        effect(() => (isDestroy: boolean) => {
+          if (isDestroy) onCompADestroy();
+        });
+      }
+      ui = bobe`
+        div
+          p text={msg} `;
+    }
+    class CompB extends Store {
+      msg = 'B';
+      constructor() {
+        super();
+        effect(() => (isDestroy: boolean) => {
+          if (isDestroy) onCompBDestroy();
+        });
+      }
+      ui = bobe` span text={msg} `;
+    }
+
+    class App extends Store {
+      show = true;
+      state = { comp: CompA as any };
+      ui = bobe`
+        div
+          if show
+            {state.comp}
+      `;
+    }
+    const { render, root } = setupWithStore();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // === if=true, comp=CompA ===
+    expect(findSpanText(root, 'A')).toBeTruthy();
+    expect(onCompADestroy).not.toHaveBeenCalled();
+    expect(onCompBDestroy).not.toHaveBeenCalled();
+
+    // === if=true 时切换 CompA → CompB ===
+    (store as App).state = { comp: CompB };
+    flushEffects();
+
+    expect(findSpanText(root, 'A')).toBeFalsy();
+    expect(onCompADestroy).toHaveBeenCalledTimes(1);
+    expect(findSpanText(root, 'B')).toBeTruthy();
+    expect(onCompBDestroy).not.toHaveBeenCalled();
+
+    // === if=false，CompB 隐藏；同时在隐藏态切换 CompB → CompA ===
+    (store as App).show = false;
+    (store as App).state = { comp: CompA };
+    flushEffects();
+
+    expect(findSpanText(root, 'B')).toBeFalsy();
+    // if=false 导致 CompB 被销毁
+    expect(onCompBDestroy).toHaveBeenCalledTimes(1);
+
+    // === if=true，应渲染 CompA ===
+    (store as App).show = true;
+    flushEffects();
+
+    expect(findSpanText(root, 'A')).toBeTruthy();
+    // CompA 是全新实例，旧实例已在步骤 2 销毁，新实例未销毁
+    expect(onCompADestroy).toHaveBeenCalledTimes(1);
   });
 });
 
