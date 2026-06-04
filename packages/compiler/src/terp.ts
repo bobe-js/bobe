@@ -37,7 +37,9 @@ import {
   ContextNode,
   ContextBit,
   DynamicNode,
-  CtxProviderBit
+  CtxProviderBit,
+  FakeNode,
+  TpNode
 } from './type';
 import { date32, jsVarRegexp, pick, pickInPlace } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
@@ -119,6 +121,10 @@ export class Interpreter {
             if (ctx.current.__logicType & FakeType.ForItem) {
               ctx.prevSibling = ctx.current.realBefore;
             }
+            if (ctx.current.__logicType & FakeType.Tp) {
+              ctx.realParent = ctx.current.tpData[Keys.Raw].node;
+              ctx.prevSibling = ctx.current.contentBefore;
+            }
           }
         }
         // 父节点是原生节点时才修改 ctx.prevSibling
@@ -167,6 +173,11 @@ export class Interpreter {
               setPulling(rootPulling);
             }
           }
+
+          if (parent.__logicType === FakeType.Tp) {
+            ctx.realParent = parent.realParent;
+          }
+
           // 子 tokenizer 使用 Dedent 推出 component 节点后，将 tokenizer 切换为 上一个 TokenSwitcher 的 tokenizer
           if (sort & NodeSort.TokenizerSwitcher) {
             const switcher = stack.peekByType(NodeSort.TokenizerSwitcher)?.node;
@@ -209,10 +220,13 @@ export class Interpreter {
     return componentNode;
   }
 
-  insertAnchor(name = 'anchor', isBefore = false) {
-    const { realParent, prevSibling, stack, before } = this.ctx;
+  insertAnchor(node: any, name = 'anchor', isBefore = false) {
+    const { realParent, prevSibling, stack, before, current } = this.ctx;
     // 先将 after 插入
     const afterAnchor = this.createAnchor(name, isBefore);
+    if (!isBefore) {
+      this.anchorRefBack(afterAnchor, node);
+    }
     this.ctx.prevSibling = stack.length === 2 && !prevSibling ? before : prevSibling;
     this.handleInsert(realParent, afterAnchor, prevSibling);
     return afterAnchor;
@@ -284,6 +298,8 @@ export class Interpreter {
       return this.condDeclaration(ctx);
     } else if (value === 'context') {
       _node = this.createContextNode();
+    } else if (value === 'tp') {
+      return this.createTpNode();
     } else if (value === 'for') {
       return this.forDeclaration();
     } else if (hookType) {
@@ -354,7 +370,7 @@ export class Interpreter {
     };
     let isUpdate = false;
     // 不论是否执行 if 都应该插入 anchor 节点用于后续
-    node.realAfter = this.insertAnchor(`dynamic-after`);
+    node.realAfter = this.insertAnchor(node, `dynamic-after`);
     node.effect = this.effect(
       ({ old, val }) => {
         let { __logicType: oldLogicType, textNode: oldTextNode } = node;
@@ -444,6 +460,109 @@ export class Interpreter {
     return node;
   }
 
+  createTpNode() {
+    const child = deepSignal({}, getPulling());
+    const node: TpNode = {
+      __logicType: FakeType.Tp,
+      data: this.getData(),
+      realParent: null,
+      realBefore: null,
+      realAfter: null,
+      contentBefore: null,
+      contentAfter: null,
+      effect: null,
+      snapshot: null,
+      tpData: child,
+      owner: this.ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node
+    };
+
+    this.onePropParsed = createStoreOnePropParsed(child);
+    this.tokenizer.nextToken(); // 跳过 node 本身，token -> id
+    // 内部会完成 snapshot
+    this.headerLineAndExtensions(node);
+    // 组件用完，切换回 真实node 的方法
+    this.onePropParsed = this.oneRealPropParsed;
+    node.realAfter = this.insertAnchor(node, 'tp-after');
+    // 这两个是不需要 anchorRefBack，它们是用于控制内容移动的。tp 本身位置由 tp-after 控制
+    const before = (node.contentBefore = this.createAnchor('tp-content-before', true));
+    const after = (node.contentAfter = this.createAnchor('tp-content-after', true));
+    let firstRender = true;
+    node.effect = this.effect(
+      ({ old: oldDom, val: dom }) => {
+        const removeTpChild = () => {
+          // 删除
+          if (oldDom) {
+            let point = before;
+            do {
+              const next = this.nextSib(point);
+              this.remove(point, oldDom, null);
+              if (point === after) break;
+              point = next;
+            } while (true);
+          }
+        };
+        // 首屏让 program 自动往下解析，或者 skip
+        if (firstRender) {
+          // 有 dom 节点时，tp 在 program 中会将 dom 设置为 realParent 然后开始解析子树，这里不需要做任何处理
+          if (dom) {
+            this.handleInsert(dom, after, null);
+            this.handleInsert(dom, before, null);
+          }
+          // 无 dom 节点跳过，在
+          else {
+            // 如果有缩进则跳过缩进内部的内容
+            if (this.tokenizer.token.type === TokenType.Indent) {
+              // 如果是 indent 此时缩进比 tp 更进一格，所以要找 -2 位置的缩进为 tp 的缩进
+              const dentLen = this.tokenizer.dentStack[this.tokenizer.dentStack.length - 2] ?? 0;
+              this.tokenizer.skip(dentLen);
+            }
+          }
+        } else {
+          if (dom) {
+            // 移动
+            if (oldDom) {
+              let point = before,
+                lastInsert = null;
+              do {
+                const next = this.nextSib(point);
+                // 修改直接子逻辑节点的 realParent
+                const fakeNode = point[FakeNode];
+                if (fakeNode) {
+                  fakeNode.realParent = dom;
+                }
+                this.handleInsert(dom, point, lastInsert);
+                if (point === after) break;
+                lastInsert = point;
+                point = next;
+              } while (true);
+            }
+            // 新增 参照 condDeclaration
+            else {
+              this.handleInsert(dom, after, null);
+              this.handleInsert(dom, before, null);
+              this.tokenizer = node.owner.tokenizer;
+              this.tokenizer.resume(node.snapshot);
+              this.tokenizer.useDedentAsEof = false;
+              this.program(dom, node.owner, before, node);
+            }
+          } else {
+            // 删除
+            removeTpChild();
+          }
+        }
+        firstRender = false;
+        return (isDestroy: boolean) => {
+          if (isDestroy) {
+            removeTpChild();
+          }
+        };
+      },
+      [() => child.node],
+      { type: 'render' }
+    );
+
+    return node;
+  }
   createContextNode() {
     const child = deepSignal({}, getPulling());
     const parentContext: any = this.ctx.stack.peekByType(NodeSort.Context)?.node?.context;
@@ -460,7 +579,7 @@ export class Interpreter {
       realBefore: null,
       realAfter: null
     };
-    node.realAfter = this.insertAnchor('context-after');
+    node.realAfter = this.insertAnchor(node, 'context-after');
     return node;
   }
 
@@ -579,7 +698,7 @@ export class Interpreter {
         new Computed(this.getFn(data, arrExp));
     forNode.arrSignal = arrSignal;
     // 由于此处 snapshot 多配置了2个属性，更新渲染时 应该忽略这个两个属性
-    forNode.realAfter = this.insertAnchor('for-after');
+    forNode.realAfter = this.insertAnchor(forNode, 'for-after');
 
     // 去除 dentStack 和 isFirstToken
     const { dentStack, isFirstToken, ...snapshotForUpdate } = forNode.snapshot;
@@ -604,8 +723,8 @@ export class Interpreter {
         const len = arr.length;
         for (let i = len; i--; ) {
           const item = this.createForItem(forNode, i, data);
-          item.realAfter = this.insertAnchor('for-item-after');
-          item.realBefore = this.insertAnchor('for-item-before', true);
+          item.realAfter = this.insertAnchor(item, 'for-item-after');
+          item.realBefore = this.insertAnchor(item, 'for-item-before', true);
           item.realParent = forNode.realParent;
           children[i] = item;
         }
@@ -808,6 +927,13 @@ export class Interpreter {
     return forNode.children[0] || forNode;
   }
 
+  /** after 锚点，对 fake 节点反引用
+   * 用于 tp 节点 移动时，可以通过 after 锚点找到 fake 节点并做 realParent 的修正
+   */
+  anchorRefBack(anchor: any, node: LogicNode) {
+    anchor[FakeNode] = node;
+  }
+
   insertForItem(
     forNode: ForNode,
     i: number,
@@ -819,6 +945,7 @@ export class Interpreter {
     const item = this.createForItem(forNode, i, parentData);
     newChildren[i] = item;
     let realAfter = this.createAnchor('for-item-after');
+    this.anchorRefBack(realAfter, item);
     this.handleInsert(forNode.realParent, realAfter, before);
 
     let realBefore = this.createAnchor('for-item-before', true);
@@ -1069,7 +1196,7 @@ export class Interpreter {
       resumeSnapshot
     };
     this.onePropParsed = onePropParsed;
-    node.realAfter = this.insertAnchor('component-after');
+    node.realAfter = this.insertAnchor(node, 'component-after');
     return node;
   }
   getFn(data: any, expression: string | number) {
@@ -1180,7 +1307,7 @@ export class Interpreter {
 
     ifNode.condition = signal;
     // 不论是否执行 if 都应该插入 anchor 节点用于后续
-    ifNode.realAfter = this.insertAnchor(`${keyWord.value}-after`);
+    ifNode.realAfter = this.insertAnchor(ifNode, `${keyWord.value}-after`);
 
     const ef = this.effect(
       ({ val }) => {
@@ -1245,11 +1372,12 @@ export class Interpreter {
     const { tokenizer } = this;
     do {
       const isComponent = _node.__logicType & TokenizerSwitcherBit;
+      const isTp = _node.__logicType === FakeType.Tp;
       let snapshot: Partial<Tokenizer>, dentLen: number;
       const data = this.getData();
       const unHandledKey = this.attributeList(_node, data);
       // 为行内模板片段准备快照，当前 token 是 NEWLINE，快照需要包含换行符，所以 -1
-      if (isComponent) {
+      if (isComponent || isTp) {
         snapshot = tokenizer.snapshot(undefined, -1);
         dentLen = tokenizer.dentStack[tokenizer.dentStack.length - 1];
       }
@@ -1263,6 +1391,9 @@ export class Interpreter {
           if ((tokenizer.token.type & TokenType.Pipe) === 0) {
             break;
           }
+        } else if (isTp) {
+          _node.snapshot = snapshot;
+          break;
         } else {
           break;
         }

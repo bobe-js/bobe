@@ -36,7 +36,8 @@ export enum FakeType {
   Fragment = 0b0000_0000_0000_0000_0000_0000_0010_0000,
   ForItem = 0b0000_0000_0000_0000_0000_0000_0100_0000,
   Context = 0b0000_0000_0000_0000_0000_0000_1000_0000,
-  DynamicText = 0b0000_0000_0000_0000_0000_0001_0000_0000
+  DynamicText = 0b0000_0000_0000_0000_0000_0001_0000_0000,
+  Tp = 0b0000_0000_0000_0000_0000_0010_0000_0000
 }
 
 export const CondBit = FakeType.If | FakeType.Fail | FakeType.Else;
@@ -53,7 +54,8 @@ export const CtxProviderBit =
   FakeType.DynamicText;
 
 /** 条件节点、ForItem节点、Context节点  */
-export const ContextBit = FakeType.If | FakeType.Fail | FakeType.Else | FakeType.ForItem | FakeType.Context;
+export const ContextBit =
+  FakeType.If | FakeType.Fail | FakeType.Else | FakeType.ForItem | FakeType.Context | FakeType.Tp;
 
 export const TokenizerSwitcherBit = FakeType.Component | FakeType.Fragment;
 export type NodeSortBit = number;
@@ -84,6 +86,7 @@ export type BaseType = string | number | boolean | undefined | null;
 
 export const InsComputed = Symbol('insertion-computed-map-key');
 export const IsAnchor = Symbol('is-anchor');
+export const FakeNode = Symbol('fake-node');
 
 export type SourceLocation = {
   start: Position;
@@ -114,13 +117,37 @@ export type HookProps = {
 };
 
 export type TerpConf = Partial<
-  Pick<Interpreter, 'createNode' | 'setProp' | 'insertAfter' | 'remove' | 'createAnchor' | 'firstChild' | 'nextSib' | 'beforeIndent' | 'leaveNode' | 'leaveLogicNode' | 'beforeLogicIndent'>
+  Pick<
+    Interpreter,
+    | 'createNode'
+    | 'setProp'
+    | 'insertAfter'
+    | 'remove'
+    | 'createAnchor'
+    | 'firstChild'
+    | 'nextSib'
+    | 'beforeIndent'
+    | 'leaveNode'
+    | 'leaveLogicNode'
+    | 'beforeLogicIndent'
+  >
 > & {
   noopEffect?: boolean;
 };
 export type CustomRenderConf = Pick<
   TerpConf,
-  'createNode' | 'setProp' | 'insertAfter' | 'remove' | 'createAnchor' | 'firstChild' | 'nextSib' | 'beforeIndent' | 'leaveNode' | 'leaveLogicNode' | 'beforeLogicIndent' | 'noopEffect'
+  | 'createNode'
+  | 'setProp'
+  | 'insertAfter'
+  | 'remove'
+  | 'createAnchor'
+  | 'firstChild'
+  | 'nextSib'
+  | 'beforeIndent'
+  | 'leaveNode'
+  | 'leaveLogicNode'
+  | 'beforeLogicIndent'
+  | 'noopEffect'
 > & {
   /** program() 之后、flushMicroEffectManual() 之前调用 */
   onBeforeFlush?: () => void;
@@ -239,6 +266,14 @@ export type IfNode = LogicNode & {
 export type ContextNode = Omit<LogicNode, 'data'> & {
   context: any;
 };
+export type TpNode = LogicNode & {
+  tpData: any;
+  effect: Effect;
+  contentBefore: any;
+  contentAfter: any;
+  owner: ComponentNode | FragmentNode;
+  snapshot: ReturnType<Tokenizer['snapshot']>;
+};
 
 export type DynamicNode = Omit<LogicNode, 'data'> & {
   tokenizer: Tokenizer;
@@ -247,7 +282,7 @@ export type DynamicNode = Omit<LogicNode, 'data'> & {
   /** 渲染模版片段前的 快照，渲染完成后用于恢复 */
   resumeSnapshot?: ReturnType<Tokenizer['snapshot']>;
   snapshot: ReturnType<Tokenizer['snapshot']>;
-  owner: ComponentNode | FragmentNode; 
+  owner: ComponentNode | FragmentNode;
   data?: any;
   parentDataProvider: any;
   effect: Effect;

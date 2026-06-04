@@ -609,7 +609,7 @@ describe('集成测试 — props 展开', () => {
         div props={myProps} id="t1"
       `;
     }
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
@@ -617,7 +617,7 @@ describe('集成测试 — props 展开', () => {
     expect(target.props.title).toBe('initial');
     expect(target.props.style).toBe('color:red');
 
-    (store as App).myProps.title = 'updated';
+    store.myProps.title = 'updated';
     flushEffects();
     expect(target.props.title).toBe('updated');
     expect(target.props.style).toBe('color:red');
@@ -635,7 +635,7 @@ describe('集成测试 — props 展开', () => {
           div props={myProps} id="t2"
       `;
     }
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
@@ -643,7 +643,7 @@ describe('集成测试 — props 展开', () => {
     expect(target.props.title).toBe('v1');
     expect(target.props.a).toBe('1');
 
-    (store as App).switchProps();
+    store.switchProps();
     flushEffects();
 
     expect(target.props.title).toBe('v2');
@@ -663,14 +663,14 @@ describe('集成测试 — props 展开', () => {
           div props={myProps} id="t3"
       `;
     }
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
     const target = mustFind(root, 't3')!;
     expect(target.props.newKey).toBeUndefined();
 
-    (store as App).addKey();
+    store.addKey();
     flushEffects();
 
     expect(target.props.newKey).toBe('value');
@@ -688,14 +688,14 @@ describe('集成测试 — props 展开', () => {
           div props={myProps} id="t4"
       `;
     }
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
     const target = mustFind(root, 't4')!;
     expect(target.props.toDelete).toBe('remove-me');
 
-    (store as App).delKey();
+    store.delKey();
     flushEffects();
 
     expect(target.props.toDelete).toBeUndefined();
@@ -711,14 +711,14 @@ describe('集成测试 — props 展开', () => {
           div props={myProps} id="t5"
       `;
     }
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
     const target = mustFind(root, 't5')!;
     expect(target.props.title).toBeUndefined();
 
-    (store as App).setToProps();
+    store.setToProps();
     flushEffects();
 
     expect(target.props.title).toBe('hello');
@@ -760,7 +760,7 @@ describe('集成测试 — 动态组件 + props 展开', () => {
       `;
     }
 
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
@@ -769,7 +769,7 @@ describe('集成测试 — 动态组件 + props 展开', () => {
     expect(findSpanText(root, 'foo')).toBeTruthy();
 
     // 设置 props={a:31}
-    (store as App).setA();
+    store.setA();
     flushEffects();
 
     // shareSignal → raw['a'] = 31，覆盖默认 20
@@ -778,7 +778,7 @@ describe('集成测试 — 动态组件 + props 展开', () => {
     expect(findSpanText(root, 'foo')).toBeTruthy();
 
     // 清除 props → {}
-    (store as App).clearA();
+    store.clearA();
     flushEffects();
 
     // cleanup → _node.data['a'] = undefined
@@ -818,7 +818,7 @@ describe('集成测试 — 动态组件 + props 展开', () => {
       `;
     }
 
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
@@ -828,7 +828,7 @@ describe('集成测试 — 动态组件 + props 展开', () => {
     expect(findSpanText(root, 'world')).toBeFalsy();
     expect(findSpanText(root, 'foo')).toBeFalsy();
 
-    (store as App).switchBoth();
+    store.switchBoth();
     flushEffects();
 
     // a 不在新 props 中 → CompB 默认 a=20，savedDefaults 无记录 → 不被覆盖
@@ -864,7 +864,7 @@ describe('集成测试 — 动态组件更新切换', () => {
             span text="inline child"
       `;
     }
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
@@ -904,7 +904,7 @@ describe('集成测试 — 动态组件在模板末尾 (Edge Case)', () => {
           {page}
       `;
     }
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
@@ -944,7 +944,7 @@ describe('集成测试 — 组件销毁验证', () => {
             ${CompA}
       `;
     }
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
@@ -953,7 +953,7 @@ describe('集成测试 — 组件销毁验证', () => {
     expect(compDestroyed).toBe(false);
 
     // if 条件变为 false
-    (store as App).show = false;
+    store.show = false;
     flushEffects();
 
     // DOM 清理
@@ -996,7 +996,7 @@ describe('集成测试 — 组件销毁验证', () => {
           {state.comp}
       `;
     }
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
@@ -1006,7 +1006,7 @@ describe('集成测试 — 组件销毁验证', () => {
     expect(compBDestroyed).toBe(false);
 
     // 切换组件
-    (store as App).state = { comp: CompB };
+    store.state = { comp: CompB };
     flushEffects();
 
     // 旧组件 DOM 清理
@@ -1055,7 +1055,7 @@ describe('集成测试 — 组件销毁验证', () => {
             {state.comp}
       `;
     }
-    const { render, root } = setupWithStore();
+    const { render, root } = setupMock();
     const [_, store] = render(App, root);
     flushEffects();
 
@@ -1065,7 +1065,7 @@ describe('集成测试 — 组件销毁验证', () => {
     expect(onCompBDestroy).not.toHaveBeenCalled();
 
     // === if=true 时切换 CompA → CompB ===
-    (store as App).state = { comp: CompB };
+    store.state = { comp: CompB };
     flushEffects();
 
     expect(findSpanText(root, 'A')).toBeFalsy();
@@ -1074,8 +1074,8 @@ describe('集成测试 — 组件销毁验证', () => {
     expect(onCompBDestroy).not.toHaveBeenCalled();
 
     // === if=false，CompB 隐藏；同时在隐藏态切换 CompB → CompA ===
-    (store as App).show = false;
-    (store as App).state = { comp: CompA };
+    store.show = false;
+    store.state = { comp: CompA };
     flushEffects();
 
     expect(findSpanText(root, 'B')).toBeFalsy();
@@ -1083,7 +1083,7 @@ describe('集成测试 — 组件销毁验证', () => {
     expect(onCompBDestroy).toHaveBeenCalledTimes(1);
 
     // === if=true，应渲染 CompA ===
-    (store as App).show = true;
+    store.show = true;
     flushEffects();
 
     expect(findSpanText(root, 'A')).toBeTruthy();
@@ -1092,9 +1092,110 @@ describe('集成测试 — 组件销毁验证', () => {
   });
 });
 
+describe('集成测试 — tp 传送', () => {
+  it('tpTarget 切换时，内容移动到对应目标 DOM', () => {
+    class App extends Store {
+      tpTarget: any = null;
+      top: any = null;
+      mid: any = null;
+      ui = bobe`
+        div
+          div ref={top}
+            span text="上路"
+          div ref={mid}
+            span text="中路"
+          tp node={tpTarget}
+            span text="teleported"
+      `;
+    }
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // 初始 tpTarget=null，内容不可见
+    expect(findSpanText(root, 'teleported')).toBeFalsy();
+
+    // 切换到 top
+    store.tpTarget = store.top;
+    flushEffects();
+
+    expect(findSpanText(root, 'teleported')).toBeTruthy();
+    // 验证传送内容在 top 节点下
+    const topTree = getMockTree(store.top);
+    expect(JSON.stringify(topTree)).toContain('teleported');
+
+    // 切换到 mid：内容应从 top 移动到 mid
+    store.tpTarget = store.mid;
+    flushEffects();
+
+    expect(findSpanText(root, 'teleported')).toBeTruthy();
+    const midTree = getMockTree(store.mid);
+    expect(JSON.stringify(midTree)).toContain('teleported');
+    // top 下不应再有传送内容
+    const topTree2 = getMockTree(store.top);
+    expect(JSON.stringify(topTree2)).not.toContain('teleported');
+  });
+
+  it('if 控制 ref 显隐 + tp 传送，内容跟随 ref 消长', () => {
+    class App extends Store {
+      tpTarget: any = null;
+      show = true;
+      ui = bobe`
+        div
+          if show
+            div ref={tpTarget}
+          tp node={tpTarget}
+            span text="teleported"
+      `;
+    }
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // show=true，内容传送到 tpTarget
+    expect(findSpanText(root, 'teleported')).toBeTruthy();
+    const refNode = store.tpTarget;
+    expect(refNode).toBeTruthy();
+    const refTree = getMockTree(refNode);
+    expect(JSON.stringify(refTree)).toContain('teleported');
+
+    // show=false，ref 消失 → tpTarget=null → 内容移除
+    store.show = false;
+    flushEffects();
+
+    expect(findSpanText(root, 'teleported')).toBeFalsy();
+    expect(store.tpTarget).toBeNull();
+
+    // show=true，ref 重新出现 → tpTarget=新 DOM → 内容重新传送
+    store.show = true;
+    flushEffects();
+
+    expect(findSpanText(root, 'teleported')).toBeTruthy();
+    const newRefNode = store.tpTarget;
+    expect(newRefNode).toBeTruthy();
+    const newRefTree = getMockTree(newRefNode);
+    expect(JSON.stringify(newRefTree)).toContain('teleported');
+  });
+});
+
 // ============================================================
 // Mock helpers for integration tests
 // ============================================================
+
+function removeFromAnyParent(root: any, node: any): boolean {
+  function walk(p: any): boolean {
+    const idx = p.children.indexOf(node);
+    if (idx !== -1) {
+      p.children.splice(idx, 1);
+      return true;
+    }
+    for (const c of p.children) {
+      if (walk(c)) return true;
+    }
+    return false;
+  }
+  return walk(root);
+}
 
 function setupMock() {
   const root: any = { name: 'root', children: [] };
@@ -1102,10 +1203,10 @@ function setupMock() {
   const render = customRender({
     createNode(name) {
       if (name === 'text') {
-        const n: any = { name: '#text', props: {}, children: [], textContent: '' };
+        const n: any = { name: '#text', props: {}, children: [], textContent: '', nextSibling: null };
         return n;
       }
-      return { name, props: {} as Record<string, any>, children: [] as any[] };
+      return { name, props: {} as Record<string, any>, children: [] as any[], nextSibling: null, firstChild: null };
     },
     setProp(node, key, value) {
       if (key === 'text') {
@@ -1117,61 +1218,34 @@ function setupMock() {
       }
     },
     insertAfter(parent: any, node: any, prev: any) {
+      // 模拟真实 DOM insertBefore：自动从旧位置移除
+      removeFromAnyParent(root, node);
       const list = parent.children;
       if (!prev) {
         list.unshift(node);
+        node.nextSibling = parent.firstChild;
+        parent.firstChild = node;
       } else {
         const idx = list.indexOf(prev);
         list.splice(idx + 1, 0, node);
+        node.nextSibling = prev.nextSibling;
+        prev.nextSibling = node;
       }
     },
     createAnchor(name) {
       return { name: `<!--${name}-->`, children: [], props: {}, _anchor: true };
     },
     remove(node: any) {
-      function walk(p: any): boolean {
-        const idx = p.children.indexOf(node);
-        if (idx !== -1) {
-          p.children.splice(idx, 1);
-          return true;
-        }
-        for (const c of p.children) {
-          if (walk(c)) return true;
-        }
-        return false;
-      }
-      walk(root);
+      removeFromAnyParent(root, node);
     },
     firstChild(node) {
-      return node.children[0];
+      return node.firstChild || null;
     },
     nextSib(node) {
-      function find(parent: any): any {
-        for (let i = 0; i < parent.children.length; i++) {
-          if (parent.children[i] === node) {
-            return parent.children[i + 1] || null;
-          }
-          const found = find(parent.children[i]);
-          if (found !== undefined) return found;
-        }
-        return undefined;
-      }
-      const result = find(root);
-      return result === undefined ? null : result;
+      return node.nextSibling || null;
     }
   });
 
-  return { root, render };
-}
-
-function setupWithStore() {
-  const { root, render: _render } = setupMock();
-  let _store: any;
-  const render = (Ctor: typeof Store, el: any) => {
-    const result = _render(Ctor, el);
-    _store = result[1];
-    return result;
-  };
   return { root, render };
 }
 

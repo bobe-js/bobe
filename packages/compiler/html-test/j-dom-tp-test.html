@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bobe - Dynamic Component Test</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "aoye": "../node_modules/aoye/dist/aoye.esm.js",
+      "bobe-shared": "../node_modules/bobe-shared/dist/bobe-shared.esm.js",
+      "bobe": "../dist/bobe.esm.js"
+    }
+  }
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <div id="root2"></div>
+  <div id="mount"></div>
+</body>
+<script type="module">
+  import { bobe, Store, customRender, effect } from 'bobe';
+  import { flushMicroEffectManual } from 'aoye';
+
+  const render = customRender({
+    createNode (name) {
+      if (name === 'text') return document.createTextNode('');
+      return document.createElement(name);
+    },
+    setProp (node, key, value, hookI) {
+      if (key === 'text') {
+        node.textContent = value;
+      } else if (key.startsWith('on')) {
+        const evtName = key.slice(2);
+        node.addEventListener(evtName, value);
+        return () => node.removeEventListener(evtName, value);
+      } else if (node.tagName === 'INPUT' && (key === 'value' || key === 'checked')) {
+        node[key] = value;
+      } else {
+        node.setAttribute(key, value);
+      }
+    },
+    insertAfter (parent, node, prev) {
+      if (!prev) {
+        parent.insertBefore(node, parent.firstChild);
+      } else {
+        parent.insertBefore(node, prev.nextSibling);
+      }
+    },
+    createAnchor (name) {
+      return document.createComment(name);
+    },
+    remove (node) {
+      node.remove();
+    },
+    firstChild (node) {
+      return node.firstChild;
+    },
+    nextSib (node) {
+      return node.nextSibling;
+    },
+  });
+  const dom = document.getElementById('mount')
+  // ============ App ============
+  class App extends Store {
+    tpTarget = null;
+    top = null;
+    mid = null;
+    bottom = null;
+    switch1 = (key) => {
+      console.log('switch1', key);
+      this.tpTarget = this[key];
+    }
+    ui = bobe`
+      div style="font-family: sans-serif; max-width: 600px; margin: 40px auto;"
+        h1 text="hello world"
+        div onclick={() => switch1('top')} style="border: 1px solid black; margin-bottom: 10px;"
+          div text="上路"
+          div ref={top}
+        div onclick={() => switch1('mid')} style="border: 1px solid black; margin-bottom: 10px;"
+          div text="中路"
+          div ref={mid}
+        div onclick={() => switch1('bottom')} style="border: 1px solid black; margin-bottom: 10px;"
+          div text="下路"
+          div ref={bottom}
+        tp node={tpTarget}
+          div text="abc"
+    `;
+  }
+  class App2 extends Store {
+    tpTarget = null;
+    show = true;
+    ui = bobe`
+      div style="font-family: sans-serif; max-width: 600px; margin: 40px auto;"
+        button onclick={() => show = !show} text="toggle"
+        if show
+          div ref={tpTarget}
+        tp node={tpTarget}
+          div text="abc"
+    `;
+  }
+
+  
+  const root = document.getElementById('root');
+  const root2 = document.getElementById('root2');
+  const [, store] = render(App, root);
+  const [, store2] = render(App2, root2);
+  store2.show = false;
+  flushMicroEffectManual();
+  window.store = store;
+</script>
+
+</html>

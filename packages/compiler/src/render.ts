@@ -20,8 +20,8 @@ export function bobe<T extends Record<any, any> = any>(fragments: TemplateString
 // render -> options
 export function customRender(option: CustomRenderConf) {
   // 保存 options
-  return function render<T>(Ctor: typeof Store, root: any) {
-    const store = Ctor.new();
+  return function render<T extends typeof Store>(Ctor: T, root: any) {
+    const store = Ctor.new() as InstanceType<T>;
     // @ts-ignore
     const tokenizer: Tokenizer = store.ui(false);
     const terp = new Interpreter(tokenizer);
@@ -40,6 +40,6 @@ export function customRender(option: CustomRenderConf) {
 
     flushMicroEffectManual();
     // ui => bobe`` 返回的函数
-    return [componentNode, store];
+    return [componentNode, store] as const;
   };
 }
