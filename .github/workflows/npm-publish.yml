@@ -54,7 +54,7 @@ jobs:
       - name: Bump Version and Publish
         run: |
           # 更新版本
-          pnpm -r exec npm version ${{ github.event.inputs.release_type }} --no-git-tag-version
+          pnpm --filter "!./test-templates/**" -r exec npm version ${{ github.event.inputs.release_type }} --no-git-tag-version
 
           # 获取新版本号
           NEW_VERSION=$(node -p "require('./packages/signal/package.json').version")

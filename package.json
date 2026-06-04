@@ -32,7 +32,7 @@
   },
   "scripts": {
     "new": "node ./scripts/new.js",
-    "build": "pnpm -r --filter \"!./packages/temp/**\" build",
+    "build": "pnpm -r --filter \"!./packages/temp/**\" --filter \"!./test-templates/**\" build",
     "ver": "pnpm -r exec npm version patch --no-git-tag-version",
     "log": "npm login --registry=https://registry.npmjs.org",
     "pub": "pnpm -r publish --provenance --access=public --registry=\"https://registry.npmjs.org\" --no-git-checks"
