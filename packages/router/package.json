@@ -1,6 +1,6 @@
 {
   "name": "bobe-router",
-  "version": "0.0.60",
+  "version": "0.0.61",
   "main": "dist/bobe-router.cjs.js",
   "module": "dist/bobe-router.esm.js",
   "browser": "dist/bobe-router.umd.js",
