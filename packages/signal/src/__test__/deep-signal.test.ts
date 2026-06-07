@@ -1,4 +1,4 @@
-import { $, effectUt as effect, scope } from '#/index';
+import { $, effectUt as effect, scope, backupSignal, findValidBackup, Keys } from '#/index';
 
 describe('deep-signal basic functionality', () => {
   it('should create a reactive object with nested properties', () => {
@@ -611,5 +611,153 @@ describe('deep-signal function proxy', () => {
 
     expect(typeof captured).toBe('function');
     expect(executions).toBe(1);
+  });
+});
+
+describe('deep-signal backup 功能', () => {
+  it('备份对象上存在的 key 应通过 child proxy 读取到', () => {
+    const child = $({});
+    const parent = $({ name: 'hello' });
+    backupSignal(child, parent);
+
+    // child 自身无 name，走 backup 链拿到 parent 的值
+    expect(child.name).toBe('hello');
+  });
+
+  it('备份链中第二个备份的 key 也应生效', () => {
+    const child = $({});
+    const mid = $({});
+    const root = $({ name: 'root' });
+    backupSignal(child, mid);
+    backupSignal(mid, root);
+
+    // 链 child → mid → root，只有 root 有 name
+    expect(child.name).toBe('root');
+  });
+
+  it('自身有 key 时不查询 backup', () => {
+    const child = $({ name: 'own' });
+    const parent = $({ name: 'backup' });
+    backupSignal(child, parent);
+
+    // 自身优先
+    expect(child.name).toBe('own');
+  });
+
+  it('set 写入时若自身无 key，走 backup 写入', () => {
+    const child = $({});
+    const parent = $({ name: 'old' });
+    backupSignal(child, parent);
+
+    child.name = 'new';
+
+    // 通过 backup 写入 parent
+    expect(parent.name).toBe('new');
+    // child 自身仍然没有 name
+    expect(Keys.Raw in child[Keys.Raw]).toBe(false);
+    expect('name' in child[Keys.Raw]).toBe(false);
+  });
+
+  it('set 写入时自身有 key，写入自身不走 backup', () => {
+    const child = $({ name: 'own' });
+    const parent = $({ name: 'backup' });
+    backupSignal(child, parent);
+
+    child.name = 'updated';
+
+    expect(child.name).toBe('updated');
+    expect(parent.name).toBe('backup');
+  });
+
+  it('自身新增 key，backup 也无此 key，写入自身', () => {
+    const child = $({});
+    const parent = $({});
+    backupSignal(child, parent);
+
+    // parent 也没有 age，findValidBackup 找不到 → 写入 child 自身
+    child.age = 30;
+    expect(child.age).toBe(30);
+    expect(child[Keys.Raw]).toHaveProperty('age');
+    expect(parent.age).toBeUndefined();
+  });
+
+  it('backup 写入保持响应式', () => {
+    const child = $({});
+    const parent = $({ count: 0 });
+    backupSignal(child, parent);
+
+    let tracked = 0;
+    effect(() => {
+      void child.count;
+      tracked++;
+    });
+    expect(tracked).toBe(1);
+
+    child.count = 5;
+    // 通过 backup 写入了 parent，effect 应重新执行
+    expect(tracked).toBe(2);
+    expect(parent.count).toBe(5);
+  });
+
+  it('backup 写入触发多个 effect', () => {
+    const child = $({});
+    const parent = $({ count: 0 });
+    backupSignal(child, parent);
+
+    let a = 0, b = 0;
+    effect(() => { void child.count; a++; });
+    effect(() => { void parent.count; b++; });
+    expect(a).toBe(1);
+    expect(b).toBe(1);
+
+    child.count = 10;
+    expect(a).toBe(2);
+    expect(b).toBe(2);
+  });
+
+  it('嵌套 backup 链 set 写入', () => {
+    const child = $({});
+    const mid = $({});
+    const root = $({ name: 'root' });
+    backupSignal(child, mid);
+    backupSignal(mid, root);
+
+    child.name = 'from-child';
+    // findValidBackup 从 child 向上：mid 无 name → root 有 name → 写入 root
+    // child 和 mid 都通过 backup 链读到 root 的值
+    expect(root.name).toBe('from-child');
+    expect(mid.name).toBe('from-child');     // mid 自身无 name，backup 链读到 root
+    expect(child[Keys.Raw]).not.toHaveProperty('name'); // child 自身未写
+    expect(child.name).toBe('from-child');
+  });
+
+  it('findValidBackup 无匹配时返回 null', () => {
+    const child = $({});
+    const parent = $({});
+    backupSignal(child, parent);
+
+    const result = findValidBackup(child, 'noSuchKey');
+    expect(result).toBeNull();
+  });
+
+  it('backup 链上的对象自身有 getter，读取应触发 Computed', () => {
+    const child = $({});
+    const parent = $({ firstName: 'John', lastName: 'Doe' });
+    // 通过 $ 创建的对象不支持动态 getter，这里只测值穿透
+    backupSignal(child, parent);
+
+    expect(child.firstName).toBe('John');
+  });
+
+  it('自身 key 被删除后，读取应回退到 backup', () => {
+    const child = $({ name: 'own' });
+    const parent = $({ name: 'backup' });
+    backupSignal(child, parent);
+
+    expect(child.name).toBe('own');
+
+    delete child.name;
+    // delete 后自身无 name → 走 backup
+    expect(child.name).toBe('backup');
   });
 });

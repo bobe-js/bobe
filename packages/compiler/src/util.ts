@@ -72,7 +72,7 @@ const SAFE_HANDLER: ProxyHandler<object> = {
   get: (t, k) => {
     // 返回原型上的值，缺失返回 undefined
     if (typeof k === 'symbol') return (t as any)[k];
-    return k in t ? (t as any)[k] : undefined;
+    return (t as any)[k];
   },
 };
 

@@ -253,6 +253,23 @@ export const matchBlank = (char: string, i: number) => {
   return (code > 8 && code < 14) || code === 32;
 };
 
+export const hasOwn = (obj: any, key: any) => Object.prototype.hasOwnProperty.call(obj, key);
+
+export function getPropertyDescriptorInChain(target: object, propertyKey: any) {
+  let proto = target;
+  
+  // 顺着原型链向上查找，直到找到属性或到达原型链顶端（null）
+  while (proto !== null) {
+    const descriptor = Reflect.getOwnPropertyDescriptor(proto, propertyKey);
+    if (descriptor) {
+      return descriptor; // 找到了就立即返回
+    }
+    proto = Reflect.getPrototypeOf(proto); // 走向下一层原型
+  }
+  
+  return undefined; // 整个原型链都没找到
+}
+
 // const queue = new Queue([1,2,3,4]);
 // queue.shift()
 // queue.pop()

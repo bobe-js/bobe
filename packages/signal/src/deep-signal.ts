@@ -1,4 +1,4 @@
-import { isNatureNumStr } from 'bobe-shared';
+import { getPropertyDescriptorInChain, hasOwn, isNatureNumStr } from 'bobe-shared';
 import { rawToProxy } from './global';
 import { Computed, Scope, Signal, batchEnd, batchStart, runWithPulling } from './core';
 import { IsStore, Key, Keys, StoreIgnoreKeys } from './type';
@@ -27,11 +27,10 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
   // Map/Set 特殊代理
   if (targetIsMap || targetIsSet) {
     const cells = new Map<any, Signal>();
-    const meta = { deep, scope, cells };
+    // TODO: 完成集合的 backup
+    const meta = { deep, scope, cells, backup: null };
     const shared = createSharedHandler(cells, scope, deep, targetIsMap);
-    const specific = targetIsMap
-      ? createMapHandler(cells, scope, deep)
-      : createSetHandler(cells, scope, deep);
+    const specific = targetIsMap ? createMapHandler(cells, scope, deep) : createSetHandler(cells, scope, deep);
     const instrumentations = mergeHandlers(shared, specific);
 
     const proxy = new Proxy(target, {
@@ -70,7 +69,8 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
   const meta = {
     deep,
     scope,
-    cells
+    cells,
+    backup: null
   };
   const proxy = new Proxy(target, {
     get(obj, prop, receiver) {
@@ -82,6 +82,13 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
         default:
           break;
       }
+      const hasP = Reflect.has(obj, prop) || cells.has(prop);
+      if (!hasP) {
+        const backup = findValidBackup(receiver, prop);
+        if (backup) {
+          return backup[prop];
+        }
+      }
 
       if (prop === Symbol.unscopables) return Reflect.get(obj, prop, receiver);
 
@@ -89,7 +96,7 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
         return Reflect.get(obj, prop, receiver);
       }
 
-      const desc = Reflect.getOwnPropertyDescriptor(obj, prop);
+      const desc = getPropertyDescriptorInChain(obj, prop);
 
       const isGetter = desc && typeof desc.get === 'function';
 
@@ -105,7 +112,7 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
         if (targetIsArray) {
           return arrayMethodReWrites[prop] || value;
         } else {
-          if (!Object.prototype.hasOwnProperty.call(obj, prop)) {
+          if (!hasOwn(obj, prop)) {
             return value;
           }
           let s = cells.get(prop);
@@ -133,6 +140,14 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
     },
 
     set(obj, prop, value, receiver) {
+      const hasP = Reflect.has(obj, prop) || cells.has(prop);
+      if (!hasP) {
+        const backup = findValidBackup(receiver, prop);
+        if (backup) {
+          backup[prop] = value;
+          return true;
+        }
+      }
       if (targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) {
         return Reflect.set(obj, prop, value, receiver);
       }
@@ -143,7 +158,7 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
       const success = Reflect.set(obj, prop, value, receiver);
       const cell = cells.get(prop);
       if (cell) {
-        cell.set((typeof value === 'function' || !deep) ? value : deepSignal(value, scope));
+        cell.set(typeof value === 'function' || !deep ? value : deepSignal(value, scope));
       }
 
       if (targetIsArray) {
@@ -161,7 +176,7 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
       if (targetIsStore && isIgnoreKey(obj.constructor[StoreIgnoreKeys], prop)) {
         return Reflect.deleteProperty(obj, prop);
       }
-      if (typeof obj[prop] === 'function' && !Object.prototype.hasOwnProperty.call(obj, prop)) {
+      if (typeof obj[prop] === 'function' && !hasOwn(obj, prop)) {
         return Reflect.deleteProperty(obj, prop);
       }
       // 从 Map 中移除，切断引用，允许 GC 回收这个 $() 实例
@@ -190,6 +205,26 @@ export const deepSignal = <T>(target: T, scope: Scope, deep = true) => {
   rawToProxy.set(target, proxy);
   return proxy;
 };
+
+export const backupSignal = (child: any, parent: any) => {
+  child[Keys.Meta].backup = parent;
+};
+
+export const findValidBackup = (child: any, key: any) => {
+  let backup = child[Keys.Meta].backup;
+  while (backup) {
+    if (proxyHasKey(backup, key)) {
+      return backup;
+    }
+    backup = backup[Keys.Meta].backup;
+  }
+  return null;
+};
+
+export const getProxyHasKey = (proxy: any, key: any) => (proxyHasKey(proxy, key) ? proxy : findValidBackup(proxy, key));
+
+export const proxyHasKey = (proxy: any, key: any) =>
+  Reflect.has(proxy[Keys.Raw], key) || proxy[Keys.Meta].cells.has(key);
 
 /**
  * 将 from 响应式对象中 fromKey 对应的 Signal

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bobe - Dynamic Component Test</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "aoye": "../node_modules/aoye/dist/aoye.esm.js",
+      "bobe-shared": "../node_modules/bobe-shared/dist/bobe-shared.esm.js",
+      "bobe": "../dist/bobe.esm.js"
+    }
+  }
+  </script>
+</head>
+<style>
+  .active {
+    color: rgb(239, 152, 12);
+  }
+
+</style>
+<body>
+  <div id="root"></div>
+  <div id="root2"></div>
+  <div id="mount"></div>
+</body>
+<script type="module">
+  import { bobe, Store, customRender, effect } from 'bobe';
+  import { flushMicroEffectManual } from 'aoye';
+
+  const render = customRender({
+    createNode (name) {
+      if (name === 'text') return document.createTextNode('');
+      return document.createElement(name);
+    },
+    setProp (node, key, value, hookI) {
+      if (key === 'text') {
+        node.textContent = value;
+      } else if (key.startsWith('on')) {
+        const evtName = key.slice(2);
+        node.addEventListener(evtName, value);
+        return () => node.removeEventListener(evtName, value);
+      } else if (node.tagName === 'INPUT' && (key === 'value' || key === 'checked')) {
+        node[key] = value;
+      } else {
+        node.setAttribute(key, value);
+      }
+    },
+    insertAfter (parent, node, prev) {
+      if (!prev) {
+        parent.insertBefore(node, parent.firstChild);
+      } else {
+        parent.insertBefore(node, prev.nextSibling);
+      }
+    },
+    createAnchor (name) {
+      return document.createComment(name);
+    },
+    remove (node) {
+      node.remove();
+    },
+    firstChild (node) {
+      return node.firstChild;
+    },
+    nextSib (node) {
+      return node.nextSibling;
+    },
+  });
+
+  const list = [
+    { name: '香蕉', id: 'a' },
+    { name: '苹果', id: 'b' },
+    { name: '梨', id: 'c' },
+  ]
+
+  class Child extends Store {
+    list = [];
+    activeI = 0;
+    switchI(i) {
+      this.activeI = i;
+    }
+    ui = bobe`
+      div
+        for list; item i ; item.id
+          div class={activeI === i ? 'active' : ''} onclick={() => switchI(i)} text={item.name}
+    `;
+  }
+  
+  class App extends Store {
+    ui = bobe`
+      div
+        ${Child} list=${list}
+    `;
+  }
+
+  const root = document.getElementById('root');
+  const [, store] = render(App, root);
+</script>
+
+</html>

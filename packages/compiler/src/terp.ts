@@ -1,9 +1,11 @@
 import { Tokenizer } from './tokenizer';
 import {
+  backupSignal,
   Computed,
   deepSignal,
   Effect,
   effect,
+  getProxyHasKey,
   getPulling,
   isStore,
   Keys,
@@ -41,7 +43,7 @@ import {
   FakeNode,
   TpNode
 } from './type';
-import { date32, jsVarRegexp, pick, pickInPlace } from 'bobe-shared';
+import { date32, hasOwn, jsVarRegexp, pick, pickInPlace } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
 import { InlineFragment, isRenderAble, isUI, macInc, safe } from './util';
 import { KEY_INDEX, setCtxStack } from './global';
@@ -109,6 +111,7 @@ export class Interpreter {
                 (ctx.current.__logicType & TokenizerSwitcherBit ? NodeSort.TokenizerSwitcher : 0) |
                 (ctx.current.__logicType & ContextBit ? NodeSort.Context : 0) |
                 (ctx.current.__logicType === FakeType.Component ? NodeSort.Component : 0) |
+                (ctx.current.__logicType === FakeType.Tp ? NodeSort.Real : 0) |
                 // context 节点， 不提供 data 上下文，其余 Fake 节点提供 CtxProvider
                 (ctx.current.__logicType & CtxProviderBit ? NodeSort.CtxProvider : 0)
         );
@@ -122,7 +125,9 @@ export class Interpreter {
               ctx.prevSibling = ctx.current.realBefore;
             }
             if (ctx.current.__logicType & FakeType.Tp) {
-              ctx.realParent = ctx.current.tpData[Keys.Raw].node;
+              runWithPulling(() => {
+                ctx.realParent = ctx.current.tpData.node;
+              }, null);
               ctx.prevSibling = ctx.current.contentBefore;
             }
           }
@@ -156,10 +161,18 @@ export class Interpreter {
       if (this.tokenizer.token.type & TokenType.Dedent) {
         this.tokenizer.nextToken(); // token = ID | DEDENT
         const [{ node: parent, prev }, sort] = stack.pop();
-        // 弹出原生节点，找最近的 ctx.realParent
+        // 弹出原生节点，找最近的 ctx.realParent / tp 节点
         if (!parent.__logicType) {
           const prevSameType = stack.peekByType(NodeSort.Real);
-          ctx.realParent = prevSameType?.node || root;
+          const sameNode = prevSameType?.node;
+          if (sameNode) {
+            ctx.realParent =
+              sameNode.__logicType === FakeType.Tp
+                ? runWithPulling(() => (sameNode as TpNode).tpData.node, null)
+                : sameNode;
+          } else {
+            ctx.realParent = root;
+          }
         }
         // 弹出非原生节点
         else {
@@ -357,7 +370,7 @@ export class Interpreter {
   }
 
   dynamicDeclaration(pData: any, value: string, ctx: ProgramCtx) {
-    const valueIsMapKey = Reflect.has(pData[Keys.Raw], value);
+    const valueIsMapKey = Boolean(getProxyHasKey(pData, value));
     let node: DynamicNode = {
       __logicType: null,
       realParent: null,
@@ -449,12 +462,7 @@ export class Interpreter {
           }
         };
       },
-      [
-        () => {
-          const val = valueIsMapKey ? pData[value] : this.getFn(pData, value)();
-          return val;
-        }
-      ],
+      [valueIsMapKey ? () => pData[value] : this.getFn(pData, value)],
       { type: 'render' }
     );
     return node;
@@ -501,6 +509,11 @@ export class Interpreter {
             } while (true);
           }
         };
+        /**
+         * TODO: 在 SSR 渲染时字符串的拼接靠的是 节点创建 与 插入的时机来确定
+         * 但是 tp 节点可能将后创建的节点插入到已创建的节点中，导致字符串拼接出现问题
+         * 目前 SSR 只能让 tp 在首屏时不做插入，等到 hydrate 后通过更新渲染进行插入
+         */
         // 首屏让 program 自动往下解析，或者 skip
         if (firstRender) {
           // 有 dom 节点时，tp 在 program 中会将 dom 设置为 realParent 然后开始解析子树，这里不需要做任何处理
@@ -567,7 +580,7 @@ export class Interpreter {
     const child = deepSignal({}, getPulling());
     const parentContext: any = this.ctx.stack.peekByType(NodeSort.Context)?.node?.context;
     if (parentContext) {
-      Object.setPrototypeOf(child, parentContext);
+      backupSignal(child, parentContext);
     }
 
     this.onePropParsed = createStoreOnePropParsed(child);
@@ -1082,7 +1095,7 @@ export class Interpreter {
       }
     }
 
-    Object.setPrototypeOf(data, parentData);
+    backupSignal(data, parentData);
     return data;
   }
 
@@ -1149,7 +1162,7 @@ export class Interpreter {
     } else if (ComponentOrRender instanceof InlineFragment) {
       const conf = ComponentOrRender;
       child = deepSignal({}, getPulling(), true);
-      Object.setPrototypeOf(child, conf.data);
+      backupSignal(child, conf.data);
       tokenizer = conf.tokenizer;
       fragmentSnapshot = conf.snapshot;
       __logicType = FakeType.Fragment;
@@ -1166,7 +1179,7 @@ export class Interpreter {
       const boundStore = render.boundStore;
       child = deepSignal({}, getPulling(), true);
       if (boundStore) {
-        Object.setPrototypeOf(child, boundStore);
+        backupSignal(child, boundStore);
       }
       tokenizer = render(true);
       __logicType = FakeType.Fragment;
@@ -1477,7 +1490,7 @@ export class Interpreter {
               prevKeys.delete(k);
               if (isComponent) {
                 const savedK = savedDefaults.has(k);
-                if (!savedK && Object.prototype.hasOwnProperty.call(rawTarget, k)) {
+                if (!savedK && hasOwn(rawTarget, k)) {
                   savedDefaults.set(k, rawTarget[k]);
                 }
                 const val = props[k];
@@ -1517,7 +1530,7 @@ export class Interpreter {
         }
         // 动态的要做成函数
         else if (hookType === 'dynamic') {
-          const valueIsMapKey = Reflect.has(data[Keys.Raw], value);
+          const valueIsMapKey = Boolean(getProxyHasKey(data, value));
           const fn = isFn ? rawVal : valueIsMapKey ? value : this.getFn(data, value);
           this.onePropParsed(data, _node, key, fn, valueIsMapKey, isFn, hookI);
         }

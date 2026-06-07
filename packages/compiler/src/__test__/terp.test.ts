@@ -549,6 +549,69 @@ describe('集成测试 — for 循环', () => {
     const hasSpans = JSON.stringify(div).includes('"tag":"span"');
     expect(hasSpans).toBe(false);
   });
+
+  it('子组件 keyed for 循环 + active 索引 class 绑定', () => {
+    const list = [
+      { name: '香蕉', id: 'a' },
+      { name: '苹果', id: 'b' },
+      { name: '梨', id: 'c' }
+    ];
+
+    class Child extends Store {
+      list: any[] = [];
+      activeI = 0;
+      switchI(i: number) { this.activeI = i; }
+      ui = bobe`
+        div
+          for list; item i ; item.id
+            div class={activeI === i ? 'active' : ''} onclick={() => switchI(i)} text={item.name}
+      `;
+    }
+
+    class App extends Store {
+      childRef: any = null;
+      ui = bobe`
+        div
+          ${Child} ref={childRef} list=${list}
+      `;
+    }
+
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    const tree = getMockTree(root);
+    const appDiv = tree.children.find((c: any) => c.tag === 'div');
+    const childWrapper = appDiv.children[0]; // Child 组件的根 div
+    const items = childWrapper.children;
+
+    // 第 0 项 — activeI === 0 → class 'active'
+    expect(items[0].t).toBe('香蕉');
+    expect(items[0].props.class).toBe('active');
+    // 第 1 项 — class ''
+    expect(items[1].t).toBe('苹果');
+    expect(items[1].props.class).toBe('');
+    // 第 2 项 — class ''
+    expect(items[2].t).toBe('梨');
+    expect(items[2].props.class).toBe('');
+
+    // 切换 activeI 到 1
+    store.childRef.switchI(1);
+    flushEffects();
+
+    // 重新获取 tree（DOM 已更新）
+    const tree2 = getMockTree(root);
+    const appDiv2 = tree2.children.find((c: any) => c.tag === 'div');
+    const childWrapper2 = appDiv2.children[0];
+    const items2 = childWrapper2.children;
+
+    // 第 0 项 class 移除了
+    expect(items2[0].props.class).toBe('');
+    // 第 1 项 class 变为 active
+    expect(items2[1].props.class).toBe('active');
+    // 第 2 项不受影响
+    expect(items2[2].props.class).toBe('');
+  });
 });
 
 describe('集成测试 — 动态文本', () => {
