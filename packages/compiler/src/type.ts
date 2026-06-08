@@ -268,7 +268,7 @@ export type ContextNode = Omit<LogicNode, 'data'> & {
 };
 export type TpNode = LogicNode & {
   tpData: any;
-  effect: Effect;
+  effect: Scope;
   contentBefore: any;
   contentAfter: any;
   owner: ComponentNode | FragmentNode;

@@ -495,7 +495,15 @@ export class Interpreter {
     const before = (node.contentBefore = this.createAnchor('tp-content-before', true));
     const after = (node.contentAfter = this.createAnchor('tp-content-after', true));
     let firstRender = true;
-    node.effect = this.effect(
+    // 创建 Scope 管理子 effect 生命周期（参照 forItem），
+    // 使 tp 移动目标 DOM 时子 effect 不被销毁
+    let scope = new Scope(() => {});
+    scope.scope = null;
+    runWithPulling(() => {
+      scope.get();
+    }, null);
+    node.effect = scope;
+    this.effect(
       ({ old: oldDom, val: dom }) => {
         const removeTpChild = () => {
           // 删除
@@ -553,20 +561,28 @@ export class Interpreter {
             else {
               this.handleInsert(dom, after, null);
               this.handleInsert(dom, before, null);
-              this.tokenizer = node.owner.tokenizer;
-              this.tokenizer.resume(node.snapshot);
-              this.tokenizer.useDedentAsEof = false;
-              this.program(dom, node.owner, before, node);
+              runWithPulling(() => {
+                this.tokenizer = node.owner.tokenizer;
+                this.tokenizer.resume(node.snapshot);
+                this.tokenizer.useDedentAsEof = false;
+                this.program(dom, node.owner, before, node);
+              }, scope);
             }
           } else {
             // 删除
             removeTpChild();
+            scope.dispose();
+            scope = new Scope(() => {});
+            scope.scope = null;
+            runWithPulling(() => { scope.get(); }, null);
+            node.effect = scope;
           }
         }
         firstRender = false;
         return (isDestroy: boolean) => {
           if (isDestroy) {
             removeTpChild();
+            scope.dispose();
           }
         };
       },

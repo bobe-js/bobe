@@ -1239,6 +1239,141 @@ describe('集成测试 — tp 传送', () => {
     const newRefTree = getMockTree(newRefNode);
     expect(JSON.stringify(newRefTree)).toContain('teleported');
   });
+
+  it('tp 移动后响应式文本绑定仍生效', () => {
+    class App extends Store {
+      tpTarget: any = null;
+      refA: any = null;
+      refB: any = null;
+      msg = 'hello';
+      ui = bobe`
+        div
+          div ref={refA}
+          div ref={refB}
+          tp node={tpTarget}
+            span text={msg}
+      `;
+    }
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // tpTarget 初始为 null，内容不可见
+    expect(findSpanText(root, 'hello')).toBeFalsy();
+
+    // 传送到 refA
+    store.tpTarget = store.refA;
+    flushEffects();
+    expect(findSpanText(root, 'hello')).toBeTruthy();
+
+    // 修改 msg，验证响应式绑定生效
+    store.msg = 'world';
+    flushEffects();
+    expect(findSpanText(root, 'world')).toBeTruthy();
+    expect(findSpanText(root, 'hello')).toBeFalsy();
+
+    // 切换到 refB（触发 tp 移动）
+    store.tpTarget = store.refB;
+    flushEffects();
+    expect(findSpanText(root, 'world')).toBeTruthy();
+
+    // 移动后修改 msg，验证 setProp effect 未被销毁
+    store.msg = 'after-move';
+    flushEffects();
+    expect(findSpanText(root, 'after-move')).toBeTruthy();
+    expect(findSpanText(root, 'world')).toBeFalsy();
+  });
+
+  it('tp 移动后内部 if 仍生效', () => {
+    class App extends Store {
+      tpTarget: any = null;
+      refA: any = null;
+      refB: any = null;
+      show = true;
+      ui = bobe`
+        div
+          div ref={refA}
+          div ref={refB}
+          tp node={tpTarget}
+            if show
+              span text="conditional"
+      `;
+    }
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // 传送到 refA
+    store.tpTarget = store.refA;
+    flushEffects();
+    expect(findSpanText(root, 'conditional')).toBeTruthy();
+
+    // 切换 show 验证 if 生效
+    store.show = false;
+    flushEffects();
+    expect(findSpanText(root, 'conditional')).toBeFalsy();
+
+    store.show = true;
+    flushEffects();
+    expect(findSpanText(root, 'conditional')).toBeTruthy();
+
+    // 切换到 refB（触发 tp 移动）
+    store.tpTarget = store.refB;
+    flushEffects();
+    expect(findSpanText(root, 'conditional')).toBeTruthy();
+
+    // 移动后切换 show，验证 if effect 未被销毁
+    store.show = false;
+    flushEffects();
+    expect(findSpanText(root, 'conditional')).toBeFalsy();
+
+    store.show = true;
+    flushEffects();
+    expect(findSpanText(root, 'conditional')).toBeTruthy();
+  });
+
+  it('tp 移动后内部 for 仍生效', () => {
+    class App extends Store {
+      tpTarget: any = null;
+      refA: any = null;
+      refB: any = null;
+      list = [1, 2, 3];
+      ui = bobe`
+        div
+          div ref={refA}
+          div ref={refB}
+          tp node={tpTarget}
+            for list; item i
+              span text={item}
+      `;
+    }
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // 传送到 refA
+    store.tpTarget = store.refA;
+    flushEffects();
+    expect(findSpanText(root, '1')).toBeTruthy();
+    expect(findSpanText(root, '2')).toBeTruthy();
+    expect(findSpanText(root, '3')).toBeTruthy();
+
+    // 切换到 refB（触发 tp 移动）
+    store.tpTarget = store.refB;
+    flushEffects();
+    expect(findSpanText(root, '1')).toBeTruthy();
+    expect(findSpanText(root, '2')).toBeTruthy();
+    expect(findSpanText(root, '3')).toBeTruthy();
+
+    // 移动后更新 list，验证 for effect 未被销毁
+    store.list = [4, 5];
+    flushEffects();
+    expect(findSpanText(root, '4')).toBeTruthy();
+    expect(findSpanText(root, '5')).toBeTruthy();
+    expect(findSpanText(root, '1')).toBeFalsy();
+    expect(findSpanText(root, '2')).toBeFalsy();
+    expect(findSpanText(root, '3')).toBeFalsy();
+  });
 });
 
 // ============================================================
