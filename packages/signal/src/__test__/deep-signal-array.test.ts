@@ -296,6 +296,13 @@ describe('Array methods effect tests', () => {
       expect(effectSpy).toHaveBeenCalledWith(true);
     });
 
+    it('find can get reactive result', () => {
+      const array  = $([{v:1}, {v:2}, {v:3}]);
+      const item0 = array[0];
+      const found = array.find(({v}) => v === 1);
+      expect(found).toBe(item0);
+    });
+
     it('find should collect iterator and convert result', () => {
       effect(() => {
         const found = arr.find((x: any) => x === 2);

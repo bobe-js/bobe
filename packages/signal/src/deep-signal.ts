@@ -625,8 +625,8 @@ const GetMethodConf = {
   },
   {
     key: 'find',
+    ...GetMethodConf,
     wrapReturn: true,
-    ...GetMethodConf
   },
   {
     key: 'findLast',
