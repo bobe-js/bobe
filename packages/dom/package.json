@@ -8,6 +8,7 @@
   "private": false,
   "dependencies": {
     "bobe": "workspace:*",
+    "highlight.js": "^11.11.1",
     "marked": "^18.0.4"
   },
   "devDependencies": {
@@ -23,7 +24,14 @@
       "types": "./dist/markdown.d.ts",
       "import": "./dist/markdown.esm.js",
       "require": "./dist/markdown.cjs.js"
-    }
+    },
+    "./plugin-markdown/code": {
+      "types": "./dist/code.d.ts",
+      "import": "./dist/code.esm.js",
+      "require": "./dist/code.cjs.js"
+    },
+    "./plugin-markdown/index.css": "./dist/index.css",
+    "./plugin-markdown/code.css": "./dist/code.css"
   },
   "scripts": {
     "build": "rm -rf ./dist && rollup -c",

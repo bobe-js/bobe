@@ -1,6 +1,10 @@
 import type { Plugin } from 'vite';
 import type { MarkedExtension } from 'marked';
 import { marked } from 'marked';
+import { resolve, dirname } from 'path';
+import { FileItem, resolveImportTree } from './my-resolve';
+import hljs from 'highlight.js';
+import { registerBobeLang } from './components/bobe-lang';
 
 export interface MarkdownPluginOptions {
   /** 传递给 marked.use() 的扩展配置 */
@@ -15,21 +19,54 @@ function esc(s: string): string {
 }
 
 /** 将 HTML 字符串编译为 bobe 组件模块源码 */
-function gen(html: string, headers: HeadItem[]): string {
-  const code = [
-    `import { bobe } from 'bobe';`,
-    `const mdHtml = \`${esc(html)}\`;`,
-    `export default bobe\``,
-    `  div class="markdown" style="display: flex;"`,
-    `    main class="markdown-main" style="overflow-y: auto;" html=\${mdHtml}`,
-    `    if showAside`,
-    `      div class="markdown-aside" style="display: flex; flex-direction: column; overflow-y: auto;"`,
-    ...headers.map(({ depth, id, text }) => {
-      return `        a href="#${id}" text="${text}" class="markdown-aside-item markdown-aside-depth-${depth}"`;
-    }),
-    `\`;`
-  ].join('\n');
-  return code;
+function gen(html: string, headers: HeadItem[], previewEntries: string[], codeTrees: FileItem[][] = []): string {
+  const hasCode = codeTrees.length > 0;
+  const lines = [`import { bobe, Store } from 'bobe';`];
+
+  if (hasCode) {
+    lines.push(`import Code from 'bobe-dom/plugin-markdown/code';`);
+    previewEntries.forEach((src, i) => {
+      lines.push(`import $Bobe_Comp_${i} from '${src}';`);
+    });
+  }
+
+  lines.push(`const mdHtml = \`${esc(html)}\`;`);
+
+  // 代码树数据
+  if (hasCode) {
+    for (let i = 0; i < codeTrees.length; i++) {
+      lines.push(`const codeTree${i} = ${JSON.stringify(codeTrees[i])};`);
+    }
+  }
+
+  // Markdown Store 组件
+  lines.push(`class Markdown extends Store {`);
+  lines.push(`  mdRef = null;`);
+  lines.push(`  ui = bobe\``);
+  // tp + Code 组件
+  if (hasCode) {
+    for (let i = 0; i < codeTrees.length; i++) {
+      lines.push(`    tp node={mdRef?.querySelector?.('#code-${i}')}`);
+      const previewProp = previewEntries[i] ? ` preview=\${() => $Bobe_Comp_${i}}` : '';
+      lines.push(`      \${Code} files=\${codeTree${i}} ${previewProp}`);
+    }
+  }
+  lines.push(`    div class="markdown" style="display: flex;"`);
+  lines.push(`      main ref={mdRef} class="markdown-body" style="overflow-y: auto;" html=\${mdHtml}`);
+  lines.push(`      if showAside`);
+  lines.push(
+    `        div class="markdown-aside" style="flex: none; display: flex; flex-direction: column; overflow-y: auto;"`
+  );
+  for (const { depth, id, text } of headers) {
+    lines.push(
+      `          a href="#${id}" text="${esc(text)}" class="markdown-aside-item markdown-aside-depth-${depth}"`
+    );
+  }
+
+  lines.push(`    \`;`);
+  lines.push(`}`);
+  lines.push(`export default Markdown;`);
+  return lines.join('\n');
 }
 
 /**
@@ -37,6 +74,9 @@ function gen(html: string, headers: HeadItem[]): string {
  *
  * 将 .md / .mdx 文件编译为 bobe 组件：
  *   import Readme from './README.md';
+ *
+ * 支持 <code src="xxx.ts" /> 引入代码文件及 import 树（非 node_modules），
+ * 以 Code 组件 + tp 传送方式渲染。
  */
 
 export type HeadItem = {
@@ -44,35 +84,64 @@ export type HeadItem = {
   id: string;
   text: string;
 };
+
+const CODE_TAG_RE = /<code\s+src="([^"]+)"(\s+preview)?\s*\/>/g;
+
 export default function markdownPlugin(opt: MarkdownPluginOptions = {}): Plugin {
   let headers: HeadItem[] = [];
+  const headClassMap = {
+    '1': 'cyber-title'
+  }
   return {
     name: 'bobe-markdown',
     enforce: 'pre',
 
     configResolved() {
+      registerBobeLang(); // 注册 bobe DSL 语法高亮（支持 markdown 中的 ```bobe 代码块）
       marked.use({
         gfm: true, // GitHub Flavored Markdown
         renderer: {
           heading({ tokens, depth }) {
             const text = this.parser.parseInline(tokens);
-            const id = text.toLowerCase().replace(/[^\w\u4e00-\u9fff]+/g, '-');
-            if(depth <= opt.asideDeep || 3) {
+            const id = text.toLowerCase().replace(/[^\w一-鿿]+/g, '-');
+            if (depth <= (opt.asideDeep || 3)) {
               headers.push({ depth, id, text });
             }
-            return `<h${depth} id="${id}">${text}</h${depth}>`;
+            return `<h${depth} class="${headClassMap[depth]}" data-text="${text}" id="${id}">${text}</h${depth}>`;
+          },
+          code({ text, lang }) {
+            return `<pre><code class="hljs">${hljs.highlight(text, { language: lang }).value}</code></pre>`;
           }
         }
       });
       if (opt.marked) marked.use(opt.marked);
     },
 
-    transform(code, id) {
+    async transform(code, id) {
       if (!id.match(/\.mdx?$/)) return;
       headers = [];
       try {
         const html = marked.parse(code) as string;
-        return { code: gen(html, headers), moduleSideEffects: false };
+
+        // 匹配 <code src="xxx.ts"> → <div id="code-N">
+        const codeTags: string[] = [];
+        const previewEntries: string[] = [];
+        let idx = 0;
+        const finalHtml = html.replace(CODE_TAG_RE, (_, src, preview) => {
+          codeTags.push(src);
+          if (preview) {
+            previewEntries[idx] = src;
+          }
+          return `<div id="code-${idx++}"></div>`;
+        });
+
+        // 解析每个 code block 的 import 树
+        const fileDir = dirname(id);
+        const codeTrees = await Promise.all(
+          codeTags.map(tag => resolveImportTree(resolve(fileDir, tag), id, this.resolve.bind(this)))
+        );
+
+        return { code: gen(finalHtml, headers, previewEntries, codeTrees), moduleSideEffects: false };
       } catch (e: any) {
         this.error(`[bobe-markdown] 解析失败: ${id}\n${e.message}`);
       }
