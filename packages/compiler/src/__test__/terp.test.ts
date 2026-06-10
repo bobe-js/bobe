@@ -1374,6 +1374,145 @@ describe('集成测试 — tp 传送', () => {
     expect(findSpanText(root, '2')).toBeFalsy();
     expect(findSpanText(root, '3')).toBeFalsy();
   });
+
+  // Edge case: tp 节点恢复 ctx.realParent 时，tp 节点还未通过 handleInsert
+  // 设置其 realParent，导致 ctx.realParent 被恢复成空。
+  // 修复：createTpNode 在创建时从 ctx.realParent 初始化 realParent。
+  it('tp 节点后有兄弟元素时 ctx.realParent 正确恢复，兄弟元素不丢失', () => {
+    class App extends Store {
+      tpTarget: any = null;
+      refA: any = null;
+      ui = bobe`
+        div
+          div ref={refA}
+          tp node={tpTarget}
+            span text="inside-tp"
+          span text="sibling-after-tp"
+      `;
+    }
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // tpTarget=null，tp 内容不可见
+    expect(findSpanText(root, 'inside-tp')).toBeFalsy();
+    // 兄弟元素应在 div 中正常渲染（修复前会因 ctx.realParent 为 null 而丢失/报错）
+    expect(findSpanText(root, 'sibling-after-tp')).toBeTruthy();
+
+    // 设置 tpTarget → tp 内容传送到 refA
+    store.tpTarget = store.refA;
+    flushEffects();
+    expect(findSpanText(root, 'inside-tp')).toBeTruthy();
+    // 兄弟元素仍在正确位置
+    expect(findSpanText(root, 'sibling-after-tp')).toBeTruthy();
+
+    // 验证 tp 内容确实在 refA 中
+    const refATree = getMockTree(store.refA);
+    expect(JSON.stringify(refATree)).toContain('inside-tp');
+
+    // 清空 tpTarget → tp 内容移除，兄弟元素不受影响
+    store.tpTarget = null;
+    flushEffects();
+    expect(findSpanText(root, 'inside-tp')).toBeFalsy();
+    expect(findSpanText(root, 'sibling-after-tp')).toBeTruthy();
+  });
+
+  // tp 内嵌套 for 循环，tp 后有兄弟元素。
+  // for 节点的 realParent 也需要从 ctx 正确初始化（forDeclaration 修复）。
+  it('tp 内嵌套 for 循环，tp 后有兄弟元素不丢失', () => {
+    class App extends Store {
+      tpTarget: any = null;
+      refA: any = null;
+      list = ['a', 'b'];
+      ui = bobe`
+        div
+          div ref={refA}
+          tp node={tpTarget}
+            for list; item i
+              span text={item}
+          span text="post-tp-for"
+      `;
+    }
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // tpTarget=null → for 内容不可见
+    expect(findSpanText(root, 'a')).toBeFalsy();
+    expect(findSpanText(root, 'b')).toBeFalsy();
+    // 兄弟元素应正常渲染
+    expect(findSpanText(root, 'post-tp-for')).toBeTruthy();
+
+    // 设置 tpTarget
+    store.tpTarget = store.refA;
+    flushEffects();
+    expect(findSpanText(root, 'a')).toBeTruthy();
+    expect(findSpanText(root, 'b')).toBeTruthy();
+    expect(findSpanText(root, 'post-tp-for')).toBeTruthy();
+
+    // 修改 list 验证 for effect 存活
+    store.list = ['x', 'y', 'z'];
+    flushEffects();
+    expect(findSpanText(root, 'x')).toBeTruthy();
+    expect(findSpanText(root, 'y')).toBeTruthy();
+    expect(findSpanText(root, 'z')).toBeTruthy();
+    expect(findSpanText(root, 'post-tp-for')).toBeTruthy();
+
+    // 清空 tpTarget → tp 内容移除，兄弟元素不受影响
+    store.tpTarget = null;
+    flushEffects();
+    expect(findSpanText(root, 'x')).toBeFalsy();
+    expect(findSpanText(root, 'y')).toBeFalsy();
+    expect(findSpanText(root, 'z')).toBeFalsy();
+    expect(findSpanText(root, 'post-tp-for')).toBeTruthy();
+  });
+
+  // 动态组件内 div 与 tp 同级，切换组件时 realParent 正确。
+  // 修复前 tp 节点 dedent 时 realParent 为 null，导致动态组件节点的
+  // realParent 也被置空，切换组件时报错（insertAfter(null, ...)）。
+  it('动态组件内 div 与 tp 同级，切换组件不报错', () => {
+    class CompA extends Store {
+      divRef: any = null;
+      ui = bobe`
+        div ref={divRef}
+        tp node={divRef}
+          span text="inside-a"
+      `;
+    }
+
+    class CompB extends Store {
+      ui = bobe` span text="comp-b" `;
+    }
+
+    class App extends Store {
+      page: any = CompA;
+      ui = bobe`
+        div
+          button onclick={() => this.page = CompB} text="switch"
+          {page}
+      `;
+    }
+
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    // 首屏 CompA 渲染成功 时 tp 内容可见
+    expect(findSpanText(root, 'inside-a')).toBeTruthy();
+    expect(findSpanText(root, 'comp-b')).toBeFalsy();
+
+    // 切换到 CompB（修复前会因 ctx.realParent=null 导致 insertAfter 报错）
+    store.page = CompB;
+    flushEffects();
+    expect(findSpanText(root, 'comp-b')).toBeTruthy();
+    expect(findSpanText(root, 'inside-a')).toBeFalsy();
+
+    // 切回 CompA（修复前同样会在切换时报错）
+    store.page = CompA;
+    flushEffects();
+    expect(findSpanText(root, 'comp-b')).toBeFalsy();
+    expect(findSpanText(root, 'inside-a')).toBeTruthy();
+  });
 });
 
 // ============================================================

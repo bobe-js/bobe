@@ -310,11 +310,11 @@ export class Interpreter {
     if (value === 'if' || value === 'else' || value === 'fail') {
       return this.condDeclaration(ctx);
     } else if (value === 'context') {
-      _node = this.createContextNode();
+      _node = this.createContextNode(ctx);
     } else if (value === 'tp') {
-      return this.createTpNode();
+      return this.createTpNode(ctx);
     } else if (value === 'for') {
-      return this.forDeclaration();
+      return this.forDeclaration(ctx);
     } else if (hookType) {
       const data = this.getData();
       // 静态 1. Component，2. bobe 返回的 render 方法
@@ -373,7 +373,7 @@ export class Interpreter {
     const valueIsMapKey = Boolean(getProxyHasKey(pData, value));
     let node: DynamicNode = {
       __logicType: null,
-      realParent: null,
+      realParent: ctx.realParent,
       tokenizer: null,
       effect: null,
       textNode: null,
@@ -468,12 +468,12 @@ export class Interpreter {
     return node;
   }
 
-  createTpNode() {
+  createTpNode(ctx: ProgramCtx) {
     const child = deepSignal({}, getPulling());
     const node: TpNode = {
       __logicType: FakeType.Tp,
       data: this.getData(),
-      realParent: null,
+      realParent: ctx.realParent,
       realBefore: null,
       realAfter: null,
       contentBefore: null,
@@ -481,7 +481,7 @@ export class Interpreter {
       effect: null,
       snapshot: null,
       tpData: child,
-      owner: this.ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node
+      owner: ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node
     };
 
     this.onePropParsed = createStoreOnePropParsed(child);
@@ -592,9 +592,9 @@ export class Interpreter {
 
     return node;
   }
-  createContextNode() {
+  createContextNode(ctx: ProgramCtx) {
     const child = deepSignal({}, getPulling());
-    const parentContext: any = this.ctx.stack.peekByType(NodeSort.Context)?.node?.context;
+    const parentContext: any = ctx.stack.peekByType(NodeSort.Context)?.node?.context;
     if (parentContext) {
       backupSignal(child, parentContext);
     }
@@ -604,7 +604,7 @@ export class Interpreter {
     const node: ContextNode = {
       __logicType: FakeType.Context,
       context: child,
-      realParent: null,
+      realParent: ctx.realParent,
       realBefore: null,
       realAfter: null
     };
@@ -659,7 +659,7 @@ export class Interpreter {
 
     return res;
   }
-  forDeclaration() {
+  forDeclaration(ctx: ProgramCtx) {
     const arrExp = this.tokenizer.jsExp().value as string;
     this.tokenizer.nextToken(); // 分号
     const itemToken = this.tokenizer.nextToken(); // item 表达式
@@ -689,12 +689,12 @@ export class Interpreter {
       }
     }
 
-    const owner = this.ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node;
-    const prevSibling = this.ctx.prevSibling;
+    const owner = ctx.stack.peekByType(NodeSort.TokenizerSwitcher)?.node;
+    const prevSibling = ctx.prevSibling;
     const forNode: ForNode = {
       __logicType: FakeType.For,
       snapshot: this.tokenizer.snapshot(['dentStack', 'isFirstToken']),
-      realParent: this.ctx.realParent,
+      realParent: ctx.realParent,
       prevSibling,
       realBefore: prevSibling?.realAfter || prevSibling,
       realAfter: null,
@@ -1061,7 +1061,7 @@ export class Interpreter {
     forItemNode = {
       id: this.forItemId++,
       __logicType: FakeType.ForItem,
-      realParent: null,
+      realParent: this.ctx.realParent,
       realBefore: null,
       realAfter: null,
       forNode,
@@ -1254,7 +1254,7 @@ export class Interpreter {
       __logicType: isElse ? FakeType.Else : isIf ? FakeType.If : FakeType.Fail,
       // 此时 token 是 exp, 下次解析 从 \n 开始
       snapshot: this.tokenizer.snapshot(),
-      realParent: null,
+      realParent: ctx.realParent,
       realBefore: null,
       realAfter: null,
       condition: null,
