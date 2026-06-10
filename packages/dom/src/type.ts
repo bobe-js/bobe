@@ -71,3 +71,49 @@ export type SSRCtx = {
   /** 当前节点 */
   current: SSRNode;
 };
+
+
+export class SSRFiber {
+  parent?: SSRFiber = undefined;
+  next?: SSRFiber = undefined;
+  child?: SSRFiber = undefined;
+  html?: string = undefined;
+  /** 开标签 > 在原始 HTML 字符串中的索引位置 */
+  openTagEnd?: number = undefined;
+  constructor(public type: any, public props: Record<any, any> = {}) {}
+
+  querySelector(selector: string): SSRFiber | null {
+    // 解析 selector：tag#id.class1.class2
+    const idMatch = selector.match(/#([\w-]+)/);
+    const id = idMatch ? idMatch[1] : null;
+    const classMatches = selector.match(/\.[\w-]+/g);
+    const classes = classMatches ? classMatches.map(c => c.slice(1)) : [];
+    const tag = selector.replace(/#[\w-]+/g, '').replace(/\.[\w-]+/g, '').trim() || null;
+
+    // 深度优先遍历 child → next 链表
+    const walk = (node: SSRFiber | undefined): SSRFiber | null => {
+      if (!node) return null;
+      // 跳过非元素节点
+      if (node.type !== 'root' && node.type !== 'anchor' && node.type !== 'text') {
+        if (!tag || node.type === tag) {
+          if (!id || node.props['id'] === id) {
+            if (
+              classes.length === 0 ||
+              classes.every(c => (node.props['class'] || '').split(/\s+/).includes(c))
+            ) {
+              return node;
+            }
+          }
+        }
+      }
+      return walk(node.child) || walk(node.next);
+    };
+
+    return walk(this.child);
+  }
+
+  getElementById(id: string): SSRFiber | null {
+    return this.querySelector(`#${id}`);
+  }
+}
+

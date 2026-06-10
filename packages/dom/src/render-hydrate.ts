@@ -34,8 +34,10 @@ import {
 class TreeCursor {
   /** 当前搜索容器——findUnclaimed 在此节点的 firstChild 链上搜索 */
   private parent: Node;
-  /** 已认领节点集合，避免同一次遍历中重复认领 */
+  /** 已认领节点集合，防止 DOM 重排导致误认领 */
   private claimed = new WeakSet<Node>();
+  /** 当前层级最后一个被认领的节点，搜索从 nextSibling 起跳，跳过已遍历节点 */
+  private current: Node | null = null;
 
   constructor(container: Node) {
     this.parent = container;
@@ -44,21 +46,36 @@ class TreeCursor {
   /** 进入子节点：后续 findUnclaimed 搜 node 的直接子级 */
   enterChildren(node: Node) {
     this.parent = node;
+    this.current = null;
   }
 
-  /** 退出当前节点，回到父级 */
+  /** 直接设置游标父级（用于 tp 等需要跳转到非树位置的场景） */
+  setParent(node: Node) {
+    this.parent = node;
+    this.current = null;
+  }
+
+  /** 设置当前指针，后续 findUnclaimed 从 node.nextSibling 开始 */
+  setCurrent(node: Node) {
+    this.current = node;
+  }
+
+  /** 退出当前节点，回到父级，恢复游标位置 */
   leaveToParent(node: Node) {
     if (node === this.parent && this.parent.parentNode) {
       this.parent = this.parent.parentNode;
+      this.current = node;
     }
   }
 
-  /** 在 this.parent 的 firstChild 链上查找第一个满足条件且未被认领的节点 */
+  /** 在 this.parent 的 firstChild 链上查找第一个满足条件的节点 */
   private findUnclaimed(predicate: (node: Node) => boolean): Node | null {
-    let node = this.parent.firstChild;
+    // 指针起跳 + WeakSet 兜底：指针失效（DOM 重排）时 wrapped 扫描，WeakSet 防重认
+    let node = this.current?.nextSibling || this.parent.firstChild;
     while (node) {
       if (!this.claimed.has(node) && predicate(node)) {
         this.claimed.add(node);
+        this.current = node;
         return node;
       }
       node = node.nextSibling;
@@ -149,7 +166,25 @@ export const hydrate = (ComponentClass: typeof Store, rootEl: Element) => {
     if (isFirstRender) cursor.leaveToParent(node);
   };
 
-  const leaveLogicNode = (node: Node) => {
+  // tp 节点进入 indent 时，将游标切入目标 DOM，使其子节点在正确位置认领
+  const beforeLogicIndent = (node: any) => {
+    if (isFirstRender && node.tpData) {
+      const targetDom = node.tpData.node;
+      if (targetDom) cursor.enterChildren(targetDom);
+    }
+  };
+
+  const leaveLogicNode = (node: any, _isDedent: boolean) => {
+    // tp 节点离开时，通过 realAfter 锚点找到模板父级 DOM 恢复游标
+    if (isFirstRender && node.tpData) {
+      const parentDom = node.realAfter?.parentNode;
+      if (parentDom) {
+        cursor.setParent(parentDom);
+        // 后续认领从 tp-after 锚点之后开始
+        if (node.realAfter) cursor.setCurrent(node.realAfter);
+      }
+      return;
+    }
     if (isFirstRender) cursor.leaveToParent(node);
   };
 
@@ -162,6 +197,7 @@ export const hydrate = (ComponentClass: typeof Store, rootEl: Element) => {
     firstChild,
     nextSib,
     beforeIndent,
+    beforeLogicIndent,
     leaveNode,
     leaveLogicNode,
     // program() 遍历完模板后、flushMicroEffectManual 首次执行 effect 前切回首屏标志

@@ -22,7 +22,7 @@ const template = await fs.readFile(path.join(distClient, 'index.html'), 'utf-8')
 console.log(`\n🔨 Generating static pages for ${Object.keys(routes).length} routes...\n`);
 
 for (const [url] of Object.entries(routes)) {
-  const { html } = await serverEntry.render(url);
+  const html = await serverEntry.render(url);
   const page = template.replace('<!--app-html-->', html);
 
   const outDir = path.join(distClient, url);

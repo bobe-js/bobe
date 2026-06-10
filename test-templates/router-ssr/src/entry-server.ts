@@ -10,6 +10,6 @@ export async function render(url: string) {
   const router = new Router({ initialPath: url });
   (globalThis as any).__SSR_ROUTER__ = router;
   await router.ready();
-  const { html } = renderHtmlStr(App);
-  return { html };
+  const html = renderHtmlStr(App);
+  return html;
 }

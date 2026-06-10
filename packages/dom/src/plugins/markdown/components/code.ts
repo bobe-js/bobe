@@ -29,6 +29,8 @@ class Code extends Store {
   }
 
   ui = bobe`
+    div ref={normalBlock} class="code-block"
+    div ref={fullBlock} class={isFull ? "code-block-full code-block-full-active" : "code-block-full"}  
     tp node={blockTarget}   
       div class="code-tabs"
         button class="full-button" onclick={toggleFull} text={isFull ? '收起' : '全屏'}
@@ -39,9 +41,7 @@ class Code extends Store {
           code class="hljs" html={activeFile.html}
         if preview  
           div class="code-preview"
-            {preview}        
-    div ref={normalBlock} class="code-block"
-    div ref={fullBlock} class={isFull ? "code-block-full code-block-full-active" : "code-block-full"}      
+            {preview}            
   `;
 }
 

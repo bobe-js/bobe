@@ -43,26 +43,23 @@ function gen(html: string, headers: HeadItem[], previewEntries: string[], codeTr
   lines.push(`class Markdown extends Store {`);
   lines.push(`  mdRef = null;`);
   lines.push(`  ui = bobe\``);
-  // tp + Code 组件
-  if (hasCode) {
-    for (let i = 0; i < codeTrees.length; i++) {
-      lines.push(`    tp node={mdRef?.querySelector?.('#code-${i}')}`);
-      const previewProp = previewEntries[i] ? ` preview=\${() => $Bobe_Comp_${i}}` : '';
-      lines.push(`      \${Code} files=\${codeTree${i}} ${previewProp}`);
-    }
-  }
   lines.push(`    div class="markdown" style="display: flex;"`);
   lines.push(`      main ref={mdRef} class="markdown-body" style="overflow-y: auto;" html=\${mdHtml}`);
   lines.push(`      if showAside`);
-  lines.push(
-    `        div class="markdown-aside" style="flex: none; display: flex; flex-direction: column; overflow-y: auto;"`
-  );
+  lines.push(`        div class="markdown-aside" style="flex: none; display: flex; flex-direction: column; overflow-y: auto;"`);
   for (const { depth, id, text } of headers) {
     lines.push(
       `          a href="#${id}" text="${esc(text)}" class="markdown-aside-item markdown-aside-depth-${depth}"`
     );
   }
-
+  // tp + Code 组件
+  if (hasCode) {
+    for (let i = 0; i < codeTrees.length; i++) {
+      const previewProp = previewEntries[i] ? `preview=\${() => $Bobe_Comp_${i}}` : '';
+      lines.push(`    tp node={mdRef?.querySelector?.('#code-${i}')}`);
+      lines.push(`      \${Code} files=\${codeTree${i}} ${previewProp}`);
+    }
+  }
   lines.push(`    \`;`);
   lines.push(`}`);
   lines.push(`export default Markdown;`);

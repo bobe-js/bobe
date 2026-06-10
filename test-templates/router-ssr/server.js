@@ -33,7 +33,7 @@ app.use(async (req, res) => {
       template = templateHtml
       render = (await import('./dist/server/entry-server.js')).render
     }
-    const { html } = await render(url)
+    const html = await render(url)
     res.status(200).set({ 'Content-Type': 'text/html' }).send(template.replace('<!--app-html-->', html))
   } catch (e) {
     vite?.ssrFixStacktrace(e)
