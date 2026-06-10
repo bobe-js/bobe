@@ -303,7 +303,7 @@ export type ComponentNode = LogicNode & {
 };
 export type RootNode = LogicNode & {};
 
-export type Dep = Signal | Computed | (() => any) | string;
+export type Dep =(() => any) | string;
 
 export const isDep = (target: unknown): target is Dep =>
   target &&

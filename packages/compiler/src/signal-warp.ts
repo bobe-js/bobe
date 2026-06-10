@@ -29,6 +29,8 @@ export const effect = (
       newDeps.push(dep);
     }
   }
-
-  return _effect(callback, newDeps, option);
+  if(isArray) {
+    return _effect(callback, newDeps, option);
+  }
+  return _effect(callback, option);
 };

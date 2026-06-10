@@ -97,7 +97,7 @@ export function effect(
   }
   /*----------------- 指定依赖， watcher -----------------*/
   let mounted = false;
-  const deps = depOrOpt as any[];
+  const deps = depOrOpt.map(dep => (typeof dep === 'function' ? new Computed(dep) : dep));
   const immediate = deps.length === 0 ? true : (opt.immediate ?? true);
   const vs: ValueDiff[] = Array.from({ length: deps.length }, () => ({ old: null, val: null }));
 
