@@ -5,13 +5,15 @@ import { GlobalKey } from './global';
 
 /** 创建带初始数据的 RouteRecord */
 export function createRouteRecord(
-  opts: Partial<Pick<RouteRecord, 'import' | 'component' | 'params'>> = {}
+  opts: Partial<Pick<RouteRecord, 'import' | 'component' | 'params' | 'meta' | 'layout'>> = {}
 ): RouteRecord {
   return {
     import: opts.import,
     component: opts.component,
     status: opts.component ? 'loaded' : 'idle',
     params: opts.params,
+    meta: opts.meta,
+    layout: opts.layout,
   };
 }
 
@@ -112,6 +114,8 @@ export class Router extends Store {
         path,
         params: result.params,
         component: route?.component,
+        meta: route?.meta,
+        layout: route?.layout,
       };
     }
 
@@ -236,7 +240,10 @@ export class Router extends Store {
     await this.#loadComponent(target.path);
     if (id !== this.navId) return; // 加载期间有新导航，丢弃本次
 
-    target.component = this.routes[target.path]?.component;
+    const route = this.routes[target.path];
+    target.component = route?.component;
+    target.meta = route?.meta;
+    target.layout = route?.layout;
     this.active = target;
 
     // hash 滚动
@@ -295,6 +302,14 @@ export class Router extends Store {
         const Comp = mod.default || mod;
         route.status = 'loaded';
         route.component = Comp;
+        // 从模块 named export 提取 routeMeta（构建时未提取到时的回退）
+        if (!route.meta && mod.routeMeta) {
+          route.meta = mod.routeMeta;
+        }
+        // 从模块 named export 提取 layout（若未显式设置）
+        if (!route.layout && mod.layout) {
+          route.layout = mod.layout;
+        }
         return route.component;
       })
       .catch((err) => {
@@ -373,9 +388,12 @@ export class Router extends Store {
     } else {
       // 不在栈中 → 外部跳转，重置栈
       const result = match(current, this.routes);
+      const route = result ? this.routes[result.path] : undefined;
       const entry: RouteEntry = {
         path: current,
         params: result?.params ?? {},
+        meta: route?.meta,
+        layout: route?.layout,
       };
       this.stack = [entry];
       this.stackIndex = 0;

@@ -8,6 +8,7 @@
   "private": false,
   "dependencies": {
     "bobe": "workspace:*",
+    "gray-matter": "^4.0.3",
     "highlight.js": "^11.11.1",
     "htmlparser2": "^12.0.0",
     "marked": "^18.0.4"

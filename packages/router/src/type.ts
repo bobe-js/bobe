@@ -18,6 +18,10 @@ export type RouteRecord = {
   promise?: Promise<any>;
   /** 路径参数（动态路由时预填） */
   params?: Record<string, string>;
+  /** 自定义路由元信息（构建时从 export const routeMeta 提取，或手动传入） */
+  meta?: Record<string, any>;
+  /** 布局组件（从模块 named export 获取，或手动传入） */
+  layout?: typeof Store | (() => Promise<{ default: typeof Store } | typeof Store>);
 };
 
 /** 路由表 */
@@ -31,6 +35,10 @@ export type RouteEntry = {
   scroll?: number;
   /** 组件（类或实例，传给 bobe {active.component}） */
   component?: typeof Store | Store;
+  /** 当前路由的元信息（从 RouteRecord 同步） */
+  meta?: Record<string, any>;
+  /** 当前路由的布局组件（从 RouteRecord 同步） */
+  layout?: typeof Store | (() => Promise<{ default: typeof Store } | typeof Store>);
 };
 
 /** 目录嵌套菜单 */
@@ -43,6 +51,8 @@ export type Menu = {
   hasComponent: boolean;
   /** 子菜单 */
   children?: Menu[];
+  /** 路由元信息（从 index 文件的 export const routeMeta 提取） */
+  meta?: Record<string, any>;
 };
 
 /** 路由匹配结果 */

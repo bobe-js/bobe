@@ -1,11 +1,14 @@
 import { Menu } from '#/type';
-import { Dirent, readdirSync } from 'fs';
+import { Dirent, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
+import matter from 'gray-matter';
 
 export interface ScanItem {
   url: string;
   file: string;
   menuName?: string;
+  /** routeMeta 对象字面量源文（用于嵌入生成代码） */
+  metaRaw?: string;
 }
 
 const RE_DIR = /^(?:(\d+)_)?([^_]+?)(?:_(.+?))?$/;
@@ -19,6 +22,100 @@ function buildFileRegex(extensions: string[]): RegExp {
 
 function buildUrl(base: string, part: string): string {
   return (base === '/' ? '' : base) + '/' + part.replace(/\./g, '/');
+}
+
+/**
+ * 从页面文件源文中提取 `export const routeMeta = {...}`。
+ * 返回 { raw: 源文, value: 求值后的对象 }，无导出时返回 undefined。
+ */
+function extractRouteMeta(filePath: string): { raw: string; value: Record<string, any> } | undefined {
+  try {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+
+    // .md/.mdx：解析 YAML frontmatter 中的 meta 字段
+    if (ext === 'md' || ext === 'mdx') {
+      const content = readFileSync(filePath, 'utf-8');
+      const { data } = matter(content);
+      if (!data.meta || typeof data.meta !== 'object') return undefined;
+      const meta = data.meta as Record<string, any>;
+      return { raw: JSON.stringify(meta), value: meta };
+    }
+
+    const content = readFileSync(filePath, 'utf-8');
+    // 匹配 export const routeMeta（兼容 TS 类型标注 `: SomeType`）
+    const metaExportRe = /export\s+const\s+routeMeta(\s*:\s*[\w.]+(?:\s*<[^>]*>)?)?\s*=\s*/;
+    const match = content.match(metaExportRe);
+    if (!match) return undefined;
+
+    const startIdx = match.index! + match[0].length;
+    let braceDepth = 0;
+    let inString = false;
+    let stringChar: string | null = null;
+    let endIdx = startIdx;
+
+    for (let i = startIdx; i < content.length; i++) {
+      const ch = content[i];
+      const prev = i > 0 ? content[i - 1] : '';
+
+      // 字符串状态跟踪，避免字符串内的括号干扰
+      if (!inString && (ch === '"' || ch === "'" || ch === '`')) {
+        inString = true;
+        stringChar = ch;
+      } else if (inString && ch === stringChar && prev !== '\\') {
+        inString = false;
+        stringChar = null;
+      }
+
+      if (!inString) {
+        if (ch === '{') braceDepth++;
+        else if (ch === '}') {
+          braceDepth--;
+          if (braceDepth === 0) {
+            endIdx = i + 1;
+            break;
+          }
+        }
+      }
+    }
+
+    const raw = content.slice(startIdx, endIdx).trim();
+    if (!raw) return undefined;
+
+    // 尝试求值为 JS 对象（用于 Menu）
+    let value: Record<string, any> | undefined;
+    try {
+      value = new Function('return ' + raw)() as Record<string, any>;
+    } catch {
+      // 求值失败（如 import 引用），Menu 无 meta 但仍返回 raw 用于嵌入路由表
+    }
+
+    return { raw, value: value || {} };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 检测文件是否有 default 导出（即有组件），还是仅导出 routeMeta。
+ * .ts/.js: 检查是否有 `export default`
+ * .md/.mdx: 检查 frontmatter 之后是否有实际 markdown 内容
+ */
+function hasDefaultExport(filePath: string): boolean {
+  try {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+
+    if (ext === 'md' || ext === 'mdx') {
+      const content = readFileSync(filePath, 'utf-8');
+      const { content: mdContent } = matter(content);
+      return mdContent.trim().length > 0;
+    }
+
+    // .ts/.js/.tsx/.jsx：检查 export default
+    const content = readFileSync(filePath, 'utf-8');
+    return /export\s+default\s/.test(content);
+  } catch {
+    return false;
+  }
 }
 
 function parseEntry(name: string, fileRe: RegExp): { order: number; pathPart: string; menuName?: string } | null {
@@ -93,20 +190,42 @@ export function scanDir(
       const relFile = '/' + full.slice(basePath.length).replace(/^[/\\]/, '');
       const urlPath = buildUrl(parentPath, pathPart);
 
+      // 提取 routeMeta
+      const metaResult = extractRouteMeta(full);
+      const metaRaw = metaResult?.raw;
+      const meta = metaResult?.value && Object.keys(metaResult.value).length > 0
+        ? metaResult.value
+        : undefined;
+
+      // 检测是否有 default 导出（有组件 = 有路由页面）
+      const hasComp = hasDefaultExport(full);
+
       if (isIndex) {
         const url = parentPath || '/';
-        routes.push({ url, file: relFile, menuName });
+
+        // 仅有 routeMeta 无 default 导出的文件不加入路由表
+        if (hasComp) {
+          routes.push({ url, file: relFile, menuName, metaRaw });
+        }
+
         if (menuRef) {
           // 直接修改父菜单，不走 push
           if (menuName) menuRef.name = menuName;
-          menuRef.path = url;
-          menuRef.hasComponent = true;
+          if (hasComp) {
+            menuRef.path = url;
+            menuRef.hasComponent = true;
+          }
+          if (meta) menuRef.meta = meta;
         } else if (menuName) {
-          menus.push({ name: menuName, path: '/', hasComponent: true, children: [] });
+          menus.push({ name: menuName, path: hasComp ? '/' : undefined, hasComponent: hasComp, children: [], meta });
         }
       } else {
-        routes.push({ url: urlPath, file: relFile, menuName });
-        if (menuName) menus.push({ name: menuName, path: urlPath, hasComponent: true });
+        if (hasComp) {
+          routes.push({ url: urlPath, file: relFile, menuName, metaRaw });
+        }
+        if (menuName || meta) {
+          menus.push({ name: menuName || pathPart, path: hasComp ? urlPath : undefined, hasComponent: hasComp, meta });
+        }
       }
     }
   }

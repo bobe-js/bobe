@@ -61,4 +61,92 @@ describe('Router', () => {
     await router.pushState('/no-such-route');
     expect(router.active?.path).toBe(current);
   });
+
+  it('should create RouteRecord with meta', () => {
+    const record = createRouteRecord({
+      component: createMockComponent('test'),
+      meta: { title: '测试', auth: true },
+    });
+    expect(record.meta).toEqual({ title: '测试', auth: true });
+  });
+
+  it('should create RouteRecord with layout', () => {
+    const LayoutComp = createMockComponent('layout');
+    const record = createRouteRecord({
+      component: createMockComponent('test'),
+      layout: LayoutComp,
+    });
+    expect(record.layout).toBe(LayoutComp);
+  });
+
+  it('should sync meta to active entry', async () => {
+    const router = new Router({
+      routes: {
+        '/': createRouteRecord({ component: createMockComponent('home'), meta: { title: '首页' } }),
+      },
+      initialPath: '/',
+    });
+    await router.ready();
+    expect(router.active?.meta).toEqual({ title: '首页' });
+  });
+
+  it('should extract layout from module named export', async () => {
+    const LayoutComp = createMockComponent('layout');
+    const PageComp = createMockComponent('page');
+
+    const router = new Router({
+      routes: {
+        '/': createRouteRecord({
+          import: () => Promise.resolve({ default: PageComp, layout: LayoutComp }),
+        }),
+      },
+      initialPath: '/',
+    });
+    await router.ready();
+    expect(router.routes['/']?.layout).toBe(LayoutComp);
+  });
+
+  it('should use module routeMeta as fallback when meta not set', async () => {
+    const PageComp = createMockComponent('page');
+
+    const router = new Router({
+      routes: {
+        '/': createRouteRecord({
+          import: () => Promise.resolve({ default: PageComp, routeMeta: { title: '来自模块' } }),
+        }),
+      },
+      initialPath: '/',
+    });
+    await router.ready();
+    expect(router.routes['/']?.meta).toEqual({ title: '来自模块' });
+  });
+
+  it('should sync layout to active entry', async () => {
+    const LayoutComp = createMockComponent('layout');
+
+    const router = new Router({
+      routes: {
+        '/': createRouteRecord({ component: createMockComponent('home'), layout: LayoutComp }),
+      },
+      initialPath: '/',
+    });
+    await router.ready();
+    expect(router.active?.layout).toBe(LayoutComp);
+  });
+
+  it('should keep explicit meta over module routeMeta fallback', async () => {
+    const PageComp = createMockComponent('page');
+
+    const router = new Router({
+      routes: {
+        '/': createRouteRecord({
+          import: () => Promise.resolve({ default: PageComp, routeMeta: { title: '来自模块' } }),
+          meta: { title: '显式设置' },
+        }),
+      },
+      initialPath: '/',
+    });
+    await router.ready();
+    expect(router.routes['/']?.meta).toEqual({ title: '显式设置' });
+  });
 });

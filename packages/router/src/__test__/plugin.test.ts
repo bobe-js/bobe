@@ -120,6 +120,107 @@ describe('scanDir', () => {
     const { routes } = scanDir(TEST_DIR);
     expect(routes[0].url).toBe('/category/product');
   });
+
+  it('should extract routeMeta from page file', () => {
+    setup(TEST_DIR, {
+      '01_home_首页.ts': "export const routeMeta = { title: '首页', auth: true };\nexport default {};",
+    });
+
+    const { routes, menus } = scanDir(TEST_DIR);
+
+    expect(routes[0].metaRaw).toBe("{ title: '首页', auth: true }");
+    expect(menus[0].meta).toEqual({ title: '首页', auth: true });
+  });
+
+  it('should handle page without routeMeta', () => {
+    setup(TEST_DIR, {
+      '01_home_首页.ts': 'export default {};',
+    });
+
+    const { routes, menus } = scanDir(TEST_DIR);
+
+    expect(routes[0].metaRaw).toBeUndefined();
+    expect(menus[0].meta).toBeUndefined();
+  });
+
+  it('should handle routeMeta with TypeScript type annotation', () => {
+    setup(TEST_DIR, {
+      '01_home_首页.ts': "export const routeMeta: RouteMeta = { title: '首页' };\nexport default {};",
+    });
+
+    const { routes } = scanDir(TEST_DIR);
+
+    expect(routes[0].metaRaw).toBe("{ title: '首页' }");
+  });
+
+  it('should extract routeMeta from .md YAML frontmatter', () => {
+    setup(TEST_DIR, {
+      '01_article_文章.md': '---\nmeta:\n  title: 文章标题\n  auth: true\n---\n# Hello',
+    });
+
+    const { routes, menus } = scanDir(TEST_DIR, TEST_DIR, '', undefined, ['js', 'ts', 'md']);
+
+    expect(routes[0].metaRaw).toBe('{"title":"文章标题","auth":true}');
+    expect(menus[0].meta).toEqual({ title: '文章标题', auth: true });
+  });
+
+  it('should handle .md without frontmatter', () => {
+    setup(TEST_DIR, {
+      '01_article_文章.md': '# Just markdown',
+    });
+
+    const { routes, menus } = scanDir(TEST_DIR, TEST_DIR, '', undefined, ['js', 'ts', 'md']);
+
+    expect(routes[0].metaRaw).toBeUndefined();
+    expect(menus[0].meta).toBeUndefined();
+  });
+
+  it('should skip route table for .ts file with only routeMeta (no default export)', () => {
+    setup(TEST_DIR, {
+      '01_meta-only_元信息.ts': "export const routeMeta = { title: '仅元信息' };",
+    });
+
+    const { routes, menus } = scanDir(TEST_DIR);
+
+    expect(routes).toHaveLength(0);
+    expect(menus).toHaveLength(1);
+    expect(menus[0].name).toBe('元信息');
+    expect(menus[0].hasComponent).toBe(false);
+    expect(menus[0].path).toBeUndefined();
+    expect(menus[0].meta).toEqual({ title: '仅元信息' });
+  });
+
+  it('should skip route table for directory index.ts with only routeMeta', () => {
+    setup(TEST_DIR, {
+      '01_articles_文章': '__DIR__',
+      '01_articles_文章/index_.ts': "export const routeMeta = { title: '文章目录', icon: 'folder' };",
+    });
+
+    const { routes, menus } = scanDir(TEST_DIR);
+
+    // 无路由（index.ts 无 default 导出）
+    expect(routes).toHaveLength(0);
+    // 目录菜单有 meta，hasComponent = false
+    expect(menus).toHaveLength(1);
+    expect(menus[0].name).toBe('文章');
+    expect(menus[0].hasComponent).toBe(false);
+    expect(menus[0].meta).toEqual({ title: '文章目录', icon: 'folder' });
+  });
+
+  it('should handle .md with only frontmatter and no content', () => {
+    setup(TEST_DIR, {
+      '01_meta_元信息.md': '---\nmeta:\n  title: 纯元信息\n---\n',
+    });
+
+    const { routes, menus } = scanDir(TEST_DIR, TEST_DIR, '', undefined, ['js', 'ts', 'md']);
+
+    // 无 markdown 内容 = 无组件 → 不入路由表
+    expect(routes).toHaveLength(0);
+    expect(menus).toHaveLength(1);
+    expect(menus[0].name).toBe('元信息');
+    expect(menus[0].hasComponent).toBe(false);
+    expect(menus[0].meta).toEqual({ title: '纯元信息' });
+  });
 });
 
 describe('generateCsrInit', () => {
@@ -148,6 +249,14 @@ describe('generateCsrInit', () => {
       "};"
     );
   });
+
+  it('should include meta when metaRaw is provided', () => {
+    const code = generateCsrInit([
+      { url: '/', file: '/pages/index.ts', metaRaw: "{ title: '首页' }" },
+    ]);
+
+    expect(code).toContain("meta: { title: '首页' }");
+  });
 });
 
 describe('generateSsgInit', () => {
@@ -157,11 +266,11 @@ describe('generateSsgInit', () => {
     ]);
 
     expect(code).toBe(
-      "import __route_0 from '/pages/index.ts';\n\n" +
+      "import * as __module_0 from '/pages/index.ts';\n\n" +
       `globalThis['${Routes}'] = {\n` +
-      "  '/': { component: __route_0 }\n" +
+      "  '/': { component: __module_0.default, layout: __module_0.layout }\n" +
       "};\n" +
-      "export const __bobe_routes = [__route_0];"
+      "export const __bobe_routes = [__module_0.default];"
     );
   });
 
@@ -170,6 +279,14 @@ describe('generateSsgInit', () => {
       { url: '/home', file: '/pages/01_home_首页.ts' },
     ]);
 
-    expect(code).toContain("import __route_0 from '/pages/01_home_首页.ts';");
+    expect(code).toContain("import * as __module_0 from '/pages/01_home_首页.ts';");
+  });
+
+  it('should include meta when metaRaw is provided', () => {
+    const code = generateSsgInit([
+      { url: '/', file: '/pages/index.ts', metaRaw: "{ title: '首页' }" },
+    ]);
+
+    expect(code).toContain("meta: { title: '首页' }");
   });
 });

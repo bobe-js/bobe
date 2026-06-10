@@ -1,6 +1,7 @@
 import type { Plugin } from 'vite';
 import type { MarkedExtension } from 'marked';
 import { marked } from 'marked';
+import matter from 'gray-matter';
 import { resolve, dirname } from 'path';
 import { FileItem, resolveImportTree } from './my-resolve';
 import hljs from 'highlight.js';
@@ -19,9 +20,21 @@ function esc(s: string): string {
 }
 
 /** 将 HTML 字符串编译为 bobe 组件模块源码 */
-function gen(html: string, headers: HeadItem[], previewEntries: string[], codeTrees: FileItem[][] = []): string {
+function gen(
+  html: string,
+  headers: HeadItem[],
+  previewEntries: string[],
+  codeTrees: FileItem[][] = [],
+  layoutPath?: string,
+  routeMeta?: Record<string, any>
+): string {
   const hasCode = codeTrees.length > 0;
   const lines = [`import { bobe, Store } from 'bobe';`];
+
+  // layout 组件导入
+  if (layoutPath) {
+    lines.push(`import __layout from '${layoutPath}';`);
+  }
 
   if (hasCode) {
     lines.push(`import Code from 'bobe-dom/plugin-markdown/code';`);
@@ -63,6 +76,12 @@ function gen(html: string, headers: HeadItem[], previewEntries: string[], codeTr
   lines.push(`    \`;`);
   lines.push(`}`);
   lines.push(`export default Markdown;`);
+  if (layoutPath) {
+    lines.push(`export { __layout as layout };`);
+  }
+  if (routeMeta) {
+    lines.push(`export const routeMeta = ${JSON.stringify(routeMeta)};`);
+  }
   return lines.join('\n');
 }
 
@@ -118,7 +137,19 @@ export default function markdownPlugin(opt: MarkdownPluginOptions = {}): Plugin 
       if (!id.match(/\.mdx?$/)) return;
       headers = [];
       try {
-        const html = marked.parse(code) as string;
+        // 解析 YAML frontmatter
+        const { data, content: mdContent } = matter(code);
+
+        // 提取 routeMeta
+        const routeMeta = data.meta as Record<string, any> | undefined;
+
+        // 提取 layout 路径（相对于 .md 文件）
+        let layoutPath: string | undefined;
+        if (data.layout && typeof data.layout === 'string') {
+          layoutPath = data.layout;
+        }
+
+        const html = marked.parse(mdContent) as string;
 
         // 匹配 <code src="xxx.ts"> → <div id="code-N">
         const codeTags: string[] = [];
@@ -138,7 +169,7 @@ export default function markdownPlugin(opt: MarkdownPluginOptions = {}): Plugin 
           codeTags.map(tag => resolveImportTree(resolve(fileDir, tag), id, this.resolve.bind(this)))
         );
 
-        return { code: gen(finalHtml, headers, previewEntries, codeTrees), moduleSideEffects: false };
+        return { code: gen(finalHtml, headers, previewEntries, codeTrees, layoutPath, routeMeta), moduleSideEffects: false };
       } catch (e: any) {
         this.error(`[bobe-markdown] 解析失败: ${id}\n${e.message}`);
       }
