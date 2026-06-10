@@ -1,3 +1,8 @@
+---
+meta:
+  title: 文章
+layout: '../layout/my-layout'
+---
 # 标题一级
 
 ## 标题二级

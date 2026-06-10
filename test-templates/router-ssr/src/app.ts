@@ -1,13 +1,14 @@
 import { bobe, Store } from "bobe";
 import { router } from "./router";
-import MenuComp from "./components/menu";
+import Layout from "./layout/default";
+import { NotFound } from "./components/not-found";
 
 export class App extends Store {
   router = (globalThis as any).__SSR_ROUTER__ || router;
+  defaultLayout = Layout;
+  notFound = NotFound;
   ui = bobe`
-    div
-      ${MenuComp} name="导航" menus={router.menus}
-      div
-        {router.active.component} showAside=true
+    {router.active?.layout || defaultLayout} menus={router.menus}
+      {router.active?.component || notFound}        
   `;
 }
