@@ -9,8 +9,8 @@
     "preview": "cross-env NODE_ENV=production node server.js"
   },
   "dependencies": {
-    "bobe-router": "workspace:*",
+    "bobe": "workspace:*",
     "bobe-dom": "workspace:*",
-    "bobe": "workspace:*"
+    "bobe-router": "workspace:*"
   }
 }
