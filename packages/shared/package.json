@@ -16,6 +16,14 @@
   "files": [
     "dist"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/bobe-shared.esm.js",
+      "require": "./dist/bobe-shared.cjs.js",
+      "default": "./dist/index.umd.js"
+    }
+  },
   "license": "MIT",
   "keywords": [
     "bobe-shared",

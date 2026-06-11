@@ -19,6 +19,14 @@
   "files": [
     "dist"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/aoye.esm.js",
+      "require": "./dist/aoye.cjs.js",
+      "default": "./dist/index.umd.js"
+    }
+  },
   "license": "MIT",
   "keywords": [
     "aoye",

@@ -349,6 +349,9 @@ export class Interpreter {
         //   this.onePropParsed(data, _node, 'text', str, valueIsMapKey, false);
         // }
       }
+    } else if(this.tokenizer.token.type === TokenType.String) {
+      _node = this.createNode('text');
+      this.setProp(_node, 'text', String(value));
     } else {
       _node = this.createNode(value);
     }

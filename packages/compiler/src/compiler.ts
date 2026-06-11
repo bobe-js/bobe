@@ -127,7 +127,7 @@ export class Compiler {
     if (value === 'for') {
       return this.parseLoopNode();
     }
-    if (hookType) {
+    if (hookType || this.tokenizer.token.type & TokenType.String) {
       return this.parseComponentNode();
     }
     // 解析普通元素节点

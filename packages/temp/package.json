@@ -16,6 +16,14 @@
   "files": [
     "dist"
   ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/__name__.esm.js",
+      "require": "./dist/__name__.cjs.js",
+      "default": "./dist/index.umd.js"
+    }
+  },
   "license": "MIT",
   "keywords": [
     "__name__",
