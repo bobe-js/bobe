@@ -1,16 +1,19 @@
 import { bobe, Store } from 'bobe';
 import type { Menu } from 'bobe-router';
+import styles from './menu.module.scss';
 
 class MenuItem extends Store {
   item!: Menu;
+  styles = styles;
+
   ui = bobe`
-    li
+    li class={styles.item}
       if item.hasComponent
         a href={item.path} text={item.name}
       else
         span text={item.name}
       if item.children && item.children.length > 0
-        ul
+        ul class={styles.list}
           for item.children; child
             ${MenuItem} item={child}
   `;
@@ -19,10 +22,12 @@ class MenuItem extends Store {
 class MenuComp extends Store {
   name!: string;
   menus!: Menu[];
+  styles = styles;
+
   ui = bobe`
-    nav
-      h3 text={name}
-      ul
+    nav class={styles.nav}
+      h3 class={styles.title} text={name}
+      ul class={styles.list}
         for menus; item
           ${MenuItem} item={item}
   `;

@@ -1,0 +1,109 @@
+.drop-down {
+  position: relative;
+  display: inline-block;
+
+  // 填补按钮与菜单之间的间隙，防止鼠标穿过时触发 mouseleave
+  &::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 4px;
+  }
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--md-bg);
+  border: 1px solid var(--md-border);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--md-text);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+
+  &:hover {
+    border-color: var(--md-accent-focus);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--md-accent-focus);
+    outline-offset: -1px;
+  }
+
+  &::after {
+    content: '';
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid var(--md-text-muted);
+    transition: transform 0.15s;
+  }
+
+  &.borderless {
+    border-color: transparent;
+
+    &:hover {
+      border-color: transparent;
+    }
+
+    &.dimmed {
+      color: var(--md-text-muted);
+    }
+  }
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  min-width: 100%;
+  padding: 4px 0;
+  margin: 0;
+  list-style: none;
+  background: var(--md-bg);
+  border: 1px solid var(--md-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s, visibility 0.15s;
+
+  &.open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
+.item {
+  display: block;
+  padding: 8px 16px;
+  font-size: 14px;
+  color: var(--md-text);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.1s;
+
+  &:hover {
+    background-color: var(--md-bg-secondary);
+  }
+
+  &.disabled {
+    color: var(--md-text-muted);
+    cursor: not-allowed;
+
+    &:hover {
+      background-color: transparent;
+    }
+  }
+}
