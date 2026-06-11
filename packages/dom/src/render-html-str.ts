@@ -96,6 +96,16 @@ const setProp = (node: Text | Element, key: string, value: any) => {
   }
 
   // 2. class — 对齐 Browser：支持对象/字符串/null
+  if (key.startsWith('.')) {
+    if (value) ctx.root.value += ` class="${escapeAttr(key.slice(1))}"`;
+    return;
+  }
+
+  if (key.startsWith('#')) {
+    if (value) ctx.root.value += ` id="${escapeAttr(key.slice(1))}"`;
+    return;
+  }
+
   if (key === 'class') {
     if (value == null) return;
     let classStr: string;

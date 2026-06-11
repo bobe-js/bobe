@@ -66,6 +66,17 @@ export const setProp = (node: Node, key: string, value: any): (() => void) | und
   }
 
   // 2. class
+  if (key.startsWith('.')) {
+    el.classList.toggle(key.slice(1), !!value);
+    return;
+  }
+
+  if (key.startsWith('#')) {
+    if (value) el.id = key.slice(1);
+    else el.removeAttribute('id');
+    return;
+  }
+
   if (key === 'class') {
     if (value == null) {
       el.className = '';

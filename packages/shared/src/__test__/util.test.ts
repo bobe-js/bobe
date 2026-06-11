@@ -179,7 +179,7 @@ describe('matchIdStart2', () => {
 
   it('通过索引匹配非标识符起始字符', () => {
     expect(matchIdStart2('-abc', 0)).toBe(false);
-    expect(matchIdStart2('.abc', 0)).toBe(false);
+    expect(matchIdStart2('.abc', 0)).toBe(true);
   });
 
   it('使用非零索引匹配', () => {

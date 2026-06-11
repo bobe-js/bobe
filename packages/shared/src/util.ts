@@ -198,8 +198,11 @@ export const matchIdStart = (char: string) => {
 
 // 提前创建一个长度为 128 的布尔映射数组
 const idStartMask = new Uint8Array(128);
-[36, 47, 95].forEach(c => (idStartMask[c] = 1)); // $, /, _
-for (let i = 48; i <= 57; i++) idStartMask[i] = 1; // 0-9
+// #, $, _
+idStartMask[35] = 1;
+idStartMask[36] = 1;
+idStartMask[95] = 1;
+for (let i = 46; i <= 57; i++) idStartMask[i] = 1; // .  /  0-9
 for (let i = 65; i <= 90; i++) idStartMask[i] = 1; // A-Z
 for (let i = 97; i <= 122; i++) idStartMask[i] = 1; // a-z
 

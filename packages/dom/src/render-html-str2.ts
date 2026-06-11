@@ -143,6 +143,9 @@ export function walkFiber(root: SSRFiber) {
       point.html = `<${point.type}`;
       const props = point.props;
       let text;
+      let classStr = '';
+      const dotClasses: string[] = [];
+      let idValue: string | null = null;
 
       for (const key in props) {
         const value = props[key];
@@ -155,9 +158,18 @@ export function walkFiber(root: SSRFiber) {
           text = value;
           continue;
         }
+        // .xxx — class toggle，收集后与 class 合并
+        if (key.startsWith('.')) {
+          if (value) dotClasses.push(key.slice(1));
+          continue;
+        }
+        // #xxx — id toggle
+        if (key.startsWith('#')) {
+          if (value) idValue = key.slice(1);
+          continue;
+        }
         if (key === 'class') {
           if (value == null) continue;
-          let classStr: string;
           if (typeof value === 'object' && !Array.isArray(value)) {
             classStr = Object.entries(value as Record<string, any>)
               .filter(([, v]) => !!v)
@@ -165,9 +177,6 @@ export function walkFiber(root: SSRFiber) {
               .join(' ');
           } else {
             classStr = typeof value === 'boolean' ? (value ? 'true' : '') : String(value);
-          }
-          if (classStr) {
-            point.html += ` class="${escapeAttr(classStr)}"`;
           }
           continue;
         }
@@ -192,6 +201,17 @@ export function walkFiber(root: SSRFiber) {
         // 6. 其余属性 — 对齐 Browser：null 时不输出
         if (value == null) continue;
         point.html += ` ${key}="${escapeAttr(value)}"`;
+      }
+      // 合并 .xxx 类名到 class
+      if (dotClasses.length) {
+        classStr = (classStr ? classStr + ' ' : '') + dotClasses.join(' ');
+      }
+      if (classStr) {
+        point.html += ` class="${escapeAttr(classStr)}"`;
+      }
+      // 输出 #xxx 设置的 id
+      if (idValue) {
+        point.html += ` id="${escapeAttr(idValue)}"`;
       }
       // 纯 text（无 html children）→ 内联文本，闭合标签，不下沉
       if (text != null && props.html == null) {
