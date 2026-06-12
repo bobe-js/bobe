@@ -19,7 +19,8 @@ import {
   ParseSyntaxError,
   SourceLocation,
   BaseTokenType,
-  ValueTokenType
+  ValueTokenType,
+  ChildrenSugarType
 } from './type';
 
 export class Compiler {
@@ -172,9 +173,9 @@ export class Compiler {
         node
       );
       // 跳到下一个 NewLine 恢复
-      while (!(this.tokenizer.token.type & TokenType.NewLine) && !this.tokenizer.isEof()) {
+      do {
         this.tokenizer.nextToken();
-      }
+      } while (!(this.tokenizer.token.type & TokenType.NewLine) && !this.tokenizer.isEof());
       return null;
     }
     // 获取标签名
@@ -357,6 +358,19 @@ export class Compiler {
   @NodeHook
   parseProperty(node?: Property) {
     node.type = NodeType.Property;
+    // children 语法糖：字符串 | 静态插值 | 动态插值
+    if (this.tokenizer.token.type & ChildrenSugarType) {
+      node.key = {
+        type: NodeType.PropertyKey,
+        key: 'children',
+        loc: this.tokenizer.token.loc ?? this.tokenizer.emptyLoc()
+      } as PropertyKeyNode;
+      node.value = this.parseJsExp();
+      this.tokenizer.nextToken(); // 跳过 value token
+      this.handleKeyValueLoc(node);
+      return node;
+    }
+
     if (this.tokenizer.token.type !== TokenType.Identifier) {
       this.addError(
         ParseErrorCode.INVALID_PROP_KEY,

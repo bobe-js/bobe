@@ -23,7 +23,9 @@ export enum TokenType {
   Comment = 0b0000_0000_0000_0000_1000_0000_0000_0000
 }
 
-export const ChildrenSugarType = TokenType.String | TokenType.InsertionExp;
+export const ChildrenSugarType = __IS_COMPILER__
+  ? TokenType.String | TokenType.InsertionExp | TokenType.StaticInsExp
+  : TokenType.String | TokenType.InsertionExp;
 
 export const BaseTokenType =
   TokenType.String | TokenType.Number | TokenType.Boolean | TokenType.Null | TokenType.Undefined;
@@ -305,7 +307,7 @@ export type ComponentNode = LogicNode & {
 };
 export type RootNode = LogicNode & {};
 
-export type Dep =(() => any) | string;
+export type Dep = (() => any) | string;
 
 export const isDep = (target: unknown): target is Dep =>
   target &&
