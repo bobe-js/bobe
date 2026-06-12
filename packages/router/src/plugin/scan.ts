@@ -151,8 +151,9 @@ export function scanDir(
   absDir: string,
   basePath = absDir,
   parentPath = '',
-  menuRef?: Menu,
-  extensions: string[] = DEFAULT_EXTENSIONS
+  parentMenu?: Menu,
+  extensions: string[] = DEFAULT_EXTENSIONS,
+  nearestRef: { value?: { name: string; path: string } } = {}
 ): { routes: ScanItem[]; menus: Menu[] } {
   const routes: ScanItem[] = [];
   const menus: Menu[] = [];
@@ -173,16 +174,23 @@ export function scanDir(
     if (!parsed) continue;
 
     const { pathPart, menuName } = parsed;
+    const handledName = menuName || pathPart;
 
     if (ent.isDirectory()) {
       const urlPath = buildUrl(parentPath, pathPart);
       const menu: Menu = {
         name: menuName || pathPart,
         hasComponent: false,
+        path: urlPath,
         children: []
       };
-      const child = scanDir(full, basePath, urlPath, menu, extensions);
+      const child = scanDir(full, basePath, urlPath, menu, extensions, nearestRef);
       routes.push(...child.routes);
+      // 自身有, 父级还没有就给父级赋值
+      if (menu.nearestFile &&  parentMenu && !parentMenu.nearestFile) {
+        parentMenu.nearestFile = menu.nearestFile;
+      }
+
       menu.children = child.menus;
       menus.push(menu);
     } else if (ent.isFile()) {
@@ -193,9 +201,7 @@ export function scanDir(
       // 提取 routeMeta
       const metaResult = extractRouteMeta(full);
       const metaRaw = metaResult?.raw;
-      const meta = metaResult?.value && Object.keys(metaResult.value).length > 0
-        ? metaResult.value
-        : undefined;
+      const meta = metaResult?.value && Object.keys(metaResult.value).length > 0 ? metaResult.value : undefined;
 
       // 检测是否有 default 导出（有组件 = 有路由页面）
       const hasComp = hasDefaultExport(full);
@@ -208,23 +214,44 @@ export function scanDir(
           routes.push({ url, file: relFile, menuName, metaRaw });
         }
 
-        if (menuRef) {
+        if (parentMenu) {
           // 直接修改父菜单，不走 push
-          if (menuName) menuRef.name = menuName;
+          if (menuName) parentMenu.name = menuName;
           if (hasComp) {
-            menuRef.path = url;
-            menuRef.hasComponent = true;
+            parentMenu.path = url;
+            parentMenu.hasComponent = true;
+            parentMenu.nearestFile = { name: handledName, path: url };
           }
-          if (meta) menuRef.meta = meta;
-        } else if (menuName) {
-          menus.push({ name: menuName, path: hasComp ? '/' : undefined, hasComponent: hasComp, children: [], meta });
+          if (meta) parentMenu.meta = meta;
         }
-      } else {
+        // 首页
+        else if (menuName) {
+          menus.push({
+            name: menuName,
+            path: hasComp ? '/' : undefined,
+            hasComponent: hasComp,
+            children: [],
+            meta,
+            nearestFile: hasComp ? { name: menuName, path: '/' } : undefined
+          });
+        }
+      }
+      // 非 index
+      else {
         if (hasComp) {
           routes.push({ url: urlPath, file: relFile, menuName, metaRaw });
+          if (parentMenu && !parentMenu.nearestFile) {
+            parentMenu.nearestFile = { name: handledName, path: urlPath };
+          }
         }
         if (menuName || meta) {
-          menus.push({ name: menuName || pathPart, path: hasComp ? urlPath : undefined, hasComponent: hasComp, meta });
+          menus.push({
+            name: menuName || pathPart,
+            path: hasComp ? urlPath : undefined,
+            hasComponent: hasComp,
+            meta,
+            nearestFile: hasComp ? { name: handledName, path: urlPath } : undefined
+          });
         }
       }
     }

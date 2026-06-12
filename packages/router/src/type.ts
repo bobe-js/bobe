@@ -53,6 +53,11 @@ export type Menu = {
   children?: Menu[];
   /** 路由元信息（从 index 文件的 export const routeMeta 提取） */
   meta?: Record<string, any>;
+  /** 离本目录最近的、有组件的子孙文件（目录自身有 index 组件时指向自身） */
+  nearestFile?: {
+    name: string;
+    path: string;
+  };
 };
 
 /** 路由匹配结果 */
