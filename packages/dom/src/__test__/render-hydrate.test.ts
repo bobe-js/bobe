@@ -25,7 +25,7 @@ const tick = () => new Promise(r => queueMicrotask(() => r(1)));
 describe('hydrate — node identity (TreeCursor matching)', () => {
   it('should reuse existing element node', () => {
     class App extends Store {
-      ui = bobe`div text="hello"`;
+      ui = bobe`div children="hello"`;
     }
     const { html } = renderHtmlStr(App as any);
     document.body.innerHTML = html;
@@ -42,8 +42,8 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
     class App extends Store {
       ui = bobe`
         div
-          h1 text="Title"
-          p text="Paragraph"
+          h1 children="Title"
+          p children="Paragraph"
       `;
     }
     const { html } = renderHtmlStr(App as any);
@@ -64,7 +64,7 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
       ui = bobe`
         div
           if show
-            span text="visible"
+            span children="visible"
       `;
     }
     const { html } = renderHtmlStr(App as any);
@@ -87,7 +87,7 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
       ui = bobe`
         ul
           for items; item i
-            li text={item}
+            li children={item}
       `;
     }
     const { html } = renderHtmlStr(App as any);
@@ -108,7 +108,7 @@ describe('hydrate — node identity (TreeCursor matching)', () => {
 describe('hydrate — basic elements', () => {
   it('should hydrate a simple div with text', () => {
     class App extends Store {
-      ui = bobe`div text="hello"`;
+      ui = bobe`div children="hello"`;
     }
     const root = renderAndHydrate(App);
     expect(root.outerHTML).toBe('<div>hello</div>');
@@ -118,8 +118,8 @@ describe('hydrate — basic elements', () => {
     class App extends Store {
       ui = bobe`
         div
-          h1 text="Title"
-          p text="Paragraph"
+          h1 children="Title"
+          p children="Paragraph"
       `;
     }
     const root = renderAndHydrate(App);
@@ -133,7 +133,7 @@ describe('hydrate — event binding', () => {
     let clicked = false;
     class App extends Store {
       handleClick = () => { clicked = true; };
-      ui = bobe`div\n  button onclick={handleClick} text="click me"`;
+      ui = bobe`div\n  button onclick={handleClick} children="click me"`;
     }
     const root = renderAndHydrate(App);
     (root.querySelector('button') as HTMLButtonElement).click();
@@ -148,7 +148,7 @@ describe('hydrate — conditional rendering', () => {
       ui = bobe`
         div
           if show
-            span text="visible"
+            span children="visible"
       `;
     }
     const root = renderAndHydrate(App);
@@ -161,7 +161,7 @@ describe('hydrate — conditional rendering', () => {
       ui = bobe`
         div
           if show
-            span text="hidden"
+            span children="hidden"
       `;
     }
     const root = renderAndHydrate(App);
@@ -176,7 +176,7 @@ describe('hydrate — for loop', () => {
       ui = bobe`
         ul
           for items; item i
-            li text={item}
+            li children={item}
       `;
     }
     const root = renderAndHydrate(App);
@@ -191,7 +191,7 @@ describe('hydrate — for loop', () => {
 describe('hydrate — component rendering', () => {
   it('should hydrate child component', () => {
     class Child extends Store {
-      ui = bobe`span text="child"`;
+      ui = bobe`span children="child"`;
     }
     class Parent extends Store {
       ui = bobe`
@@ -207,7 +207,7 @@ describe('hydrate — component rendering', () => {
 describe('hydrate — context node', () => {
   it('should hydrate context provider with children', () => {
     class Child extends Store {
-      ui = bobe`span text="child"`;
+      ui = bobe`span children="child"`;
     }
     class App extends Store {
       ui = bobe`
@@ -225,7 +225,7 @@ describe('hydrate — attributes', () => {
   it('should hydrate class attribute', () => {
     class App extends Store {
       cls = 'active';
-      ui = bobe`div class={cls} text="hi"`;
+      ui = bobe`div class={cls} children="hi"`;
     }
     const root = renderAndHydrate(App);
     expect((root as Element).className).toBe('active');
@@ -233,7 +233,7 @@ describe('hydrate — attributes', () => {
 
   it('should hydrate style attribute', () => {
     class App extends Store {
-      ui = bobe`div style="color: red" text="hi"`;
+      ui = bobe`div style="color: red" children="hi"`;
     }
     const root = renderAndHydrate(App);
     expect((root as HTMLElement).style.color).toBe('red');
@@ -245,8 +245,8 @@ describe('hydrate — text/html conflict', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     class App extends Store {
       ui = bobe`
-        div text="content"
-          span text="child"
+        div children="content"
+          span children="child"
       `;
     }
     const root = renderAndHydrate(App);
@@ -261,7 +261,7 @@ describe('hydrate — reactive updates', () => {
   it('should update text when reactive value changes', async () => {
     class App extends Store {
       name = 'Alice';
-      ui = bobe`div\n  span text={name}`;
+      ui = bobe`div\n  span children={name}`;
     }
     const { root, store } = mountHydrate(App);
     expect(root.querySelector('span')!.textContent).toBe('Alice');
@@ -274,7 +274,7 @@ describe('hydrate — reactive updates', () => {
   it('should update attribute when reactive value changes', async () => {
     class App extends Store {
       cls = 'btn-primary';
-      ui = bobe`div\n  button class={cls} text="Submit"`;
+      ui = bobe`div\n  button class={cls} children="Submit"`;
     }
     const { root, store } = mountHydrate(App);
     expect(root.querySelector('button')!.className).toBe('btn-primary');
@@ -290,7 +290,7 @@ describe('hydrate — reactive updates', () => {
       ui = bobe`
         div
           if show
-            span text="visible"
+            span children="visible"
       `;
     }
     const { root, store } = mountHydrate(App);
@@ -309,8 +309,8 @@ describe('hydrate — reactive updates', () => {
         div
           ul
             for items; item i
-              li text={item}
-          button onclick={add} text="add"
+              li children={item}
+          button onclick={add} children="add"
       `;
     }
     const { root } = mountHydrate(App);

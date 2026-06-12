@@ -11,7 +11,14 @@
       "aoye": "../../compiler/node_modules/aoye/dist/aoye.esm.js",
       "bobe-shared": "../../compiler/node_modules/bobe-shared/dist/bobe-shared.esm.js",
       "bobe": "../../compiler/dist/bobe.esm.js",
-      "bobe-dom": "../dist/bobe-dom.esm.js"
+      "bobe-dom": "../dist/bobe-dom.esm.js",
+      "htmlparser2": "../node_modules/htmlparser2/dist/index.js",
+      "domhandler": "../../../node_modules/.pnpm/domhandler@6.0.1/node_modules/domhandler/dist/index.js",
+      "domelementtype": "../../../node_modules/.pnpm/domelementtype@3.0.0/node_modules/domelementtype/dist/index.js",
+      "domutils": "../../../node_modules/.pnpm/domutils@4.0.2/node_modules/domutils/dist/index.js",
+      "entities": "../../../node_modules/.pnpm/entities@8.0.0/node_modules/entities/dist/index.js",
+      "entities/decode": "../../../node_modules/.pnpm/entities@8.0.0/node_modules/entities/dist/decode.js",
+      "entities/escape": "../../../node_modules/.pnpm/entities@8.0.0/node_modules/entities/dist/escape.js"
     }
   }
   </script>
@@ -65,8 +72,8 @@
       ui = bobe`
         div
           div html={htm}
-          h2 id='shower' text={'计数: ' + count}
-          button onclick={add} text="+1"
+          h2 id='shower' {'计数: ' + count}
+          button onclick={add} "+1"
       `;
     }
     mountHydrate(CounterApp, 'app1');
@@ -77,11 +84,11 @@
       toggle = () => { this.show = !this.show; };
       ui = bobe`
         div
-          button onclick={toggle} text={'切换 show=' + show}
+          button onclick={toggle} {'切换 show=' + show}
           if show
-            p style="color: blue" text="✅ 可见内容"
+            p style="color: blue" "✅ 可见内容"
           else
-            p style="color: gray" text="❌ 隐藏状态"
+            p style="color: gray" "❌ 隐藏状态"
       `;
     }
     mountHydrate(IfApp, 'app2');
@@ -99,12 +106,12 @@
       };
       ui = bobe`
         div
-          h2 text="水果列表"
+          h2 "水果列表"
           input value={value} oninput={oninput} placeholder="输入新水果"
-          button onclick={addItem} text="添加"
+          button onclick={addItem} "添加"
           ul
             for items; item i
-              li text={item}
+              li {item}
       `;
     }
     mountHydrate(ForApp, 'app3');

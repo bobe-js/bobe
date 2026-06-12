@@ -33,9 +33,9 @@ class Code extends Store {
     div ref={fullBlock} class={isFull ? "code-block-full code-block-full-active" : "code-block-full"}  
     tp node={blockTarget}   
       div class="code-tabs"
-        button class="full-button" onclick={toggleFull} text={isFull ? '收起' : '全屏'}
+        button class="full-button" onclick={toggleFull} children={isFull ? '收起' : '全屏'}
         for files; file i; file.path
-          button class={activeIndex === i ? 'code-tab code-tab-active' : 'code-tab'} onclick={() => switchTab(i)} text={file.name}
+          button class={activeIndex === i ? 'code-tab code-tab-active' : 'code-tab'} onclick={() => switchTab(i)} children={file.name}
       div ref={normalPreview} class="code-panel-preview"
         pre class="code-panel" 
           code class="hljs" html={activeFile.html}

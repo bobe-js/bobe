@@ -2,7 +2,7 @@
   "name": "bobe-shared",
   "version": "0.0.67",
   "type": "module",
-  "main": "dist/bobe-shared.cjs.js",
+  "main": "dist/bobe-shared.cjs",
   "module": "dist/bobe-shared.esm.js",
   "browser": "dist/bobe-shared.umd.js",
   "types": "dist/index.d.ts",
@@ -20,7 +20,7 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/bobe-shared.esm.js",
-      "require": "./dist/bobe-shared.cjs.js",
+      "require": "./dist/bobe-shared.cjs",
       "default": "./dist/index.umd.js"
     }
   },

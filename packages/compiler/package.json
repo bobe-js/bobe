@@ -2,7 +2,7 @@
   "name": "bobe",
   "version": "0.0.67",
   "type": "module",
-  "main": "dist/bobe.cjs.js",
+  "main": "dist/bobe.cjs",
   "module": "dist/bobe.esm.js",
   "browser": "dist/bobe.umd.js",
   "types": "dist/index.d.ts",
@@ -24,13 +24,13 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/bobe.esm.js",
-      "require": "./dist/bobe.cjs.js",
+      "require": "./dist/bobe.cjs",
       "default": "./dist/index.umd.js"
     },
     "./compiler": {
       "types": "./dist/index.d.ts",
       "import": "./dist/bobe.compiler.esm.js",
-      "require": "./dist/bobe.compiler.cjs.js"
+      "require": "./dist/bobe.compiler.cjs"
     }
   },
   "license": "MIT",

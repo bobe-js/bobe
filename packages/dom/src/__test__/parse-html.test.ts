@@ -114,18 +114,18 @@ describe('parseHtmlToFibers', () => {
     const p = root.child!;
     expect(p.child).not.toBeNull();
     expect(p.child!.type).toBe('text');
-    expect(p.child!.props.text).toBe('hello world');
+    expect(p.child!.props.children).toBe('hello world');
   });
 
   it('应处理元素和文本混合', () => {
     const root = parse('<p>before<em>inner</em>after</p>');
     const p = root.child!;
     expect(p.child!.type).toBe('text');
-    expect(p.child!.props.text).toBe('before');
+    expect(p.child!.props.children).toBe('before');
     expect(p.child!.next!.type).toBe('em');
-    expect(p.child!.next!.child!.props.text).toBe('inner');
+    expect(p.child!.next!.child!.props.children).toBe('inner');
     expect(p.child!.next!.next!.type).toBe('text');
-    expect(p.child!.next!.next!.props.text).toBe('after');
+    expect(p.child!.next!.next!.props.children).toBe('after');
   });
 
   it('应保留空白文本', () => {

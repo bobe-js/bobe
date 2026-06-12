@@ -31,7 +31,7 @@
       return document.createElement(name);
     },
     setProp (node, key, value, hookI) {
-      if (key === 'text') {
+      if (key === 'children') {
         node.textContent = value;
       } else if (key.startsWith('on')) {
         const evtName = key.slice(2);
@@ -76,18 +76,18 @@
     }
     ui = bobe`
       div style="font-family: sans-serif; max-width: 600px; margin: 40px auto;"
-        h1 text="hello world"
+        h1 "hello world"
         div onclick={() => switch1('top')} style="border: 1px solid black; margin-bottom: 10px;"
-          div text="上路"
+          div "上路"
           div ref={top}
         div onclick={() => switch1('mid')} style="border: 1px solid black; margin-bottom: 10px;"
-          div text="中路"
+          div "中路"
           div ref={mid}
         div onclick={() => switch1('bottom')} style="border: 1px solid black; margin-bottom: 10px;"
-          div text="下路"
+          div "下路"
           div ref={bottom}
         tp node={tpTarget}
-          div text="abc"
+          div "abc"
     `;
   }
   class App2 extends Store {
@@ -95,11 +95,11 @@
     show = true;
     ui = bobe`
       div style="font-family: sans-serif; max-width: 600px; margin: 40px auto;"
-        button onclick={() => show = !show} text="toggle"
+        button onclick={() => show = !show} "toggle"
         if show
           div ref={tpTarget}
         tp node={tpTarget}
-          div text="abc"
+          div "abc"
     `;
   }
 

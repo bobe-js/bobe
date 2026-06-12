@@ -2,7 +2,7 @@
   "name": "bobe-dom",
   "version": "0.0.67",
   "type": "module",
-  "main": "dist/bobe-dom.cjs.js",
+  "main": "dist/bobe-dom.cjs",
   "module": "dist/bobe-dom.esm.js",
   "browser": "dist/bobe-dom.umd.js",
   "types": "dist/index.d.ts",
@@ -21,20 +21,24 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/bobe-dom.esm.js",
-      "require": "./dist/bobe-dom.cjs.js"
+      "require": "./dist/bobe-dom.cjs"
     },
     "./plugin-markdown": {
       "types": "./dist/markdown.d.ts",
       "import": "./dist/markdown.esm.js",
-      "require": "./dist/markdown.cjs.js"
+      "require": "./dist/markdown.cjs"
     },
     "./plugin-markdown/code": {
       "types": "./dist/code.d.ts",
       "import": "./dist/code.esm.js",
-      "require": "./dist/code.cjs.js"
+      "require": "./dist/code.cjs"
     },
     "./plugin-markdown/index.css": "./dist/index.css",
-    "./plugin-markdown/code.css": "./dist/code.css"
+    "./plugin-markdown/code.css": "./dist/code.css",
+    "./ssr": {
+      "import": "./dist/ssr-index.esm.js",
+      "require": "./dist/ssr-index.cjs"
+    }
   },
   "scripts": {
     "build": "rm -rf ./dist && rollup -c",

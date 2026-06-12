@@ -13,7 +13,7 @@ describe('createNode', () => {
   });
 
   it('should create SVG elements with SVG namespace', () => {
-    // 注意：'text' 是 bobe 的保留字（TextNode），不在 SVG_TAGS 中
+    // 注意：'children' 是 bobe 的保留字（TextNode），不在 SVG_TAGS 中
     for (const tag of ['svg', 'circle', 'rect', 'path', 'g', 'line', 'polygon', 'tspan']) {
       const node = createNode(tag) as Element;
       // jsdom 中 namespaceURI 可能返回 null，用 class setAttribute 行为验证（下面 setProp 测试单独覆盖）
@@ -39,9 +39,9 @@ describe('setProp', () => {
 
   beforeEach(() => { el = document.createElement('div'); });
 
-  describe('text', () => {
+  describe('children', () => {
     it('should set textContent', () => {
-      setProp(el, 'text', 'hello');
+      setProp(el, 'children', 'hello');
       expect(el.textContent).toBe('hello');
     });
   });

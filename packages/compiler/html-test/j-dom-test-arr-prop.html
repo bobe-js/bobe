@@ -36,7 +36,7 @@
       return document.createElement(name);
     },
     setProp (node, key, value, hookI) {
-      if (key === 'text') {
+      if (key === 'children') {
         node.textContent = value;
       } else if (key.startsWith('on')) {
         const evtName = key.slice(2);
@@ -84,7 +84,7 @@
     ui = bobe`
       div
         for list; item i ; item.id
-          div class={activeI === i ? 'active' : ''} onclick={() => switchI(i)} text={item.name}
+          div class={activeI === i ? 'active' : ''} onclick={() => switchI(i)} {item.name}
     `;
   }
   

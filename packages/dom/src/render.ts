@@ -50,8 +50,8 @@ export const CONTENT_FLAG = Symbol('hasContent');
 export const setProp = (node: Node, key: string, value: any): (() => void) | undefined => {
   const el = node as HTMLElement;
 
-  // 0. text
-  if (key === 'text') {
+  // 0. children
+  if (key === 'children') {
     (node as any)[CONTENT_FLAG] = value != null;
     if (value == null) return;
     node.textContent = value;

@@ -283,8 +283,8 @@ describe('Interpreter 纯单元测试', () => {
 
     it('默认写入 node.props', () => {
       const node: any = { props: {} };
-      t.setProp(node, 'text', 'hello');
-      expect(node.props['text']).toBe('hello');
+      t.setProp(node, 'children', 'hello');
+      expect(node.props['children']).toBe('hello');
     });
   });
 
@@ -438,7 +438,7 @@ describe('集成测试 — 基本渲染', () => {
       name = 'hello';
       ui = bobe`
         div
-          span text={name}
+          span children={name}
       `;
     }
     const { render, root } = setupMock();
@@ -448,14 +448,14 @@ describe('集成测试 — 基本渲染', () => {
     expect(div).toBeDefined();
     const span = div.children.find((c: any) => c.tag === 'span');
     expect(span).toBeDefined();
-    // text={name} sets textContent, not props.text
+    // children={name} sets textContent, not props.children
     expect(span.t).toBe('hello');
   });
 
   it('渲染静态组件 ${Comp}', () => {
     class Sub extends Store {
       msg = 'sub';
-      ui = bobe` p text={msg} `;
+      ui = bobe` p children={msg} `;
     }
     class App extends Store {
       ui = bobe`
@@ -473,6 +473,89 @@ describe('集成测试 — 基本渲染', () => {
   });
 });
 
+describe('集成测试 — children 语法糖', () => {
+  it('字符串字面量作为 children: div "hello"', () => {
+    class App extends Store {
+      ui = bobe`div "hello"`;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    expect(tree.tag).toBe('root');
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    expect(div).toBeDefined();
+    expect(div.t).toBe('hello');
+  });
+
+  it('模板插值作为 children: div ${name}', () => {
+    class App extends Store {
+      name = 'world';
+      ui = bobe`div ${this.name}`;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    expect(div).toBeDefined();
+    expect(div.t).toBe('world');
+  });
+
+  it('动态表达式作为 children: span {name}', () => {
+    class App extends Store {
+      name = 'bobe';
+      ui = bobe`span {name}`;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const span = tree.children.find((c: any) => c.tag === 'span');
+    expect(span).toBeDefined();
+    expect(span.t).toBe('bobe');
+  });
+
+  it('children 语法糖与 class 属性混用', () => {
+    class App extends Store {
+      msg = 'hi';
+      ui = bobe`div "hello" class={msg}`;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    expect(div).toBeDefined();
+    expect(div.t).toBe('hello');
+    expect(div.props.class).toBe('hi');
+  });
+
+  it('children 语法糖在 id 属性之后', () => {
+    class App extends Store {
+      ui = bobe`div id="x" "world"`;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    expect(div).toBeDefined();
+    expect(div.props.id).toBe('x');
+    expect(div.t).toBe('world');
+  });
+
+  it('动态表达式 + 多个属性混用', () => {
+    class App extends Store {
+      name = 'Bob';
+      ui = bobe`span {name} class="greet" id="hi"`;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    const tree = getMockTree(root);
+    const span = tree.children.find((c: any) => c.tag === 'span');
+    expect(span).toBeDefined();
+    expect(span.t).toBe('Bob');
+    expect(span.props.class).toBe('greet');
+    expect(span.props.id).toBe('hi');
+  });
+});
+
 describe('集成测试 — if/else', () => {
   it('if 条件为 true 时渲染子节点', () => {
     class App extends Store {
@@ -480,8 +563,8 @@ describe('集成测试 — if/else', () => {
       ui = bobe`
         div
           if show
-            span text="visible"
-          span text="always"
+            span children="visible"
+          span children="always"
       `;
     }
     const { render, root } = setupMock();
@@ -500,8 +583,8 @@ describe('集成测试 — if/else', () => {
       ui = bobe`
         div
           if show
-            span text="hidden"
-          span text="always"
+            span children="hidden"
+          span children="always"
       `;
     }
     const { render, root } = setupMock();
@@ -520,7 +603,7 @@ describe('集成测试 — for 循环', () => {
       ui = bobe`
         div
           for arr; item i
-            span text={item}
+            span children={item}
       `;
     }
     const { render, root } = setupMock();
@@ -538,7 +621,7 @@ describe('集成测试 — for 循环', () => {
       ui = bobe`
         div
           for arr; item i
-            span text={item}
+            span children={item}
       `;
     }
     const { render, root } = setupMock();
@@ -564,7 +647,7 @@ describe('集成测试 — for 循环', () => {
       ui = bobe`
         div
           for list; item i ; item.id
-            div class={activeI === i ? 'active' : ''} onclick={() => switchI(i)} text={item.name}
+            div class={activeI === i ? 'active' : ''} onclick={() => switchI(i)} children={item.name}
       `;
     }
 
@@ -634,7 +717,7 @@ describe('集成测试 — 动态组件', () => {
   it('initial render with component', () => {
     class CompA extends Store {
       msg = 'COMPONENT_A';
-      ui = bobe` span text={msg} `;
+      ui = bobe` span children={msg} `;
     }
     class App extends Store {
       state = { comp: CompA as any };
@@ -694,7 +777,7 @@ describe('集成测试 — props 展开', () => {
       };
       ui = bobe`
         div
-          button onclick={switchProps} text="switch"
+          button onclick={switchProps} children="switch"
           div props={myProps} id="t2"
       `;
     }
@@ -722,7 +805,7 @@ describe('集成测试 — props 展开', () => {
       };
       ui = bobe`
         div
-          button onclick={addKey} text="add"
+          button onclick={addKey} children="add"
           div props={myProps} id="t3"
       `;
     }
@@ -747,7 +830,7 @@ describe('集成测试 — props 展开', () => {
       };
       ui = bobe`
         div
-          button onclick={delKey} text="del"
+          button onclick={delKey} children="del"
           div props={myProps} id="t4"
       `;
     }
@@ -770,7 +853,7 @@ describe('集成测试 — props 展开', () => {
       setToProps = () => { this.myProps = { title: 'hello' }; };
       ui = bobe`
         div
-          button onclick={setToProps} text="set"
+          button onclick={setToProps} children="set"
           div props={myProps} id="t5"
       `;
     }
@@ -805,8 +888,8 @@ describe('集成测试 — 动态组件 + props 展开', () => {
       b = 'foo';
       ui = bobe`
         div
-          span text={a}
-          span text={b}
+          span children={a}
+          span children={b}
       `;
     }
 
@@ -817,8 +900,8 @@ describe('集成测试 — 动态组件 + props 展开', () => {
       clearA = () => { this.myProps = {}; };
       ui = bobe`
         div
-          button onclick={setA} text="set a=31"
-          button onclick={clearA} text="clear"
+          button onclick={setA} children="set a=31"
+          button onclick={clearA} children="clear"
           {comp} props={myProps}
       `;
     }
@@ -854,16 +937,16 @@ describe('集成测试 — 动态组件 + props 展开', () => {
   it('同时切换组件和 props，子组件未被覆盖的 key 保持默认值', () => {
     class CompA extends Store {
       a = 10;
-      ui = bobe` span text={a} `;
+      ui = bobe` span children={a} `;
     }
     class CompB extends Store {
       a = 20;
       b = 'foo';
       ui = bobe`
         div
-          span text={a}
+          span children={a}
           if b
-            span text={b}
+            span children={b}
       `;
     }
 
@@ -876,7 +959,7 @@ describe('集成测试 — 动态组件 + props 展开', () => {
       };
       ui = bobe`
         div
-          button onclick={switchBoth} text="switch"
+          button onclick={switchBoth} children="switch"
           {comp} props={myProps}
       `;
     }
@@ -907,24 +990,24 @@ describe('集成测试 — 动态组件更新切换', () => {
   it('切换 CompA → CompB（含 children 插槽）', () => {
     class CompA extends Store {
       msg = 'A';
-      ui = bobe` span text={msg} `;
+      ui = bobe` span children={msg} `;
     }
     class CompB extends Store {
       msg = 'B';
       ui = bobe`
         div
-          h2 text={msg}
+          h2 children={msg}
           {children}
-          p text={'after children'}
+          p children={'after children'}
       `;
     }
     class App extends Store {
       state = { comp: CompA as any };
       ui = bobe`
         div
-          button onclick={() => this.state.comp = CompB} text="switch"
+          button onclick={() => this.state.comp = CompB} children="switch"
           {state.comp}
-            span text="inline child"
+            span children="inline child"
       `;
     }
     const { render, root } = setupMock();
@@ -949,21 +1032,21 @@ describe('集成测试 — 动态组件在模板末尾 (Edge Case)', () => {
   it('{page} 作为模板最后一个 token 切换组件', () => {
     class CompA extends Store {
       msg = 'A';
-      ui = bobe` span text={msg} `;
+      ui = bobe` span children={msg} `;
     }
     class CompB extends Store {
       msg = 'B';
       ui = bobe`
         div
-          h2 text={msg}
-          p text={'detail'}
+          h2 children={msg}
+          p children={'detail'}
       `;
     }
     class App extends Store {
       page: any = CompA;
       ui = bobe`
         div
-          button onclick={() => this.page = CompB} text="switch"
+          button onclick={() => this.page = CompB} children="switch"
           {page}
       `;
     }
@@ -996,7 +1079,7 @@ describe('集成测试 — 组件销毁验证', () => {
       }
       ui = bobe`
         div 
-          p text={msg} `;
+          p children={msg} `;
     }
 
     class App extends Store {
@@ -1039,7 +1122,7 @@ describe('集成测试 — 组件销毁验证', () => {
       }
       ui = bobe`
         div
-          p text={msg} `;
+          p children={msg} `;
     }
     class CompB extends Store {
       msg = 'B';
@@ -1049,7 +1132,7 @@ describe('集成测试 — 组件销毁验证', () => {
           if (isDestroy) compBDestroyed = true;
         });
       }
-      ui = bobe` span text={msg} `;
+      ui = bobe` span children={msg} `;
     }
 
     class App extends Store {
@@ -1096,7 +1179,7 @@ describe('集成测试 — 组件销毁验证', () => {
       }
       ui = bobe`
         div
-          p text={msg} `;
+          p children={msg} `;
     }
     class CompB extends Store {
       msg = 'B';
@@ -1106,7 +1189,7 @@ describe('集成测试 — 组件销毁验证', () => {
           if (isDestroy) onCompBDestroy();
         });
       }
-      ui = bobe` span text={msg} `;
+      ui = bobe` span children={msg} `;
     }
 
     class App extends Store {
@@ -1164,11 +1247,11 @@ describe('集成测试 — tp 传送', () => {
       ui = bobe`
         div
           div ref={top}
-            span text="上路"
+            span children="上路"
           div ref={mid}
-            span text="中路"
+            span children="中路"
           tp node={tpTarget}
-            span text="teleported"
+            span children="teleported"
       `;
     }
     const { render, root } = setupMock();
@@ -1208,7 +1291,7 @@ describe('集成测试 — tp 传送', () => {
           if show
             div ref={tpTarget}
           tp node={tpTarget}
-            span text="teleported"
+            span children="teleported"
       `;
     }
     const { render, root } = setupMock();
@@ -1251,7 +1334,7 @@ describe('集成测试 — tp 传送', () => {
           div ref={refA}
           div ref={refB}
           tp node={tpTarget}
-            span text={msg}
+            span children={msg}
       `;
     }
     const { render, root } = setupMock();
@@ -1296,7 +1379,7 @@ describe('集成测试 — tp 传送', () => {
           div ref={refB}
           tp node={tpTarget}
             if show
-              span text="conditional"
+              span children="conditional"
       `;
     }
     const { render, root } = setupMock();
@@ -1344,7 +1427,7 @@ describe('集成测试 — tp 传送', () => {
           div ref={refB}
           tp node={tpTarget}
             for list; item i
-              span text={item}
+              span children={item}
       `;
     }
     const { render, root } = setupMock();
@@ -1386,8 +1469,8 @@ describe('集成测试 — tp 传送', () => {
         div
           div ref={refA}
           tp node={tpTarget}
-            span text="inside-tp"
-          span text="sibling-after-tp"
+            span children="inside-tp"
+          span children="sibling-after-tp"
       `;
     }
     const { render, root } = setupMock();
@@ -1429,8 +1512,8 @@ describe('集成测试 — tp 传送', () => {
           div ref={refA}
           tp node={tpTarget}
             for list; item i
-              span text={item}
-          span text="post-tp-for"
+              span children={item}
+          span children="post-tp-for"
       `;
     }
     const { render, root } = setupMock();
@@ -1476,19 +1559,19 @@ describe('集成测试 — tp 传送', () => {
       ui = bobe`
         div ref={divRef}
         tp node={divRef}
-          span text="inside-a"
+          span children="inside-a"
       `;
     }
 
     class CompB extends Store {
-      ui = bobe` span text="comp-b" `;
+      ui = bobe` span children="comp-b" `;
     }
 
     class App extends Store {
       page: any = CompA;
       ui = bobe`
         div
-          button onclick={() => this.page = CompB} text="switch"
+          button onclick={() => this.page = CompB} children="switch"
           {page}
       `;
     }
@@ -1546,7 +1629,7 @@ function setupMock() {
       return { name, props: {} as Record<string, any>, children: [] as any[], nextSibling: null, firstChild: null };
     },
     setProp(node, key, value) {
-      if (key === 'text') {
+      if (key === 'children') {
         node.textContent = String(value);
       } else if (key.startsWith('on')) {
         node[key] = value;

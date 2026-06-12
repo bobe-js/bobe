@@ -31,7 +31,7 @@
       return document.createElement(name);
     },
     setProp (node, key, value, hookI) {
-      if (key === 'text') {
+      if (key === 'children') {
         node.textContent = value;
       } else if (key.startsWith('on')) {
         const evtName = key.slice(2)
@@ -71,7 +71,7 @@
   class Deep extends Store {
     deep = 10
     ui = bobe`
-      div text={deep}
+      div {deep}
       if deep > 0
         ${Deep} deep={deep - 1}
     `;
@@ -89,49 +89,49 @@
       this.show2 = !this.show2;
     }
     renderDeep = bobe`
-      div text={deep}
+      div {deep}
       if deep > 0
         {renderDeep} deep={deep - 1}
     `;
 
     ui = bobe`
       header
-        h1 text={name}
-        button style="cursor: pointer;" text={'show1:'+show1} onclick={update1}
-        button style="cursor: pointer;" text={'show2:'+show2} onclick={update2}
+        h1 {name}
+        button style="cursor: pointer;" {'show1:'+show1} onclick={update1}
+        button style="cursor: pointer;" {'show2:'+show2} onclick={update2}
         nav
           ul
             li
-              a href="#home" text="首页"
+              a href="#home" "首页"
             li
-              a href="#services" text="服务"
+              a href="#services" "服务"
             li
-              a href="#contact" text="联系我们"
+              a href="#contact" "联系我们"
       main
         section id="home"
-          h2 text="欢迎来到我们的页面"
-          p text="这是一个纯 HTML 结构的示例，不包含任何 CSS 样式。"
+          h2 "欢迎来到我们的页面"
+          p "这是一个纯 HTML 结构的示例，不包含任何 CSS 样式。"
         section id="services"
-          h2 text="我们的服务"
+          h2 "我们的服务"
           ul
-            li text="网页设计"
-            li text="后端开发"
-            li text="数据分析"
+            li "网页设计"
+            li "后端开发"
+            li "数据分析"
         section id="contact"
-          h2 text="联系我们"
+          h2 "联系我们"
           form action="/submit" method="post"
-            label for="name" text="姓名："
+            label for="name" "姓名："
             input type="text" id="name" name="name" required=true
             br
-            label for="email" text="邮箱："
+            label for="email" "邮箱："
             input type="email" id="email" name="email"
             br
-            label for="message" text="留言："
+            label for="message" "留言："
             textarea id="message" name="message"
             br
-            button type="submit" text="提交表单"
+            button type="submit" "提交表单"
       footer
-        p text="© 2026 示例公司. 保留所有权利。"
+        p "© 2026 示例公司. 保留所有权利。"
     `;
   };
 
@@ -140,7 +140,7 @@
     show2 = true;
     show3 = true;
     fragment = bobe`
-      div text={deep}
+      div {deep}
       if deep > 0
         {fragment} deep={deep - 1}
     `;
@@ -153,13 +153,13 @@
         {'内部切换:' + show3}
       if show1
         {fragment} deep=10
-        h1 text="show1"
+        h1 "show1"
       if show2 
-        h2 text="show2"
+        h2 "show2"
         if show3
-          h3 text="内部"
+          h3 "内部"
       else 
-        h1 text="else back"  
+        h1 "else back"  
       ${Deep} deep=20
     `
   }
@@ -198,7 +198,7 @@
     }
 
     ui = bobe`
-      h2 text="测试"
+      h2 "测试"
       input value={value} oninput={oninput} onkeyup={onkeyup}
       for arr; item i
         div style="display: flex; align-items: center;"
@@ -243,7 +243,7 @@
     }
 
     ui = bobe`
-      h2 text="测试"
+      h2 "测试"
       input value={value} oninput={oninput} onkeyup={onkeyup}
       for arr; {value} i
         div style="display: flex; align-items: center;"
@@ -307,7 +307,7 @@
 
     cmp = null
     fragment = bobe`
-      h3 text={desc}
+      h3 {desc}
     `;
     countStore = CountStore.new();
     parentTitle = '父 title'
@@ -318,21 +318,21 @@
       div ref={div.dom} onclick={toggle}
         {'显示'}  
       // else 
-      //   div onclick={toggle} text="隐藏"
-      h2 text="测\n试" // 注释0
+      //   div onclick={toggle} "隐藏"
+      h2 "测\n试" // 注释0
       
-      h1 text=${(data) => data.show ? 'Visible' : 'Hidden'}
+      h1 ${(data) => data.show ? 'Visible' : 'Hidden'}
       if show   
         context countStore={countStore}
           input data-id='123' value={value} oninput={oninput} onkeyup={onkeyup}
           br
-          button onclick={countStore.add} text="父 add"
+          button onclick={countStore.add} "父 add"
           ${Child} header=
             div
               input value="头部"
           |
-            h5 text={parentTitle}
-            h6 text={childTitle}
+            h5 {parentTitle}
+            h6 {childTitle}
       
       // 注释3
       {fragment} desc='代码片段'
@@ -342,9 +342,9 @@
             {item.value}
           input type="text"  oninput={(e) => updateItem(i, e.target.value)} 
           ${Child2} header=
-            h2 text={item.value + ' 子头'}
+            h2 {item.value + ' 子头'}
           |
-            h3 text={childTitle}
+            h3 {childTitle}
        
     `
   }
@@ -360,12 +360,12 @@
     childTitle = '子 title'
     countStore = context('countStore');
     ui = bobe`
-      h1 text={countStore.count}
-      button onclick={countStore.add} text="子 add"
+      h1 {countStore.count}
+      button onclick={countStore.add} "子 add"
       {header}
       h4
         {children} childTitle={childTitle}
-      div text="收尾"  
+      div "收尾"  
     `
   }
 
@@ -375,7 +375,7 @@
       {header}
       h4
         {children} childTitle={childTitle}
-      div text="收尾"
+      div "收尾"
     `
   }
 
@@ -415,7 +415,7 @@
     }
 
     ui = bobe`
-      h2 text="测试"
+      h2 "测试"
       input value={value} oninput={oninput} onkeyup={onkeyup}
       for arr; { value, id, showText } i; id
         div onchange={() => toggleText(i)}
@@ -431,9 +431,9 @@
               {value}
           else      
             input value={value} type="text" oninput={(e) => updateItem(i, e.target.value)}
-        div text="--------------------------------------------------------"  
+        div "--------------------------------------------------------"  
       if show    
-        div text="哈哈哈"
+        div "哈哈哈"
     `
   }
 

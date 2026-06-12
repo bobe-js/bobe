@@ -62,7 +62,7 @@ function gen(
   lines.push(`        div class="markdown-aside" style="flex: none; display: flex; flex-direction: column; overflow-y: auto;"`);
   for (const { depth, id, text } of headers) {
     lines.push(
-      `          a href="#${id}" text="${esc(text)}" class="markdown-aside-item markdown-aside-depth-${depth}"`
+      `          a href="#${id}" children="${esc(text)}" class="markdown-aside-item markdown-aside-depth-${depth}"`
     );
   }
   // tp + Code 组件

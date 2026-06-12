@@ -1,6 +1,6 @@
 // SSR routes 由 bobe-router 插件的 transform 钩子注入到此文件顶部
 import { Router } from 'bobe-router';
-import { renderHtmlStr } from 'bobe-dom';
+import { renderHtmlStr } from 'bobe-dom/ssr';
 
 // 不静态 import App——Routes 注入在当前模块 body 执行，若 App 在 import 阶段加载
 // 则 Router 构造先于 Routes 赋值 → active = null。动态 import 延迟到 render() 调用时，

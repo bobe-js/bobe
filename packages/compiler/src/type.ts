@@ -23,6 +23,8 @@ export enum TokenType {
   Comment = 0b0000_0000_0000_0000_1000_0000_0000_0000
 }
 
+export const ChildrenSugarType = TokenType.String | TokenType.InsertionExp;
+
 export const BaseTokenType =
   TokenType.String | TokenType.Number | TokenType.Boolean | TokenType.Null | TokenType.Undefined;
 export const ValueTokenType = BaseTokenType | TokenType.InsertionExp | TokenType.StaticInsExp;

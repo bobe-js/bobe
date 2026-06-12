@@ -133,9 +133,9 @@ export function walkFiber(root: SSRFiber) {
     } else if (point.type === 'anchor') {
       point.html = `<!--${point.props.name}-->`;
     } else if (point.type === 'text') {
-      const text = point.props.text;
+      const text = point.props.children;
       if (text != null) {
-        point.html = escapeText(point.props.text);
+        point.html = escapeText(point.props.children);
       }
     }
     // dom 节点
@@ -154,7 +154,7 @@ export function walkFiber(root: SSRFiber) {
         if (key === 'html') {
           continue;
         }
-        if (key === 'text') {
+        if (key === 'children') {
           text = value;
           continue;
         }

@@ -58,12 +58,12 @@ export class DropDown extends Store {
       | class={bordered ? styles.trigger : (styles.trigger + ' ' + styles.borderless + (isOpen ? ' ' + styles.dimmed : ''))}
       | onclick={() => toggle()}
       | onkeydown={(e) => handleTriggerKeydown(e)}
-      | text={label}
+      | {label}
       ul class={isOpen ? styles.menu + ' ' + styles.open : styles.menu}
         for items; item
           li
           | class={item.disabled ? styles.item + ' ' + styles.disabled : styles.item}
           | onclick={() => selectItem(item)}
-          | text={item.text}
+          | {item.text}
   `;
 }

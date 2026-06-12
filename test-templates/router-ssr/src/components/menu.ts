@@ -20,10 +20,10 @@ class MenuItem extends Store {
       if item.hasComponent
         a 
         | href={item.path} 
-        | text={item.name} 
+        | {item.name} 
         | class="block py-1 px-3 rounded text-var(--md-text) no-underline transition-colors hover:bg-(--md-bg-secondary)"
       else
-        span text={item.name} class="block py-1 px-3 rounded text-(--md-text) transition-colors hover:bg-(--md-bg-secondary)"
+        span {item.name} class="block py-1 px-3 rounded text-(--md-text) transition-colors hover:bg-(--md-bg-secondary)"
       if item.children?.length
         ul class="list-none p-0 m-0 pl-0 border-l border-(--md-border) ml-[15px]"
           for item.children; child
@@ -37,7 +37,7 @@ class MenuComp extends Store {
 
   ui = bobe`
     nav
-      h3 class="text-sm font-semibold text-(--md-text) py-2 px-4" text={name}
+      h3 class="text-sm font-semibold text-(--md-text) py-2 px-4" {name}
       ul class="list-none p-0 m-0"
         for menus; item
           ${MenuItem} item={item} depth={0}

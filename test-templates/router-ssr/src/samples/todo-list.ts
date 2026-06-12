@@ -33,7 +33,7 @@ class TodoApp extends Store {
 
   ui = bobe`
     div class="todo-app" style="max-width: 500px; margin: 0 auto;"
-      h1 text="📋 TODO List"
+      h1 "📋 TODO List"
 
       // ---- 输入区域 ----
       div class="todo-input" style="display: flex; gap: 8px; margin-bottom: 16px;"
@@ -45,14 +45,14 @@ class TodoApp extends Store {
         | onkeydown={(e) => { if (e.key === 'Enter') addTodo() }}
         | style="flex: 1; padding: 8px 12px; border: 1px solid #d0d7de; border-radius: 6px;"
         button
-        | text="Add"
+        | "Add"
         | onclick={() => addTodo()}
         | style="padding: 8px 16px; background: #2da44e; color: #fff; border: none; border-radius: 6px; cursor: pointer;"
 
       // ---- 空状态 ----
       if todos.length === 0
         p
-        | text="No todos yet. Add one above!"
+        | "No todos yet. Add one above!"
         | style="color: #9198a1; text-align: center; padding: 24px 0;"
 
       // ---- TODO 列表 ----
@@ -65,16 +65,16 @@ class TodoApp extends Store {
             | checked={todo.completed}
             | onchange={() => toggleTodo(i)}
             span
-            | text={todo.text}
+            | {todo.text}
             | style={todo.completed ? 'text-decoration: line-through; color: #9198a1; flex: 1;' : 'flex: 1;'}
             button
-            | text="×"
+            | "×"
             | onclick={() => removeTodo(todo.id)}
             | style="background: none; border: none; color: #cf222e; font-size: 18px; cursor: pointer;"
 
       // ---- 统计栏 ----
       div style="margin-top: 12px; padding: 8px 0; color: #57606a; font-size: 13px; border-top: 1px solid #eaeef2;"
-        span text={activeCount + ' left'}
+        span {activeCount + ' left'}
   `;
 }
 

@@ -43,7 +43,7 @@ export function parseHtmlToFibers(html: string, root: SSRFiber): void {
     },
 
     ontext(text: string) {
-      const fiber = new SSRFiber('text', { text });
+      const fiber = new SSRFiber('text', { children: text });
       append(fiber);
     },
 

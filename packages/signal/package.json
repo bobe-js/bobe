@@ -2,7 +2,7 @@
   "name": "aoye",
   "version": "0.0.67",
   "type": "module",
-  "main": "dist/aoye.cjs.js",
+  "main": "dist/aoye.cjs",
   "module": "dist/aoye.esm.js",
   "browser": "dist/aoye.umd.js",
   "types": "dist/index.d.ts",
@@ -23,7 +23,7 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/aoye.esm.js",
-      "require": "./dist/aoye.cjs.js",
+      "require": "./dist/aoye.cjs",
       "default": "./dist/index.umd.js"
     }
   },

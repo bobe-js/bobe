@@ -57,9 +57,9 @@
       ui = bobe`
         div
           nav
-            a href="/" class={router.active?.path === '/' ? 'router-active' : ''} text="首页"
-            a href="/about" class={router.active?.path === '/about' ? 'router-active' : ''} text="关于"
-            a href="/post" class={router.active?.path === '/post' ? 'router-active' : ''} text="文章"
+            a href="/" class={router.active?.path === '/' ? 'router-active' : ''} "首页"
+            a href="/about" class={router.active?.path === '/about' ? 'router-active' : ''} "关于"
+            a href="/post" class={router.active?.path === '/post' ? 'router-active' : ''} "文章"
           div
             {router.active.component}
       `;

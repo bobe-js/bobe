@@ -2,7 +2,7 @@
   "name": "__name__",
   "version": "0.0.67",
   "type": "module",
-  "main": "dist/__name__.cjs.js",
+  "main": "dist/__name__.cjs",
   "module": "dist/__name__.esm.js",
   "browser": "dist/__name__.umd.js",
   "types": "dist/index.d.ts",
@@ -20,7 +20,7 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/__name__.esm.js",
-      "require": "./dist/__name__.cjs.js",
+      "require": "./dist/__name__.cjs",
       "default": "./dist/index.umd.js"
     }
   },

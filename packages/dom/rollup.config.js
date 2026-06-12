@@ -18,7 +18,7 @@ const base = createConfig(pkg, __dirname);
 const markdownJs = {
   input: 'src/plugins/markdown/index.ts',
   output: [
-    { file: 'dist/markdown.cjs.js', format: 'cjs', sourcemap: true },
+    { file: 'dist/markdown.cjs', format: 'cjs', sourcemap: true },
     { file: 'dist/markdown.esm.js', format: 'esm', sourcemap: true }
   ],
   plugins: createPlugins(pkg, __dirname),
@@ -36,7 +36,7 @@ const markdownDts = {
 const codeJs = {
   input: 'src/plugins/markdown/components/code.ts',
   output: [
-    { file: 'dist/code.cjs.js', format: 'cjs', sourcemap: true },
+    { file: 'dist/code.cjs', format: 'cjs', sourcemap: true },
     { file: 'dist/code.esm.js', format: 'esm', sourcemap: true }
   ],
   plugins: [
@@ -70,4 +70,15 @@ const codeJs = {
 };
 
 
-export default [...base, markdownJs, markdownDts, codeJs];
+// SSR 构建（仅 render-html-str2）
+const ssrJs = {
+  input: 'src/ssr-index.ts',
+  output: [
+    { file: 'dist/ssr-index.cjs', format: 'cjs', sourcemap: true },
+    { file: 'dist/ssr-index.esm.js', format: 'esm', sourcemap: true }
+  ],
+  plugins: createPlugins(pkg, __dirname),
+  external: Object.keys(pkg.dependencies || {})
+};
+
+export default [...base, markdownJs, markdownDts, codeJs, ssrJs];

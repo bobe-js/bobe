@@ -28,7 +28,7 @@
       return document.createElement(name);
     },
     setProp(node, key, value) {
-      if (key === 'text') node.textContent = value;
+      if (key === 'children') node.textContent = value;
       else if (key.startsWith('on')) {
         const evtName = key.slice(2);
         node.addEventListener(evtName, value);
@@ -83,18 +83,18 @@
     }
 
     ui = bobe`
-      h2 text="Map 循环 (key 作为 index)"
+      h2 "Map 循环 (key 作为 index)"
       div style="display: flex; gap: 8px; margin-bottom: 8px;"
         input placeholder="key" value={newKey} oninput={onNewKey}
         input placeholder="value" value={newVal} oninput={onNewVal}
-        button onclick={addItem} text="添加"
-        button onclick={replaceAll} text="整体替换"
+        button onclick={addItem} "添加"
+        button onclick={replaceAll} "整体替换"
       ul
         for mapData; item key
           li style="display: flex; gap: 8px; align-items: center;"
-            span text={key + ': ' + item}
-            button onclick={() => delItem(key)} text="删除"
-            button onclick={() => updateItem(key)} text="追加!"
+            span {key + ': ' + item}
+            button onclick={() => delItem(key)} "删除"
+            button onclick={() => updateItem(key)} "追加!"
     `;
   }
 
@@ -113,13 +113,13 @@
     }
 
     ui = bobe`
-      h2 text="Map 循环 (对象 value，解构)"
+      h2 "Map 循环 (对象 value，解构)"
       ul
         for users; { name, age } id
           li style="display: flex; gap: 8px; align-items: center;"
-            span text={'id=' + id + ': ' + name + ', ' + age + '岁'}
-            button onclick={() => delUser(id)} text="删除"
-            button onclick={() => changeName(id)} text="改名"
+            span {'id=' + id + ': ' + name + ', ' + age + '岁'}
+            button onclick={() => delUser(id)} "删除"
+            button onclick={() => changeName(id)} "改名"
     `;
   }
 
@@ -138,15 +138,15 @@
     delTag = (tag) => { this.tags.delete(tag); }
 
     ui = bobe`
-      h2 text="Set 循环"
+      h2 "Set 循环"
       div style="display: flex; gap: 8px; margin-bottom: 8px;"
         input placeholder="新标签" value={newTag} oninput={onInput}
-        button onclick={addTag} text="添加"
+        button onclick={addTag} "添加"
       ul
         for tags; tag i
           li style="display: flex; gap: 8px; align-items: center;"
-            span text={tag}
-            button onclick={() => delTag(tag)} text="删除"
+            span {tag}
+            button onclick={() => delTag(tag)} "删除"
     `;
   }
 
@@ -160,13 +160,13 @@
     }
 
     ui = bobe`
-      h2 text="普通对象 {values + keys} 循环"
-      button onclick={addLang} text="添加法语"
+      h2 "普通对象 {values + keys} 循环"
+      button onclick={addLang} "添加法语"
       ul
         for objData; name key
           li style="display: flex; gap: 8px; align-items: center;"
-            span text={key + ': ' + name}
-            button onclick={() => delLang(key)} text="删除"
+            span {key + ': ' + name}
+            button onclick={() => delLang(key)} "删除"
     `;
   }
 
@@ -178,14 +178,14 @@
     dec = () => { this.count = Math.max(0, this.count - 1); }
 
     ui = bobe`
-      h2 text="数字循环 (重复 N 次)"
+      h2 "数字循环 (重复 N 次)"
       div style="display: flex; gap: 8px; margin-bottom: 8px;"
-        button onclick={inc} text="+1"
-        span text={count}
-        button onclick={dec} text="-1"
+        button onclick={inc} "+1"
+        span {count}
+        button onclick={dec} "-1"
       ul
         for count; noop i
-          li text={'第 ' + (i + 1) + ' 项'}
+          li {'第 ' + (i + 1) + ' 项'}
     `;
   }
 
@@ -196,11 +196,11 @@
     change = () => { this.text = this.text === 'Hello' ? 'World!' : 'Hello'; }
 
     ui = bobe`
-      h2 text="字符串循环 (逐字符)"
-      button onclick={change} text="切换"
+      h2 "字符串循环 (逐字符)"
+      button onclick={change} "切换"
       ul
         for text; char i
-          li text={'[' + i + '] = ' + char}
+          li {'[' + i + '] = ' + char}
     `;
   }
 
@@ -211,14 +211,14 @@
     setActive = (name) => { this.active = name; }
 
     ui = bobe`
-      h1 text="For Collection 功能验证"
+      h1 "For Collection 功能验证"
       div style="display: flex; gap: 8px; margin-bottom: 16px;"
-        button onclick={() => setActive('map')} text="Map"
-        button onclick={() => setActive('mapDestruct')} text="Map解构"
-        button onclick={() => setActive('set')} text="Set"
-        button onclick={() => setActive('object')} text="Object"
-        button onclick={() => setActive('number')} text="Number"
-        button onclick={() => setActive('string')} text="String"
+        button onclick={() => setActive('map')} "Map"
+        button onclick={() => setActive('mapDestruct')} "Map解构"
+        button onclick={() => setActive('set')} "Set"
+        button onclick={() => setActive('object')} "Object"
+        button onclick={() => setActive('number')} "Number"
+        button onclick={() => setActive('string')} "String"
       if active === 'map'
         ${ForMap}
       else active === 'mapDestruct'

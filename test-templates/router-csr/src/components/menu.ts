@@ -6,9 +6,9 @@ class MenuItem extends Store {
   ui = bobe`
     li
       if item.hasComponent
-        a href={item.path} text={item.name}
+        a href={item.path} {item.name}
       else
-        span text={item.name}
+        span {item.name}
       if item.children && item.children.length > 0
         ul
           for item.children; child
@@ -21,7 +21,7 @@ class MenuComp extends Store {
   menus!: Menu[];
   ui = bobe`
     nav
-      h3 text={name}
+      h3 {name}
       ul
         for menus; item
           ${MenuItem} item={item}

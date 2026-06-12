@@ -9,7 +9,7 @@ function renderHtml<T extends typeof Store>(Ctor: T) {
 describe('renderHtmlStr — basic elements', () => {
   it('should render a simple div with text', () => {
     class App extends Store {
-      ui = bobe`div text="hello world"`;
+      ui = bobe`div children="hello world"`;
     }
     expect(renderHtml(App)).toBe('<div>hello world</div>');
   });
@@ -18,8 +18,8 @@ describe('renderHtmlStr — basic elements', () => {
     class App extends Store {
       ui = bobe`
         div
-          h1 text="Title"
-          p text="Paragraph"
+          h1 children="Title"
+          p children="Paragraph"
       `;
     }
     expect(renderHtml(App)).toBe('<div><h1>Title</h1><p>Paragraph</p></div>');
@@ -28,9 +28,9 @@ describe('renderHtmlStr — basic elements', () => {
   it('should render multiple siblings', () => {
     class App extends Store {
       ui = bobe`
-        span text="a"
-        span text="b"
-        span text="c"
+        span children="a"
+        span children="b"
+        span children="c"
       `;
     }
     expect(renderHtml(App)).toBe('<span>a</span><span>b</span><span>c</span>');
@@ -40,28 +40,28 @@ describe('renderHtmlStr — basic elements', () => {
 describe('renderHtmlStr — attributes', () => {
   it('should set id and class', () => {
     class App extends Store {
-      ui = bobe`div id="myId" class="my-class" text="hello"`;
+      ui = bobe`div id="myId" class="my-class" children="hello"`;
     }
     expect(renderHtml(App)).toBe('<div id="myId" class="my-class">hello</div>');
   });
 
   it('should set data-* attributes', () => {
     class App extends Store {
-      ui = bobe`div data-id="123" text="hi"`;
+      ui = bobe`div data-id="123" children="hi"`;
     }
     expect(renderHtml(App)).toBe('<div data-id="123">hi</div>');
   });
 
   it('should set custom attributes', () => {
     class App extends Store {
-      ui = bobe`div title="tooltip" text="hi"`;
+      ui = bobe`div title="tooltip" children="hi"`;
     }
     expect(renderHtml(App)).toBe('<div title="tooltip">hi</div>');
   });
 
   it('should omit attribute when value is null', () => {
     class App extends Store {
-      ui = bobe`div title={null} text="hi"`;
+      ui = bobe`div title={null} children="hi"`;
     }
     expect(renderHtml(App)).toBe('<div>hi</div>');
   });
@@ -69,7 +69,7 @@ describe('renderHtmlStr — attributes', () => {
   it('should omit data-* attribute when value is null', () => {
     class App extends Store {
       val: any = null;
-      ui = bobe`div data-x={val} text="hi"`;
+      ui = bobe`div data-x={val} children="hi"`;
     }
     expect(renderHtml(App)).toBe('<div>hi</div>');
   });
@@ -77,7 +77,7 @@ describe('renderHtmlStr — attributes', () => {
   it('should render class from object', () => {
     class App extends Store {
       cls = { active: true, hidden: false };
-      ui = bobe`div class={cls} text="hi"`;
+      ui = bobe`div class={cls} children="hi"`;
     }
     expect(renderHtml(App)).toBe('<div class="active">hi</div>');
   });
@@ -85,23 +85,23 @@ describe('renderHtmlStr — attributes', () => {
   it('should render class from string', () => {
     class App extends Store {
       cls = 'btn primary';
-      ui = bobe`div class={cls} text="hi"`;
+      ui = bobe`div class={cls} children="hi"`;
     }
     expect(renderHtml(App)).toBe('<div class="btn primary">hi</div>');
   });
 
   it('should render style attribute', () => {
     class App extends Store {
-      ui = bobe`div style="color: red" text="hi"`;
+      ui = bobe`div style="color: red" children="hi"`;
     }
     expect(renderHtml(App)).toBe('<div style="color: red">hi</div>');
   });
 });
 
 describe('renderHtmlStr — text and html', () => {
-  it('should render text attribute as textContent', () => {
+  it('should render children attribute as textContent', () => {
     class App extends Store {
-      ui = bobe`p text="Hello & welcome"`;
+      ui = bobe`p children="Hello & welcome"`;
     }
     expect(renderHtml(App)).toBe('<p>Hello &amp; welcome</p>');
   });
@@ -115,7 +115,7 @@ describe('renderHtmlStr — text and html', () => {
 
   it('should prefer html over text when both set', () => {
     class App extends Store {
-      ui = bobe`div html="<b>bold</b>" text="plain"`;
+      ui = bobe`div html="<b>bold</b>" children="plain"`;
     }
     expect(renderHtml(App)).toBe('<div><b>bold</b></div>');
   });
@@ -124,8 +124,8 @@ describe('renderHtmlStr — text and html', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     class App extends Store {
       ui = bobe`
-        div text="parent text"
-          span text="child"
+        div children="parent text"
+          span children="child"
       `;
     }
     expect(renderHtml(App)).toBe('<div>parent text</div>');
@@ -138,7 +138,7 @@ describe('renderHtmlStr — text and html', () => {
     class App extends Store {
       ui = bobe`
         div html="<b>bold</b>"
-          span text="child"
+          span children="child"
       `;
     }
     expect(renderHtml(App)).toBe('<div><b>bold</b></div>');
@@ -208,7 +208,7 @@ describe('renderHtmlStr — void elements', () => {
       ui = bobe`
         div
           br
-          span text="after"
+          span children="after"
       `;
     }
     expect(renderHtml(App)).toBe('<div><br /><span>after</span></div>');
@@ -219,7 +219,7 @@ describe('renderHtmlStr — events', () => {
   it('should NOT render onclick in HTML', () => {
     class App extends Store {
       handler = () => {};
-      ui = bobe`button onclick={handler} text="click"`;
+      ui = bobe`button onclick={handler} children="click"`;
     }
     expect(renderHtml(App)).toBe('<button>click</button>');
   });
@@ -235,7 +235,7 @@ describe('renderHtmlStr — events', () => {
   it('should NOT render ref attribute in HTML', () => {
     class App extends Store {
       divRef = null;
-      ui = bobe`div ref={divRef} text="hello"`;
+      ui = bobe`div ref={divRef} children="hello"`;
     }
     expect(renderHtml(App)).toBe('<div>hello</div>');
   });
@@ -248,7 +248,7 @@ describe('renderHtmlStr — conditional rendering', () => {
       ui = bobe`
         div
           if show
-            span text="visible"
+            span children="visible"
       `;
     }
     expect(renderHtml(App)).toBe('<div><span>visible</span><!--if-after--></div>');
@@ -260,7 +260,7 @@ describe('renderHtmlStr — conditional rendering', () => {
       ui = bobe`
         div
           if show
-            span text="hidden"
+            span children="hidden"
       `;
     }
     expect(renderHtml(App)).toBe('<div><!--if-after--></div>');
@@ -272,9 +272,9 @@ describe('renderHtmlStr — conditional rendering', () => {
       ui = bobe`
         div
           if flag
-            span text="yes"
+            span children="yes"
           else
-            span text="no"
+            span children="no"
       `;
     }
     expect(renderHtml(App)).toBe('<div><span>yes</span><!--if-after--><!--else-after--></div>');
@@ -286,9 +286,9 @@ describe('renderHtmlStr — conditional rendering', () => {
       ui = bobe`
         div
           if flag
-            span text="yes"
+            span children="yes"
           else
-            span text="no"
+            span children="no"
       `;
     }
     expect(renderHtml(App)).toBe('<div><!--if-after--><span>no</span><!--else-after--></div>');
@@ -301,9 +301,9 @@ describe('renderHtmlStr — conditional rendering', () => {
       ui = bobe`
         div
           if outer
-            h1 text="outer"
+            h1 children="outer"
             if inner
-              h2 text="inner"
+              h2 children="inner"
       `;
     }
     expect(renderHtml(App)).toBe('<div><h1>outer</h1><h2>inner</h2><!--if-after--><!--if-after--></div>');
@@ -315,8 +315,8 @@ describe('renderHtmlStr — conditional rendering', () => {
       ui = bobe`
         div
           if show
-            span text="first"
-          span text="last"
+            span children="first"
+          span children="last"
       `;
     }
     expect(renderHtml(App)).toBe('<div><span>first</span><!--if-after--><span>last</span></div>');
@@ -330,7 +330,7 @@ describe('renderHtmlStr — for loop', () => {
       ui = bobe`
         ul
           for items; item i
-            li text={item}
+            li children={item}
       `;
     }
     expect(renderHtml(App)).toBe(
@@ -344,7 +344,7 @@ describe('renderHtmlStr — for loop', () => {
       ui = bobe`
         ul
           for items; item i
-            li text={item}
+            li children={item}
       `;
     }
     expect(renderHtml(App)).toBe('<ul><!--for-after--></ul>');
@@ -356,7 +356,7 @@ describe('renderHtmlStr — for loop', () => {
       ui = bobe`
         ul
           for items; item i
-            li text={item}
+            li children={item}
       `;
     }
     expect(renderHtml(App)).toBe('<ul><!--for-item-before--><li>x</li><!--for-item-after--><!--for-after--></ul>');
@@ -368,8 +368,8 @@ describe('renderHtmlStr — for loop', () => {
       ui = bobe`
         ul
           for items; item i
-            li text={item}
-          span text="after"
+            li children={item}
+          span children="after"
       `;
     }
     expect(renderHtml(App)).toBe(
@@ -381,7 +381,7 @@ describe('renderHtmlStr — for loop', () => {
 describe('renderHtmlStr — component rendering', () => {
   it('should render child component via static interpolation', () => {
     class Child extends Store {
-      ui = bobe`span text="child"`;
+      ui = bobe`span children="child"`;
     }
     class Parent extends Store {
       ui = bobe`
@@ -394,7 +394,7 @@ describe('renderHtmlStr — component rendering', () => {
 
   it('should render nested components', () => {
     class Leaf extends Store {
-      ui = bobe`em text="leaf"`;
+      ui = bobe`em children="leaf"`;
     }
     class Child extends Store {
       ui = bobe`
@@ -418,7 +418,7 @@ describe('renderHtmlStr — reactive initial values', () => {
   it('should render initial reactive text value', () => {
     class App extends Store {
       name = 'Alice';
-      ui = bobe`span text={name}`;
+      ui = bobe`span children={name}`;
     }
     expect(renderHtml(App)).toBe('<span>Alice</span>');
   });
@@ -426,7 +426,7 @@ describe('renderHtmlStr — reactive initial values', () => {
   it('should render initial reactive attribute value', () => {
     class App extends Store {
       cls = 'btn-primary';
-      ui = bobe`button class={cls} text="Submit"`;
+      ui = bobe`button class={cls} children="Submit"`;
     }
     expect(renderHtml(App)).toBe('<button class="btn-primary">Submit</button>');
   });
@@ -436,7 +436,7 @@ describe('renderHtmlStr — HTML escaping', () => {
   it('should escape text content with HTML characters', () => {
     class App extends Store {
       text = '<script>alert("xss")</script>';
-      ui = bobe`div text={text}`;
+      ui = bobe`div children={text}`;
     }
     expect(renderHtml(App)).toBe('<div>&lt;script&gt;alert("xss")&lt;/script&gt;</div>');
   });
@@ -452,7 +452,7 @@ describe('renderHtmlStr — HTML escaping', () => {
   it('should escape ampersands in text', () => {
     class App extends Store {
       val = 'A & B';
-      ui = bobe`div text={val}`;
+      ui = bobe`div children={val}`;
     }
     expect(renderHtml(App)).toBe('<div>A &amp; B</div>');
   });
@@ -494,7 +494,7 @@ describe('renderHtmlStr — inline fragment (children prop)', () => {
   it('should render inline fragment passed as children', () => {
     class App extends Store {
       fragment = bobe`
-        span text="inline"
+        span children="inline"
       `;
       ui = bobe`
         div
@@ -508,7 +508,7 @@ describe('renderHtmlStr — inline fragment (children prop)', () => {
 describe('renderHtmlStr — context node', () => {
   it('should render context provider with children', () => {
     class Child extends Store {
-      ui = bobe`span text="child"`;
+      ui = bobe`span children="child"`;
     }
     class App extends Store {
       ui = bobe`
@@ -530,9 +530,9 @@ describe('renderHtmlStr — fail keyword', () => {
       ui = bobe`
         div
           if show
-            span text="yes"
+            span children="yes"
           fail
-            span text="no"
+            span children="no"
       `;
     }
     expect(renderHtml(App)).toBe('<div><!--if-after--><span>no</span><!--fail-after--></div>');

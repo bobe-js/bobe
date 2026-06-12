@@ -16,7 +16,7 @@ const base = createConfig(pkg, __dirname);
 const pluginJs = {
   input: 'src/plugin/index.ts',
   output: [
-    { file: 'dist/plugin.cjs.js', format: 'cjs', sourcemap: true },
+    { file: 'dist/plugin.cjs', format: 'cjs', sourcemap: true },
     { file: 'dist/plugin.esm.js', format: 'esm', sourcemap: true }
   ],
   plugins: [

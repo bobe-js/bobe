@@ -30,7 +30,7 @@ export default [
         sourcemap: true
       },
       {
-        file: 'dist/bobe.compiler.cjs.js',
+        file: 'dist/bobe.compiler.cjs',
         format: 'cjs',
         sourcemap: true
       }

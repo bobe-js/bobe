@@ -81,8 +81,8 @@ const setProp = (node: Text | Element, key: string, value: any) => {
   if (node.startClosed) return;
   if (key.startsWith('on') || key === 'ref') return;
 
-  // 0. text
-  if (key === 'text') {
+  // 0. children
+  if (key === 'children') {
     if (value == null) return;
     node.textContent = value;
     return;

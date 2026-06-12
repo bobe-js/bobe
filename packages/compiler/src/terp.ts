@@ -41,7 +41,8 @@ import {
   DynamicNode,
   CtxProviderBit,
   FakeNode,
-  TpNode
+  TpNode,
+  ChildrenSugarType
 } from './type';
 import { date32, hasOwn, jsVarRegexp, pick, pickInPlace } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
@@ -326,13 +327,13 @@ export class Interpreter {
         // 其余类型不允许静态插值
         else {
           _node = this.createNode('text');
-          this.setProp(_node, 'text', String(value));
+          this.setProp(_node, 'children', String(value));
           // throw new SyntaxError(`declaration 不支持 ${value} 类型的静态插值`);
         }
       }
       // 动态插值
       // 一定是 js 表达式
-      // 1. 返回基础值，创建文本节点 createNode('text', String(value))
+      // 1. 返回基础值，创建文本节点 createNode('text', String(value))，prop key 为 'children'
       // 2. 返回  组件，创建组件节点
       // 3. 返回  片段
       // TODO: 后续考虑动态组件
@@ -346,12 +347,12 @@ export class Interpreter {
         // else {
         //   _node = this.createNode('text');
         //   const str = valueIsMapKey ? value : this.getFn(data, value);
-        //   this.onePropParsed(data, _node, 'text', str, valueIsMapKey, false);
+        //   this.onePropParsed(data, _node, 'children', str, valueIsMapKey, false);
         // }
       }
-    } else if(this.tokenizer.token.type === TokenType.String) {
+    } else if (this.tokenizer.token.type === TokenType.String) {
       _node = this.createNode('text');
-      this.setProp(_node, 'text', String(value));
+      this.setProp(_node, 'children', String(value));
     } else {
       _node = this.createNode(value);
     }
@@ -443,8 +444,8 @@ export class Interpreter {
           if (isNewTextNode) {
             textNode = node.textNode = this.createNode('text');
           }
-          this.setProp(textNode, 'text', String(val));
-          // this.onePropParsed(pData, textNode, 'text', String(val), valueIsMapKey, false);
+          this.setProp(textNode, 'children', String(val));
+          // this.onePropParsed(pData, textNode, 'children', String(val), valueIsMapKey, false);
           if (isNewTextNode) {
             if (isUpdate) {
               this.handleInsert(node.realParent, textNode, node.realBefore);
@@ -1462,7 +1463,16 @@ export class Interpreter {
     while ((this.tokenizer.token.type & TokenType.NewLine) === 0) {
       // 取 key
       if (key == null) {
-        key = this.tokenizer.token.value as any;
+        const keyValue = this.tokenizer.token.value
+        // 如果 key 是 children 语法糖指定的类型：字符串 | 静态插值 | 动态插值
+        if (this.tokenizer.token.type & ChildrenSugarType || typeof keyValue === 'string' && keyValue.startsWith(this.tokenizer.HookId)) {
+          key = 'children';
+          eq = '=';
+          // 将 key 的 token 作为 value 后续循环判断
+          continue;
+        } else {
+          key = this.tokenizer.token.value as any;
+        }
       }
       // 取 =
       else if (eq == null) {

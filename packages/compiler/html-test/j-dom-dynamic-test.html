@@ -28,7 +28,7 @@
       return document.createElement(name);
     },
     setProp (node, key, value, hookI) {
-      if (key === 'text') {
+      if (key === 'children') {
         node.textContent = value;
       } else if (key.startsWith('on')) {
         const evtName = key.slice(2);
@@ -69,9 +69,9 @@
     add = () => { this.count++; };
     ui = bobe`
       div style="border: 2px solid #e74c3c; padding: 12px; margin: 8px 0; border-radius: 6px;"
-        h2 text={msg}
-        p text={'count: ' + count}
-        button onclick={add} text="increment"
+        h2 {msg}
+        p {'count: ' + count}
+        button onclick={add} "increment"
     `;
   }
 
@@ -81,10 +81,10 @@
     oninput = (e) => { this.val = e.target.value; };
     ui = bobe`
       div style="border: 2px solid #3498db; padding: 12px; margin: 8px 0; border-radius: 6px;"
-        h2 text={msg}
+        h2 {msg}
         {children}
         input value={val} oninput={oninput} placeholder="type something..."
-        p text={'input: ' + val}
+        p {'input: ' + val}
     `;
   }
 
@@ -92,7 +92,7 @@
     parentTitle = 'default title';
     ui = bobe`
       div style="border: 2px solid #2ecc71; padding: 12px; margin: 8px 0; border-radius: 6px;"
-        h2 text={parentTitle}
+        h2 {parentTitle}
     `;
   }
 
@@ -120,16 +120,16 @@
 
     ui = bobe`
       div style="font-family: sans-serif; max-width: 600px; margin: 40px auto;"
-        h1 text="Dynamic Component Test"
-        p text="component 必须包裹在对象中，因为 proxy 对函数类型属性不做依赖收集"
+        h1 "Dynamic Component Test"
+        p "component 必须包裹在对象中，因为 proxy 对函数类型属性不做依赖收集"
         div style="display: flex; gap: 8px; margin: 16px 0;"
-          button onclick={switchToA} text="Component A"
-          button onclick={switchToB} text="Component B"
-          button onclick={switchToC} text="Component C"
-          button onclick={switchToText} text="Text"
-        p text={'current: ' + (comp?.name || comp || 'null')}
+          button onclick={switchToA} "Component A"
+          button onclick={switchToB} "Component B"
+          button onclick={switchToC} "Component C"
+          button onclick={switchToText} "Text"
+        p {'current: ' + (comp?.name || comp || 'null')}
         {comp} parentTitle="hello from parent"
-          span text="inline child"
+          span "inline child"
     `;
   }
 
@@ -143,11 +143,11 @@
 
     ui = bobe`
       div style="font-family: sans-serif; max-width: 600px; margin: 40px auto;"
-        h2 text="Edge Case: Dynamic at End"
+        h2 "Edge Case: Dynamic at End"
         div style="display: flex; gap: 8px; margin: 16px 0;"
-          button onclick={switchA} text="Component A"
-          button onclick={switchB} text="Component B"
-          button onclick={switchC} text="Component C"
+          button onclick={switchA} "Component A"
+          button onclick={switchB} "Component B"
+          button onclick={switchC} "Component C"
         {page}
     `;
   }

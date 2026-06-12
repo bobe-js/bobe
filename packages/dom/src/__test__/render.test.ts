@@ -14,7 +14,7 @@ describe('DOM integration — bobe template rendering', () => {
   describe('basic elements', () => {
     it('should render a simple div with text', () => {
       class App extends Store {
-        ui = bobe`div text="hello world"`;
+        ui = bobe`div children="hello world"`;
       }
       const { root } = mount(App);
       expect(root.querySelector('div')!.textContent).toBe('hello world');
@@ -24,8 +24,8 @@ describe('DOM integration — bobe template rendering', () => {
       class App extends Store {
         ui = bobe`
           div
-            h1 text="Title"
-            p text="Paragraph"
+            h1 children="Title"
+            p children="Paragraph"
         `;
       }
       const { root } = mount(App);
@@ -38,9 +38,9 @@ describe('DOM integration — bobe template rendering', () => {
     it('should render multiple siblings', () => {
       class App extends Store {
         ui = bobe`
-          span text="a"
-          span text="b"
-          span text="c"
+          span children="a"
+          span children="b"
+          span children="c"
         `;
       }
       const { root } = mount(App);
@@ -51,7 +51,7 @@ describe('DOM integration — bobe template rendering', () => {
   describe('attributes', () => {
     it('should set id and class', () => {
       class App extends Store {
-        ui = bobe`div id="myId" class="my-class" text="hello"`;
+        ui = bobe`div id="myId" class="my-class" children="hello"`;
       }
       const { root } = mount(App);
       const div = root.querySelector('div')!;
@@ -61,7 +61,7 @@ describe('DOM integration — bobe template rendering', () => {
 
     it('should set data-* attributes', () => {
       class App extends Store {
-        ui = bobe`div data-id="123" text="hi"`;
+        ui = bobe`div data-id="123" children="hi"`;
       }
       const { root } = mount(App);
       expect(root.querySelector('div')!.getAttribute('data-id')).toBe('123');
@@ -73,7 +73,7 @@ describe('DOM integration — bobe template rendering', () => {
       let clicked = false;
       class App extends Store {
         handler = () => { clicked = true; };
-        ui = bobe`button onclick={handler} text="click"`;
+        ui = bobe`button onclick={handler} children="click"`;
       }
       const { root } = mount(App);
       (root.querySelector('button')! as HTMLElement).click();
@@ -85,7 +85,7 @@ describe('DOM integration — bobe template rendering', () => {
     it('should update text when reactive value changes', async () => {
       class App extends Store {
         name = 'Alice';
-        ui = bobe`span text={name}`;
+        ui = bobe`span children={name}`;
       }
       const { root, store } = mount(App);
       expect(root.querySelector('span')!.textContent).toBe('Alice');
@@ -97,7 +97,7 @@ describe('DOM integration — bobe template rendering', () => {
     it('should update attribute when reactive value changes', async () => {
       class App extends Store {
         btnClass = 'btn-primary';
-        ui = bobe`button class={btnClass} text="Submit"`;
+        ui = bobe`button class={btnClass} children="Submit"`;
       }
       const { root, store } = mount(App);
       expect(root.querySelector('button')!.className).toBe('btn-primary');
@@ -114,7 +114,7 @@ describe('DOM integration — bobe template rendering', () => {
         ui = bobe`
           div
             if show
-              span text="visible"
+              span children="visible"
         `;
       }
       const { root, store } = mount(App);
@@ -130,9 +130,9 @@ describe('DOM integration — bobe template rendering', () => {
         ui = bobe`
           div
             if flag
-              span text="yes"
+              span children="yes"
             else
-              span text="no"
+              span children="no"
         `;
       }
       const { root, store } = mount(App);
@@ -150,7 +150,7 @@ describe('DOM integration — bobe template rendering', () => {
         ui = bobe`
           ul
             for items; item i
-              li text={item}
+              li children={item}
         `;
       }
       const { root } = mount(App);
@@ -168,8 +168,8 @@ describe('DOM integration — bobe template rendering', () => {
         ui = bobe`
           ul
             for items; item i
-              li text={item}
-          button onclick={add} text="add"
+              li children={item}
+          button onclick={add} children="add"
         `;
       }
       const { root } = mount(App);
@@ -183,7 +183,7 @@ describe('DOM integration — bobe template rendering', () => {
   describe('component rendering', () => {
     it('should render child component', () => {
       class Child extends Store {
-        ui = bobe`span text="child"`;
+        ui = bobe`span children="child"`;
       }
       class Parent extends Store {
         ui = bobe`

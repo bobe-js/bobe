@@ -8,7 +8,7 @@ import hljs, { Language } from 'highlight.js';
  *
  * bobe 采用类似 Pug 的缩进风格，语法要素：
  * - 元素标签：div, span, h1-h6, a, p, ul, li, button, input ...
- * - 属性：class="...", id="...", text="...", onclick={...}, ref={...}
+ * - 属性：class="...", id="...", children="...", onclick={...}, ref={...}
  * - 控制流：if, else, for, tp
  * - 响应式绑定：{expr}
  * - 模板插值：${expr}
@@ -22,7 +22,7 @@ export function registerBobeLang() {
   hljs.registerLanguage('bobe', (hljs) => {
     // 属性名列表（含事件处理器和布尔属性）
     const ATTRS = [
-      'class', 'id', 'text', 'html', 'style', 'href', 'src', 'alt', 'title',
+      'class', 'id', 'children', 'html', 'style', 'href', 'src', 'alt', 'title',
       'ref', 'type', 'placeholder', 'value', 'name', 'foo',
       'disabled', 'readonly', 'checked', 'selected', 'hidden',
       'role', 'target', 'rel', 'width', 'height', 'tabindex',

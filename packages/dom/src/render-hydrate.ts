@@ -116,7 +116,7 @@ export const hydrate = (ComponentClass: typeof Store, rootEl: Element) => {
   // 首屏时 text/html 的 DOM 内容已由 SSR 生成，跳过 innerHTML/textContent 赋值避免重绘
   // 但仍需设 CONTENT_FLAG 保证 beforeIndent 冲突检测正常
   const hydrateSetProp = (node: Node, key: string, value: any) => {
-    if (isFirstRender && (key === 'text' || key === 'html')) {
+    if (isFirstRender && (key === 'children' || key === 'html')) {
       (node as any)[CONTENT_FLAG] = value != null;
       return;
     }

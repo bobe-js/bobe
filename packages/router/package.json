@@ -2,7 +2,7 @@
   "name": "bobe-router",
   "version": "0.0.67",
   "type": "module",
-  "main": "dist/bobe-router.cjs.js",
+  "main": "dist/bobe-router.cjs",
   "module": "dist/bobe-router.esm.js",
   "browser": "dist/bobe-router.umd.js",
   "types": "dist/index.d.ts",
@@ -15,12 +15,12 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/bobe-router.esm.js",
-      "require": "./dist/bobe-router.cjs.js"
+      "require": "./dist/bobe-router.cjs"
     },
     "./plugin": {
       "types": "./dist/plugin.d.ts",
       "import": "./dist/plugin.esm.js",
-      "require": "./dist/plugin.cjs.js"
+      "require": "./dist/plugin.cjs"
     }
   },
   "scripts": {

@@ -6,7 +6,7 @@
 class App extends Store {
   ui = bobe`
     div
-      div text="123"
+      div "123"
   `;
 }
 ```
