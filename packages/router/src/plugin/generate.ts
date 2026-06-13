@@ -17,9 +17,10 @@ export function generateSsgInit(items: ScanItem[]): string {
     `import * as __module_${i} from '${file}';`
   );
   const names = items.map((_, i) => `__module_${i}.default`);
-  const entries = items.map(({ url, metaRaw }, i) => {
+  const entries = items.map(({ url, metaRaw, hasLayout }, i) => {
     const metaPart = metaRaw ? `, meta: ${metaRaw}` : '';
-    return `  '${url}': { component: __module_${i}.default, layout: __module_${i}.layout${metaPart} }`;
+    const layoutPart = hasLayout ? `, layout: __module_${i}.layout` : '';
+    return `  '${url}': { component: __module_${i}.default${layoutPart}${metaPart} }`;
   });
   return imports.join('\n')
     + `\n\nglobalThis['${Routes}'] = {\n` + entries.join(',\n') + '\n};'

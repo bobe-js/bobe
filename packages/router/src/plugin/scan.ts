@@ -9,6 +9,8 @@ export interface ScanItem {
   menuName?: string;
   /** routeMeta 对象字面量源文（用于嵌入生成代码） */
   metaRaw?: string;
+  /** 文件是否有 layout 导出 */
+  hasLayout?: boolean;
 }
 
 const RE_DIR = /^(?:(\d+)_)?([^_]+?)(?:_(.+?))?$/;
@@ -118,6 +120,29 @@ function hasDefaultExport(filePath: string): boolean {
   }
 }
 
+/**
+ * 检测文件是否有 layout 导出。
+ * .md/.mdx: 检查 frontmatter 中是否有 layout 字段（markdown 插件会据此生成 export）
+ * .ts/.js: 检查是否有 `export const layout` 或 `export { ... layout ... }`
+ */
+function hasLayoutExport(filePath: string): boolean {
+  try {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+
+    if (ext === 'md' || ext === 'mdx') {
+      const content = readFileSync(filePath, 'utf-8');
+      const { data } = matter(content);
+      return !!data.layout;
+    }
+
+    const content = readFileSync(filePath, 'utf-8');
+    // 匹配: export const layout = ... 或 export { layout } 或 export { xxx as layout }
+    return /export\s+(?:const\s+layout\b|\{[^}]*\blayout\b[^}]*\})/.test(content);
+  } catch {
+    return false;
+  }
+}
+
 function parseEntry(name: string, fileRe: RegExp): { order: number; pathPart: string; menuName?: string } | null {
   const dirMatch = name.match(RE_DIR);
   const isDir = !name.includes('.');
@@ -206,12 +231,15 @@ export function scanDir(
       // 检测是否有 default 导出（有组件 = 有路由页面）
       const hasComp = hasDefaultExport(full);
 
+      // 检测是否有 layout 导出
+      const hasLayout = hasLayoutExport(full);
+
       if (isIndex) {
         const url = parentPath || '/';
 
         // 仅有 routeMeta 无 default 导出的文件不加入路由表
         if (hasComp) {
-          routes.push({ url, file: relFile, menuName, metaRaw });
+          routes.push({ url, file: relFile, menuName, metaRaw, hasLayout });
         }
 
         if (parentMenu) {
@@ -239,7 +267,7 @@ export function scanDir(
       // 非 index
       else {
         if (hasComp) {
-          routes.push({ url: urlPath, file: relFile, menuName, metaRaw });
+          routes.push({ url: urlPath, file: relFile, menuName, metaRaw, hasLayout });
           if (parentMenu && !parentMenu.nearestFile) {
             parentMenu.nearestFile = { name: handledName, path: urlPath };
           }

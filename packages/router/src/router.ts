@@ -87,7 +87,7 @@ export class Router extends Store {
     // 3. path 优先级：用户传入 > SSR 注入 > location > '/'
     const path = initialPath
       || (globalThis as any)[GlobalKey.Path]
-      || (typeof location !== 'undefined' ? location.pathname : '/');
+      || (typeof location !== 'undefined' ? location.pathname + location.search + location.hash : '/');
 
     this.#init(path);
   }
@@ -111,7 +111,7 @@ export class Router extends Store {
       }
 
       this.active = {
-        path,
+        path: result.url,
         params: result.params,
         component: route?.component,
         meta: route?.meta,
@@ -119,7 +119,7 @@ export class Router extends Store {
       };
     }
 
-    this.stack = [{ path, params: this.active?.params ?? {} }];
+    this.stack = [{ path: this.active?.path ?? '/', params: this.active?.params ?? {} }];
     this.stackIndex = 0;
     this.#initBrowser();
 
@@ -161,12 +161,14 @@ export class Router extends Store {
     const result = match(url, this.routes);
     if (!result) return;
 
-    const target: RouteEntry = { path: url, params: result.params };
+    // 从原始 URL 中提取 search 和 hash（match 已将其剥离，此处保留到浏览器 URL）
+    const parsed = new URL(url, location.origin);
+    const target: RouteEntry = { path: result.url, params: result.params };
     // 截断当前位置之后的历史，再追加
     this.stack.length = this.stackIndex + 1;
     this.stack.push(target);
     this.stackIndex = this.stack.length - 1;
-    await this.#navigate(target);
+    await this.#navigate(target, { pattern: result.path, search: parsed.search, hash: parsed.hash });
   }
 
   /** 替换当前页面（不追加历史记录） */
@@ -174,9 +176,10 @@ export class Router extends Store {
     const result = match(url, this.routes);
     if (!result) return;
 
-    const target: RouteEntry = { path: url, params: result.params };
+    const parsed = new URL(url, location.origin);
+    const target: RouteEntry = { path: result.url, params: result.params };
     this.stack[this.stackIndex] = target;
-    await this.#navigate(target, { replace: true });
+    await this.#navigate(target, { replace: true, pattern: result.path, search: parsed.search, hash: parsed.hash });
   }
 
   /** 后退 */
@@ -217,8 +220,10 @@ export class Router extends Store {
 
   private navId = 0;
 
-  async #navigate(target: RouteEntry, opts: { replace?: boolean } = {}): Promise<void> {
+  async #navigate(target: RouteEntry, opts: { replace?: boolean; pattern?: string; search?: string; hash?: string } = {}): Promise<void> {
     const id = ++this.navId;
+    const lookupKey = opts.pattern || target.path;
+    const browserUrl = target.path + (opts.search || '') + (opts.hash || '');
 
     if (!(await this.#checkGuard(this.active!, 'leave'))) return;
     if (id !== this.navId) return; // 守卫期间有新导航，丢弃本次
@@ -231,25 +236,24 @@ export class Router extends Store {
     }
 
     if (!opts.replace) {
-      history.pushState(null, '', target.path);
+      history.pushState(null, '', browserUrl);
     } else {
-      history.replaceState(null, '', target.path);
+      history.replaceState(null, '', browserUrl);
     }
 
-    // 加载组件
-    await this.#loadComponent(target.path);
+    // 加载组件（用路由模式查找 import 函数）
+    await this.#loadComponent(lookupKey);
     if (id !== this.navId) return; // 加载期间有新导航，丢弃本次
 
-    const route = this.routes[target.path];
+    const route = this.routes[lookupKey];
     target.component = route?.component;
     target.meta = route?.meta;
     target.layout = route?.layout;
     this.active = target;
 
     // hash 滚动
-    const hash = new URL(target.path, location.origin).hash;
-    if (hash) {
-      const el = document.querySelector(decodeURIComponent(hash));
+    if (opts.hash) {
+      const el = document.querySelector(decodeURIComponent(opts.hash));
       if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -371,8 +375,10 @@ export class Router extends Store {
   // ====== popstate 回调 ======
 
   #onPopstate = (): void => {
-    const current = location.pathname + location.search;
-    const idx = this.stack.findLastIndex((r) => r.path === current);
+    const current = location.pathname + location.search + location.hash;
+    const result = match(current, this.routes);
+    const normalized = result?.url || current;
+    const idx = this.stack.findLastIndex((r) => r.path === normalized);
 
     if (idx !== -1) {
       // 仅 hash 变化，浏览器已更新 URL 并处理滚动，跳过 #navigate（避免 replaceState 抹掉 hash）
@@ -380,17 +386,16 @@ export class Router extends Store {
       // 在栈中 → Router 产生的历史，移动指针
       this.stackIndex = idx;
       const entry = this.stack[idx];
-      this.#navigate(entry, { replace: true });
+      this.#navigate(entry, { replace: true, pattern: result?.path, hash: location.hash, search: location.search });
       // 恢复滚动位置
       if (entry.scroll != null) {
         window.scrollTo(0, entry.scroll);
       }
     } else {
       // 不在栈中 → 外部跳转，重置栈
-      const result = match(current, this.routes);
       const route = result ? this.routes[result.path] : undefined;
       const entry: RouteEntry = {
-        path: current,
+        path: normalized,
         params: result?.params ?? {},
         meta: route?.meta,
         layout: route?.layout,

@@ -43,13 +43,19 @@ function compileRoutes(map: RouteMap): CompiledRoute[] {
 
 /**
  * 根据路径匹配路由表
- * @param path - URL 路径，如 /post/42
+ * @param path - URL 路径，如 /post/42、/about/?foo=bar#sec
  * @param map - 路由表
  * @returns 匹配结果，含路径参数；null 表示 404
  */
 export function match(path: string, map: RouteMap): MatchResult | null {
-  // 确保以 / 开头
-  const normalized = path.startsWith('/') ? path : `/${path}`;
+  // 用 URL API 解析，自动剥离 query string 和 hash
+  const parsed = new URL(path, 'http://localhost');
+  let normalized = parsed.pathname;
+
+  // 去掉尾部 /（根路径 / 保留）
+  if (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
 
   for (const compiled of compileRoutes(map)) {
     const m = normalized.match(compiled.regex);
@@ -59,7 +65,7 @@ export function match(path: string, map: RouteMap): MatchResult | null {
     for (let i = 0; i < compiled.paramNames.length; i++) {
       params[compiled.paramNames[i]] = m[i + 1];
     }
-    return { path: compiled.pattern, params };
+    return { path: compiled.pattern, params, url: normalized };
   }
   return null;
 }

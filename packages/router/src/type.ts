@@ -62,8 +62,11 @@ export type Menu = {
 
 /** 路由匹配结果 */
 export type MatchResult = {
+  /** 匹配到的路由模式，如 /about 或 /post/:id（用于路由表查找） */
   path: string;
   params: Record<string, string>;
+  /** 规范化后的实际 URL（去掉尾部 /、query string、hash），如 /post/42 */
+  url: string;
 };
 
 /** 路由守卫返回 */
