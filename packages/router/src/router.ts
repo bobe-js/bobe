@@ -1,4 +1,4 @@
-import { Store, StoreIgnoreKeys } from 'aoye';
+import { Store, StoreIgnoreKeys, effect } from 'aoye';
 import type { RouteMap, RouteEntry, RouteRecord, GuardResult, Menu, RouterOptions } from './type';
 import { match } from './match';
 import { GlobalKey } from './global';
@@ -68,6 +68,12 @@ export class Router extends Store {
 
   #inited = false;
   #readyQueue: (() => void)[] = [];
+
+  /** 下一次 active 渲染完成后待滚动的 hash（含 '#'），null 表示无需滚动 */
+  #pendingHash: string | null = null;
+
+  /** hash 滚动 watcher 的 dispose 句柄 */
+  #hashEffect?: { dispose(): void };
 
   constructor(opt?: RouterOptions) {
     super();
@@ -140,6 +146,22 @@ export class Router extends Store {
 
     // 浏览器前进/后退
     window.addEventListener('popstate', this.#onPopstate);
+
+    // hash 滚动 watcher：active 变更触发的 render effect 在 render 优先级队列中执行，
+    // 本 watcher 注册为 post 优先级，保证在新页面 DOM 挂载之后才运行，
+    // 此时 querySelector 才能命中锚点。
+    // immediate:false → 首屏不触发；持久存在，仅在 active 变化时派发，无需逐次创建/dispose。
+    this.#hashEffect = effect(
+      () => {
+        const hash = this.#pendingHash;
+        if (!hash) return;
+        this.#pendingHash = null;
+        const el = document.querySelector(decodeURIComponent(hash));
+        if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth' });
+      },
+      [() => this.active],
+      { type: 'post', immediate: false }
+    );
   }
 
   #initIdleSet(): void {
@@ -249,13 +271,11 @@ export class Router extends Store {
     target.component = route?.component;
     target.meta = route?.meta;
     target.layout = route?.layout;
-    this.active = target;
 
-    // hash 滚动
-    if (opts.hash) {
-      const el = document.querySelector(decodeURIComponent(opts.hash));
-      if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth' });
-    }
+    // 标记待滚动 hash，再切换 active；
+    // active 的 render effect 渲染完新页面后，post 优先级的 #hashEffect 会读取并滚动。
+    this.#pendingHash = opts.hash || null;
+    this.active = target;
 
     this.#preloadNext();
   }
