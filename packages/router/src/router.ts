@@ -1,4 +1,4 @@
-import { Store, StoreIgnoreKeys } from 'aoye';
+import { effect, Store, StoreIgnoreKeys } from 'aoye';
 import type { RouteMap, RouteEntry, RouteRecord, GuardResult, Menu, RouterOptions } from './type';
 import { match } from './match';
 import { GlobalKey } from './global';
@@ -249,15 +249,26 @@ export class Router extends Store {
     target.component = route?.component;
     target.meta = route?.meta;
     target.layout = route?.layout;
-    this.active = target;
 
     // hash 滚动
     if (opts.hash) {
-      const el = document.querySelector(decodeURIComponent(opts.hash));
-      if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth' });
+      this.#scrollToHash(opts.hash, id);
     }
 
+    this.active = target;
     this.#preloadNext();
+  }
+
+  #scrollToHash(hash: string, id: number): void {
+    let watcher: ReturnType<typeof effect> | null = null;
+    watcher = effect(() => {
+      if (id === this.navId) {
+        const el = document.querySelector(decodeURIComponent(hash));
+        if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth' });
+      }
+      watcher?.dispose();
+      watcher = null;
+    }, [() => this.active], { type: 'post', immediate: false });
   }
 
   async #checkGuard(
