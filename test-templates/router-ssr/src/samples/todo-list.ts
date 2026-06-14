@@ -32,48 +32,46 @@ class TodoApp extends Store {
   }
 
   ui = bobe`
-    div class="todo-app" style="max-width: 500px; margin: 0 auto;"
-      h1 "📋 TODO List"
+    div class="max-w-xl mx-auto p-6"
+      h1 class="text-2xl font-bold mb-6" "📋 TODO List"
 
       // ---- 输入区域 ----
-      div class="todo-input" style="display: flex; gap: 8px; margin-bottom: 16px;"
+      div class="flex gap-2 mb-4"
         input
         | value={newText}
         | oninput={(e) => newText = e.target.value }
         | type="text"
         | placeholder="What needs to be done?"
         | onkeydown={(e) => { if (e.key === 'Enter') addTodo() }}
-        | style="flex: 1; padding: 8px 12px; border: 1px solid #d0d7de; border-radius: 6px;"
+        | class="flex-1 px-3 py-2 border border-[#d0d7de] rounded-md outline-none focus:border-[#2da44e]"
         button
         | "Add"
         | onclick={() => addTodo()}
-        | style="padding: 8px 16px; background: #2da44e; color: #fff; border: none; border-radius: 6px; cursor: pointer;"
+        | class="px-4 py-2 bg-[#2da44e] text-white rounded-md cursor-pointer hover:bg-[#2c974b]"
 
       // ---- 空状态 ----
       if todos.length === 0
-        p
+        p class="text-[#9198a1] text-center py-6"
         | "No todos yet. Add one above!"
-        | style="color: #9198a1; text-align: center; padding: 24px 0;"
 
       // ---- TODO 列表 ----
-      ul style="list-style: none; padding: 0;"
+      ul class="list-none p-0! border border-[#eaeef2] rounded-md"
         for todos; todo i; todo.id
-          li class={todo.completed ? 'todo-item completed' : 'todo-item'}
-          | style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #eaeef2;"
+          li class={todo.completed ? 'flex items-center gap-2.5 px-3 py-2.5 border-b border-[#eaeef2] last:border-b-0' : 'flex items-center gap-2.5 px-3 py-2.5 border-b border-[#eaeef2] last:border-b-0'}
             input
             | type="checkbox"
             | checked={todo.completed}
             | onchange={() => toggleTodo(i)}
             span
             | {todo.text}
-            | style={todo.completed ? 'text-decoration: line-through; color: #9198a1; flex: 1;' : 'flex: 1;'}
+            | class={todo.completed ? 'line-through text-[#9198a1] flex-1' : 'flex-1'}
             button
             | "×"
             | onclick={() => removeTodo(todo.id)}
-            | style="background: none; border: none; color: #cf222e; font-size: 18px; cursor: pointer;"
+            | class="bg-transparent border-none text-[#cf222e] text-lg cursor-pointer hover:text-red-800"
 
       // ---- 统计栏 ----
-      div style="margin-top: 12px; padding: 8px 0; color: #57606a; font-size: 13px; border-top: 1px solid #eaeef2;"
+      div class="mt-3 py-2 text-[#57606a] text-[13px] border-t border-[#eaeef2]"
         span {activeCount + ' left'}
   `;
 }

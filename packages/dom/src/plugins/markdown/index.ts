@@ -56,10 +56,10 @@ function gen(
   lines.push(`class Markdown extends Store {`);
   lines.push(`  mdRef = null;`);
   lines.push(`  ui = bobe\``);
-  lines.push(`    div class="markdown" style="display: flex;"`);
-  lines.push(`      main ref={mdRef} class="markdown-body" style="overflow-y: auto;" html=\${mdHtml}`);
+  lines.push(`    div class="markdown" style="display: flex; gap: 16px; justify-content: space-between;"`);
+  lines.push(`      main ref={mdRef} class="markdown-body" style="overflow-y: auto; flex: 1;" html=\${mdHtml}`);
   lines.push(`      if showAside`);
-  lines.push(`        div class="markdown-aside" style="flex: none; display: flex; flex-direction: column; overflow-y: auto;"`);
+  lines.push(`        aside class="markdown-aside" style="flex: none; display: flex; flex-direction: column; overflow-y: auto; width: 220px;"`);
   for (const { depth, id, text } of headers) {
     lines.push(
       `          a href="#${id}" children="${esc(text)}" class="markdown-aside-item markdown-aside-depth-${depth}"`

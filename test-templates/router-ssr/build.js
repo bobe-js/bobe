@@ -15,8 +15,13 @@ if (!routes || Object.keys(routes).length === 0) {
   process.exit(1);
 }
 
-// 3. 读取 Vite 构建后的 HTML 模板
-const template = await fs.readFile(path.join(distClient, 'index.html'), 'utf-8');
+// 3. 读取 HTML 模板（优先构建产物，降级到源文件）
+let template;
+try {
+  template = await fs.readFile(path.join(distClient, 'index.html'), 'utf-8');
+} catch {
+  template = await fs.readFile(path.resolve(__dirname, 'index.html'), 'utf-8');
+}
 
 // 4. 逐路由渲染
 console.log(`\n🔨 Generating static pages for ${Object.keys(routes).length} routes...\n`);

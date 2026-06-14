@@ -10,6 +10,10 @@ let vite
 if (!isProduction) {
   const { createServer } = await import('vite')
   vite = await createServer({ server: { middlewareMode: true }, appType: 'custom' })
+
+  // 预构建的 pagefind 索引（目录不存在时静默跳过，不影响页面渲染）
+  app.use('/pagefind', express.static('./dist/client/pagefind', { fallthrough: true }))
+
   app.use(vite.middlewares)
 } else {
   // 生产模式：gzip 压缩 + 静态文件服务

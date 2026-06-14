@@ -1,18 +1,16 @@
 import { bobe, Store } from 'bobe';
 import styles from './drop-down.module.scss';
 
-export interface DropDownItem {
-  text: string;
-  value?: any;
-  disabled?: boolean;
-}
 
-export class DropDown extends Store {
-  items: DropDownItem[] = [];
-  label = '请选择';
-  auto = false;
-  bordered = true;
-  onSelect: ((item: DropDownItem) => void) | null = null;
+
+export class DropDown<T> extends Store {
+  readonly items: T[] = [];
+  readonly content = '请选择';
+  readonly auto = false;
+  readonly bordered = true;
+  readonly onSelect: ((item: T) => void) | null = null;
+  readonly label =  'label';
+  readonly value =  'value';
 
   isOpen = false;
   styles = styles;
@@ -25,9 +23,7 @@ export class DropDown extends Store {
     this.isOpen = false;
   }
 
-  selectItem(item: DropDownItem) {
-    if (item.disabled) return;
-    this.label = item.text;
+  selectItem(item: T) {
     this.isOpen = false;
     this.onSelect?.(item);
   }
@@ -58,12 +54,12 @@ export class DropDown extends Store {
       | class={bordered ? styles.trigger : (styles.trigger + ' ' + styles.borderless + (isOpen ? ' ' + styles.dimmed : ''))}
       | onclick={() => toggle()}
       | onkeydown={(e) => handleTriggerKeydown(e)}
-      | {label}
+      | {content}
       ul class={isOpen ? styles.menu + ' ' + styles.open : styles.menu}
-        for items; item
+        for items; item ; item[value]
           li
-          | class={item.disabled ? styles.item + ' ' + styles.disabled : styles.item}
+          | class={styles.item}
           | onclick={() => selectItem(item)}
-          | {item.text}
+          | {item[label]}
   `;
 }

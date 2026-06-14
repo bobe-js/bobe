@@ -37,7 +37,7 @@ class MenuComp extends Store {
 
   ui = bobe`
     nav
-      h3 class="text-sm font-semibold text-(--md-text) py-2 px-4" {name}
+      h1 class="text-xl font-semibold text-(--md-text) pt-6.5 py-4 px-3" {name}
       ul class="list-none p-0 m-0"
         for menus; item
           ${MenuItem} item={item} depth={0}
