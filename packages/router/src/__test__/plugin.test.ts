@@ -1,5 +1,6 @@
 import { scanDir } from '#/plugin/scan';
 import { generateCsrInit, generateSsgInit } from '#/plugin/generate';
+import bobeRouter from '#/plugin';
 import { GlobalKey } from '#/global';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { resolve } from 'path';
@@ -268,7 +269,7 @@ describe('generateSsgInit', () => {
     expect(code).toBe(
       "import * as __module_0 from '/pages/index.ts';\n\n" +
       `globalThis['${Routes}'] = {\n` +
-      "  '/': { component: __module_0.default, layout: __module_0.layout }\n" +
+      "  '/': { component: __module_0.default }\n" +
       "};\n" +
       "export const __bobe_routes = [__module_0.default];"
     );
@@ -288,5 +289,90 @@ describe('generateSsgInit', () => {
     ]);
 
     expect(code).toContain("meta: { title: '首页' }");
+  });
+});
+
+describe('bobeRouter plugin', () => {
+  beforeEach(() => teardown(TEST_DIR));
+  afterAll(() => teardown(TEST_DIR));
+
+  it('should load routes from virtual modules and inject only side-effect imports', async () => {
+    setup(TEST_DIR, {
+      '01_home_首页.ts': 'export default class Home {};',
+    });
+
+    const root = resolve(TEST_DIR, '..');
+    const [plugin] = bobeRouter({ dir: '__plugin_test_pages' });
+    // @ts-ignore
+    plugin.configResolved?.({ root, build: { ssr: 'src/entry-server.ts', rollupOptions: {} } } as any);
+    // @ts-ignore
+    const resolved = await plugin.resolveId?.call({} as any, 'bobe-router/ssg-routes', undefined, {} as any);
+    expect(resolved).toEqual({
+      id: '\0bobe-router/ssg-routes',
+      moduleSideEffects: true,
+    });
+    // @ts-ignore
+    const resolvedCsr = await plugin.resolveId?.call({} as any, 'bobe-router/csr-routes', undefined, {} as any);
+    expect(resolvedCsr).toEqual({
+      id: '\0bobe-router/csr-routes',
+      moduleSideEffects: true,
+    });
+
+    // @ts-ignore
+    const loaded = await plugin.load?.call({} as any, '\0bobe-router/ssg-routes', {} as any);
+    expect(String(loaded)).toContain("import * as __module_0 from");
+    expect(String(loaded)).toContain(`globalThis['${Routes}'] = {`);
+    expect(String(loaded)).toContain("export const __bobe_routes");
+
+    // @ts-ignore
+    const loadedCsr = await plugin.load?.call({} as any, '\0bobe-router/csr-routes', {} as any);
+    expect(String(loadedCsr)).toContain("import: () => import");
+    expect(String(loadedCsr)).toContain(`globalThis['${Routes}'] = {`);
+
+    // @ts-ignore
+    const transformed = await plugin.transform?.call({} as any, 'export const render = () => "";\n', `${root}/src/entry-server.ts`, {} as any);
+    expect(transformed).toBe("import 'bobe-router/ssg-routes';\nexport const render = () => \"\";\n");
+
+    const [csrPlugin] = bobeRouter({ dir: '__plugin_test_pages' });
+    // @ts-ignore
+    csrPlugin.configResolved?.({ root, build: { ssr: false, rollupOptions: { input: 'src/main.ts' } } } as any);
+    // @ts-ignore
+    const transformedCsr = await csrPlugin.transform?.call({} as any, 'export const main = () => "";\n', `${root}/src/main.ts`, {} as any);
+    expect(transformedCsr).toBe("import 'bobe-router/csr-routes';\nexport const main = () => \"\";\n");
+
+    const [libPlugin] = bobeRouter({ dir: '__plugin_test_pages' });
+    // @ts-ignore
+    libPlugin.configResolved?.({ root, build: { ssr: false, lib: { entry: 'src/lib-entry.ts' }, rollupOptions: {} } } as any);
+    // @ts-ignore
+    const transformedLibCsr = await libPlugin.transform?.call({} as any, 'export const mount = () => "";\n', `${root}/src/lib-entry.ts`, {} as any);
+    expect(transformedLibCsr).toBe("import 'bobe-router/csr-routes';\nexport const mount = () => \"\";\n");
+
+    // @ts-ignore
+    const duplicated = await csrPlugin.transform?.call({} as any, "import 'bobe-router/csr-routes';\n", `${root}/src/main.ts`, {} as any);
+    expect(duplicated).toBe("import 'bobe-router/csr-routes';\n");
+
+    const htmlHook = csrPlugin.transformIndexHtml as any;
+    expect(await htmlHook.handler('<html><head></head><body></body></html>')).toEqual([{
+      tag: 'script',
+      attrs: { type: 'module' },
+      children: "import 'bobe-router/csr-routes';",
+      injectTo: 'head-prepend',
+    }]);
+    expect(await htmlHook.handler("<script type=\"module\">import 'bobe-router/csr-routes';</script>")).toBeUndefined();
+
+    const [devPlugin] = bobeRouter({ dir: '__plugin_test_pages' });
+    // @ts-ignore
+    devPlugin.configResolved?.({ root, build: { ssr: false, rollupOptions: {} } } as any);
+    const server = {
+      ssrLoadModule(url: string) {
+        return Promise.resolve({ url });
+      }
+    };
+    // @ts-ignore
+    devPlugin.configureServer?.(server as any);
+    await server.ssrLoadModule('/src/dev-entry.ts');
+    // @ts-ignore
+    const transformedDevSsr = await devPlugin.transform?.call({} as any, 'export const render = () => "";\n', `${root}/src/dev-entry.ts`, {} as any);
+    expect(transformedDevSsr).toBe("import 'bobe-router/ssg-routes';\nexport const render = () => \"\";\n");
   });
 });

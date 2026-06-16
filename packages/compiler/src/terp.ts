@@ -46,7 +46,7 @@ import {
 } from './type';
 import { date32, hasOwn, jsVarRegexp, pick, pickInPlace } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
-import { InlineFragment, isRenderAble, isUI, macInc, safe } from './util';
+import { InlineFragment, isRenderAble, isUI, macInc, safe, safeExclude } from './util';
 import { KEY_INDEX, setCtxStack } from './global';
 
 export class Interpreter {
@@ -1237,7 +1237,7 @@ export class Interpreter {
   }
   getAssignFn(data: any, expression: string | number) {
     const valueId = `value_bobe_${date32()}`;
-    return new Function('data', valueId, `with(data){${expression}=${valueId}};`).bind(undefined, data);
+    return new Function('data', valueId, `with(data){${expression}=${valueId}};`).bind(undefined, safeExclude(data, { [valueId]: true }));
   }
   // TODO: 优化代码逻辑，拆分 if elseif else
   condDeclaration(ctx: ProgramCtx) {

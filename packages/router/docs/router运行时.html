@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Router 运行时流程图</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --text: #16202a;
+      --muted: #5e6b78;
+      --line: #d9e0e8;
+      --accent: #274bdb;
+      --accent-soft: #e9edff;
+      --code: #0f172a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px 22px 72px;
+    }
+
+    header {
+      margin-bottom: 24px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      line-height: 1.2;
+    }
+
+    .lead {
+      margin: 0;
+      color: var(--muted);
+      max-width: 980px;
+    }
+
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      margin-top: 14px;
+      font-size: 14px;
+    }
+
+    nav a {
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+    }
+
+    section {
+      margin: 22px 0;
+      padding: 20px 0 6px;
+      border-top: 1px solid var(--line);
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 22px;
+    }
+
+    h3 {
+      margin: 22px 0 10px;
+      font-size: 18px;
+    }
+
+    p {
+      margin: 8px 0 12px;
+      color: var(--text);
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+    }
+
+    .panel h3 {
+      margin-top: 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    th,
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f4f6fb;
+      font-weight: 600;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px 14px;
+      background: #0b1220;
+      color: #e5ecff;
+      border-radius: 12px;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    .mermaid {
+      margin: 14px 0;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      overflow-x: auto;
+    }
+
+    .sticky-toc {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      margin: 0 -22px 18px;
+      padding: 12px 22px;
+      backdrop-filter: blur(12px);
+      background: rgba(246, 247, 251, 0.9);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .kpi {
+      display: inline-block;
+      margin-right: 10px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .warn {
+      color: #8c4a00;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+    }
+
+    ul {
+      margin: 8px 0 12px 20px;
+      padding: 0;
+    }
+
+    li + li {
+      margin-top: 4px;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', function () {
+      if (!window.mermaid) {
+        return;
+      }
+
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: 'neutral',
+        securityLevel: 'loose',
+        fontFamily: 'Inter, PingFang SC, Microsoft YaHei, system-ui, sans-serif',
+        flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+        sequence: { showSequenceNumbers: true },
+        themeVariables: {
+          primaryColor: '#eef2ff',
+          primaryTextColor: '#16202a',
+          primaryBorderColor: '#b9c4ff',
+          lineColor: '#7b8cb8',
+          secondaryColor: '#f8fafc',
+          tertiaryColor: '#fff',
+        },
+      });
+    });
+  </script>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="kpi">packages/router/src/router.ts</div>
+      <div class="kpi">Mermaid</div>
+      <h1>Router 运行时</h1>
+      <p class="lead">
+        这份文档按当前 <code>router.ts</code> 的运行时实现整理：路由表匹配、首屏初始化、push / replace / popstate、
+        异步组件加载、空闲预加载，以及 hash 锚点滚动的响应式时序。
+      </p>
+      <nav>
+        <a href="#data">数据模型</a>
+        <a href="#arch">整体架构</a>
+        <a href="#init">初始化</a>
+        <a href="#navigate">导航</a>
+        <a href="#popstate">popstate</a>
+        <a href="#hash">hash 滚动</a>
+        <a href="#load">异步加载</a>
+        <a href="#preload">预加载</a>
+        <a href="#invariants">不变量</a>
+      </nav>
+    </header>
+
+    <section id="data">
+      <h2>1. 运行时数据模型</h2>
+      <p class="note">
+        下面这些字段对应当前 <code>Router</code> 实例在运行时的核心状态。<code>active</code> 是唯一真正驱动模板重渲染的响应式出口；
+        其余历史、预加载、hash 状态都围绕它组织。
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>字段</th>
+            <th>作用</th>
+            <th>是否响应式</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>active</code></td>
+            <td>当前激活的路由条目，模板用 <code>{active.component}</code> 渲染。</td>
+            <td>是</td>
+          </tr>
+          <tr>
+            <td><code>RouteEntry.url</code></td>
+            <td>完整浏览器 URL（path + search + hash），用于区分同一路由下不同 hash 历史。</td>
+            <td>否，随 entry 保存</td>
+          </tr>
+          <tr>
+            <td><code>scrollRootId</code></td>
+            <td>当前滚动容器的 DOM id；滚动时即时查找节点，适配 active 渲染后的最新 DOM。</td>
+            <td>否，已加入 <code>StoreIgnoreKeys</code></td>
+          </tr>
+          <tr>
+            <td><code>routes</code></td>
+            <td>路由表，保存 import / component / meta / layout / status。</td>
+            <td>否，已加入 <code>StoreIgnoreKeys</code></td>
+          </tr>
+          <tr>
+            <td><code>menus</code></td>
+            <td>目录嵌套菜单，主要服务导航和文档化结构。</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>stack</code></td>
+            <td>历史栈，记录每次 Router 自己产生或恢复的页面。</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>stackIndex</code></td>
+            <td>当前栈顶指针，配合 back / forward / go / popstate。</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>idleSet</code></td>
+            <td>尚未预加载的路由集合，用于 <code>#preloadNext()</code>。</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>loadingCount</code></td>
+            <td>当前并发加载中的数量，限制预加载并行度。</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>navId</code></td>
+            <td>导航版本号，用于丢弃过期导航结果。</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>activeCommitId</code></td>
+            <td>每次提交 <code>active</code> 时递增，给 hash pending 绑定当前提交。</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>hashScrollVersion</code></td>
+            <td>仅用于同一个 <code>active</code> 下的纯 hash popstate，强制触发 post effect。</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>#pendingHash</code></td>
+            <td>等待滚动的 hash 任务，当前实现里绑定 <code>activeCommitId</code>。</td>
+            <td>否</td>
+          </tr>
+          <tr>
+            <td><code>#hashEffect</code></td>
+            <td>持久的 post effect，只创建一次，负责消费 pending hash。</td>
+            <td>否</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="arch">
+      <h2>2. 整体架构</h2>
+      <p class="note">
+        Router 继承 <code>Store</code>，真正让模板感知变化的只有 <code>active</code>。
+        路由表、历史栈和预加载集合都被刻意排除在响应式之外。
+      </p>
+
+      <div class="mermaid">
+classDiagram
+direction LR
+
+class Store
+
+class Router {
+  +active: RouteEntry | null
+  +routes: RouteMap
+  +menus: Menu[]
+  +enterGuard
+  +leaveGuard
+  +maxPreload: number
+  +pushState(url)
+  +replaceState(url)
+  +back()
+  +forward()
+  +go(delta)
+  -#init(path)
+  -#initBrowser()
+  -#initIdleSet()
+  -#initHashEffect()
+  -#setActive(entry, hash)
+  -#setPendingHash(hash, trigger)
+  -#getHash(url)
+  -#navigate(target, opts)
+  -#loadComponent(path)
+  -#preloadNext()
+  -#onClick(e)
+  -#onPopstate()
+}
+
+class RouteEntry {
+  +path: string
+  +url?: string
+  +params: Record~string,string~
+  +scroll?: number
+  +component?: Store
+  +meta?: Record~string,any~
+  +layout?: Store
+}
+
+class RouteRecord {
+  +import?
+  +component?
+  +status
+  +promise?
+  +params?
+  +meta?
+  +layout?
+}
+
+Router --|> Store
+Router o-- RouteEntry : active / stack
+Router o-- RouteRecord : routes
+Router o-- Menu : menus
+
+note for Router "StoreIgnoreKeys = ['routes', 'menus', 'stack', 'ready']"
+      </div>
+
+      <div class="grid">
+        <div class="panel">
+          <h3>关键约束</h3>
+          <ul>
+            <li><code>active</code> 变化会触发模板重渲染和 hash post effect。</li>
+            <li><code>routes</code>、<code>menus</code>、<code>stack</code> 不参与响应式派发。</li>
+            <li>所有导航最终都要收敛到一次 <code>#setActive()</code>。</li>
+            <li>hash 滚动只能在 DOM 已经可查询后发生。</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>为什么要有 commit id</h3>
+          <p>
+            <code>activeCommitId</code> 解决的是“旧导航的 pending hash 被晚到的 post effect 消费”的问题。
+            任何不属于当前提交版本的 hash 任务都会被丢弃。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="init">
+      <h2>3. 初始化流程</h2>
+      <p class="note">
+        初始化分两层：<code>#init(path)</code> 负责首屏路由决策与首个 <code>active</code> 提交；<code>#initBrowser()</code>
+        负责挂事件和建立持久 hash watcher。两者都调用 <code>#initHashEffect()</code>，但它是幂等的，只会真正创建一次。
+      </p>
+
+      <div class="mermaid">
+flowchart TD
+  A["new Router(opt)"] --> B["选择 routes / menus / path"]
+  B --> C["#init(path) async"]
+  C --> D["#initIdleSet()"]
+  D --> E["#initHashEffect()"]
+  E --> F{"match(path, routes)?"}
+  F -- "no" --> G["active 保持 null"]
+  F -- "yes" --> H{"route.component 已存在?"}
+  H -- "yes" --> I["route.status = 'loaded'"]
+  H -- "no" --> J["#loadComponent(result.path)"]
+  J --> K["组件 / meta / layout 载入完成"]
+  I --> L["组装 RouteEntry"]
+  K --> L
+  L --> M["#setActive(entry, initialHash)"]
+  M --> M1["activeCommitId++"]
+  M1 --> M2["pendingHash = { hash, activeCommitId }"]
+  M2 --> M3["this.active = entry"]
+  M3 --> N["Store 派发 active 变更"]
+  N --> O["模板渲染 / hydrate 触发"]
+  O --> P["post 队列中的 #hashEffect 等待 flush"]
+  P --> Q{"pendingHash commitId == activeCommitId?"}
+  Q -- "yes" --> R["querySelector(hash) -> scrollIntoView"]
+  Q -- "no" --> S["丢弃过期任务"]
+  M3 --> T["stack = [{ path, url, params }]"]
+  T --> U["stackIndex = 0"]
+  U --> V["#initBrowser()"]
+  V --> W["history.scrollRestoration = 'manual'"]
+  W --> X["注册 click / popstate"]
+  X --> Y["ready 队列 flush"]
+      </div>
+
+      <div class="mermaid">
+sequenceDiagram
+  participant C as Constructor
+  participant I as #init(path)
+  participant H as #initHashEffect()
+  participant L as #loadComponent()
+  participant S as Store(active)
+  participant R as Router.ready(cb)
+  participant U as render / hydrate
+  participant D as DOM
+  participant P as post hash effect
+
+  C->>I: new Router(opt)
+  I->>H: 先注册 hash watcher
+  I->>I: match(initialPath)
+  alt 需要异步组件
+    I->>L: import route component
+    L-->>I: component / meta / layout
+  end
+  I->>S: #setActive(entry, initialHash)
+  S-->>U: active 变更，模板准备渲染
+  R-->>U: ready 回调触发 render / hydrate
+  U->>D: 创建或复用首屏 DOM
+  U->>P: flush post tasks
+  P->>D: querySelector(hash)
+  P->>D: scrollIntoView({ behavior: 'smooth' })
+      </div>
+    </section>
+
+    <section id="navigate">
+      <h2>4. pushState / replaceState 导航</h2>
+      <p class="note">
+        普通导航是最完整的主路径：先做守卫，再写 history，再加载组件，最后提交 <code>active</code>。
+        hash 滚动不是同步直接做，而是随着 <code>active</code> 进入 post 队列后统一处理。
+      </p>
+
+      <div class="mermaid">
+flowchart TD
+  A["pushState(url) / replaceState(url)"] --> B["match(url, routes)"]
+  B --> C{"命中路由?"}
+  C -- "no" --> Z["return"]
+  C -- "yes" --> D["new URL(url, location.origin)"]
+  D --> E["target = { path: result.url, params }"]
+  E --> F["更新 stack / stackIndex"]
+  F --> G["#navigate(target, opts)"]
+
+  G --> H["navId++"]
+  H --> I["检查 leaveGuard(this.active)"]
+  I --> J{"通过?"}
+  J -- "no" --> Z
+  J -- "yes" --> K["检查 enterGuard(target)"]
+  K --> L{"通过?"}
+  L -- "no" --> Z
+  L -- "yes" --> M["保存当前页 scrollY"]
+  M --> N["history.pushState / replaceState"]
+  N --> O["#loadComponent(lookupKey)"]
+  O --> P{"navId 是否过期?"}
+  P -- "yes" --> Z
+  P -- "no" --> Q["同步 route.component / meta / layout"]
+  Q --> R["#setActive(target, opts.hash)"]
+  R --> R1["activeCommitId++"]
+  R1 --> R2["pendingHash = {hash, activeCommitId}"]
+  R2 --> R3["this.active = target"]
+  R3 --> S["render effect 重新执行"]
+  S --> T["post hash effect 读取 pendingHash"]
+  T --> U["querySelector(decoded hash)"]
+  U --> V["scrollIntoView({ behavior: 'smooth' })"]
+  R3 --> W["#preloadNext()"]
+      </div>
+
+      <div class="grid">
+        <div class="panel">
+          <h3>导航中的保护点</h3>
+          <ul>
+            <li><code>navId</code> 防止守卫或组件加载期间有新导航覆盖旧结果。</li>
+            <li>在加载完成前如果导航已经变更，旧结果直接丢弃。</li>
+            <li><code>#setActive()</code> 统一负责提交版本和 pending hash 绑定。</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>hash 为什么不同步滚动</h3>
+          <p>
+            因为模板的渲染 effect 可能在微任务 / post 队列里，DOM 不是在 <code>active = target</code> 这一行后立即就稳定可查。
+            把滚动交给 post effect，才能保证查询的是最终 DOM。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="popstate">
+      <h2>5. popstate 处理</h2>
+      <p class="note">
+        popstate 分三种：栈内普通恢复、同一条 active 的 hash-only 变化、以及外部跳转重置栈。
+        这里同时兼容浏览器直接改变 hash 和 Router 自己维护的 history 栈。
+      </p>
+
+      <div class="mermaid">
+flowchart TD
+  A["window popstate"] --> B["current = pathname + search + hash"]
+  B --> C["match(current, routes)"]
+  C --> D["normalized = result?.url || current"]
+  D --> E["idx = stack.findLastIndex(url == current)"]
+  E --> F{"idx === -1?"}
+
+  F -- "yes" --> G["外部跳转"]
+  G --> H["entry = { path: normalized, params, meta, layout }"]
+  H --> I["stack = [entry]"]
+  I --> J["stackIndex = 0"]
+  J --> K["#setActive(entry, location.hash)"]
+  K --> K1["activeCommitId++"]
+  K1 --> K2["pendingHash 绑定本次提交"]
+  K2 --> K3["this.active = entry"]
+  K3 --> L["render / hydrate 触发"]
+
+  F -- "no" --> M{"idx === stackIndex?"}
+  M -- "yes" --> N["仅 hash 变化"]
+  N --> O["#setPendingHash(location.hash, true)"]
+  O --> P["hashScrollVersion++"]
+  P --> Q["post effect 被重新派发"]
+  Q --> R["读取当前 pendingHash 并滚动"]
+
+  M -- "no" --> S["栈内恢复"]
+  S --> T["#saveScroll(当前 stackIndex)"]
+  T --> U["stackIndex = idx"]
+  U --> V["entry = stack[idx]"]
+  V --> W["#navigate(entry, { replace: true, hash, search, saveScrollIndex:false })"]
+  W --> X["恢复 entry.scroll"]
+      </div>
+
+      <div class="mermaid">
+sequenceDiagram
+  participant B as Browser popstate
+  participant R as Router
+  participant T as history stack
+  participant H as hash post effect
+  participant D as DOM
+
+  B->>R: popstate
+  R->>R: 计算 current / normalized / idx
+  alt idx == -1
+    R->>R: 外部跳转，重置 stack
+    R->>R: #setActive(entry, location.hash)
+  else idx == stackIndex
+    R->>R: 仅 hash 变化
+    R->>R: #setPendingHash(location.hash, true)
+  else 栈内恢复
+    R->>T: #navigate(entry, { replace: true, hash, search })
+  end
+  R->>H: active 变更或 hash version bump
+  H->>D: querySelector(hash)
+  H->>D: scrollIntoView()
+      </div>
+    </section>
+
+    <section id="hash">
+      <h2>6. hash 滚动状态机</h2>
+      <p class="note">
+        当前实现不是“每次导航都新建一个 effect”，而是一个持久 <code>post</code> watcher 监听
+        <code>active</code> 与 <code>hashScrollVersion</code>。它消费的是“最新 pending 任务”，而不是过去的任务队列。
+      </p>
+
+      <div class="mermaid">
+stateDiagram-v2
+  [*] --> Idle
+
+  Idle --> Armed : #setActive(entry, hash)
+  Idle --> Armed : hash-only popstate\n#setPendingHash(hash, true)
+
+  Armed --> WaitingPost : active 变化 / version bump\n进入 post 队列
+  WaitingPost --> Consuming : post effect 开始执行
+
+  Consuming --> Scrolling : commitId 匹配且 DOM 命中
+  Consuming --> Discarded : commitId 不匹配
+  Consuming --> TopScroll : hash 为空
+  TopScroll --> Idle : getElementById(scrollRootId).scrollTop = 0 / window.scrollTo(0, 0)
+  Consuming --> Discarded : 无目标节点
+
+  Scrolling --> Idle : pendingHash = null
+  Discarded --> Idle : pendingHash = null
+      </div>
+
+      <div class="grid">
+        <div class="panel">
+          <h3>为什么要有 <code>activeCommitId</code></h3>
+          <p>
+            同一帧内可能发生多次导航提交。<code>activeCommitId</code> 让 pending hash 只能消费“当前 active 对应的那一次提交”，
+            旧提交即使晚到也会被丢弃。
+          </p>
+        </div>
+        <div class="panel">
+          <h3>为什么要有 <code>hashScrollVersion</code></h3>
+          <p>
+            同一个 <code>active</code> 下的 hash-only popstate 不会改变 <code>active</code>，但浏览器 URL 已变。
+            版本号只负责把同一个 post watcher 重新派发一次；当 hash 为空时，watcher 会把页面滚回顶部。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="load">
+      <h2>7. 异步组件加载</h2>
+      <p class="note">
+        路由模式里真正的组件 import 被封装在 <code>#loadComponent()</code> 中。
+        它既是普通导航的一部分，也是空闲预加载的共同底层。
+      </p>
+
+      <div class="mermaid">
+flowchart TD
+  A["#loadComponent(path)"] --> B["取 route = routes[path]"]
+  B --> C{"route.status"}
+  C -- "loaded" --> D["直接返回 route.component"]
+  C -- "loading" --> E["直接返回 route.promise"]
+  C -- "error / idle" --> F{"route.import 存在?"}
+  F -- "no" --> G["throw Error"]
+  F -- "yes" --> H["idleSet.delete(path)"]
+  H --> I["route.status = 'loading'"]
+  I --> J["route.promise = route.import()"]
+  J --> K{"Promise 成功?"}
+  K -- "no" --> L["route.status = 'error'"]
+  L --> M["throw err"]
+  K -- "yes" --> N["Comp = mod.default || mod"]
+  N --> O["route.status = 'loaded'"]
+  O --> P["route.component = Comp"]
+  P --> Q{"route.meta 为空且 mod.routeMeta 存在?"}
+  Q -- "yes" --> R["route.meta = mod.routeMeta"]
+  Q -- "no" --> S["跳过 meta 回填"]
+  R --> T{"route.layout 为空且 mod.layout 存在?"}
+  S --> T
+  T -- "yes" --> U["route.layout = mod.layout"]
+  T -- "no" --> V["跳过 layout 回填"]
+  U --> W["finally: loadingCount--"]
+  V --> W
+  W --> X["#preloadNext()"]
+      </div>
+
+      <p class="small">
+        这条路径的一个关键点是：route 状态迁移在 <code>routes</code> 对象中完成，<code>active</code> 只接收结果，不自己维护 import 生命周期。
+      </p>
+    </section>
+
+    <section id="preload">
+      <h2>8. 空闲预加载</h2>
+      <p class="note">
+        空闲预加载只处理还处于 <code>idle</code> 的路由，遵守 <code>maxPreload</code> 和 <code>loadingCount</code>。
+        它不会回头重复加载已经进入 <code>loaded / loading / error</code> 的路由。
+      </p>
+
+      <div class="mermaid">
+flowchart TD
+  A["#preloadNext()"] --> B{"loadingCount < maxPreload 且 idleSet 非空?"}
+  B -- "no" --> C["return"]
+  B -- "yes" --> D["取 idleSet 的第一个 path"]
+  D --> E["loadingCount++"]
+  E --> F{"requestIdleCallback 可用?"}
+  F -- "yes" --> G["requestIdleCallback(() => #loadComponent(path))"]
+  F -- "no" --> H["setTimeout(() => #loadComponent(path), 0)"]
+  G --> I["预加载任务开始"]
+  H --> I
+  I --> J["#loadComponent(path)"]
+  J --> K["加载结束后 loadingCount--"]
+  K --> L["再次调用 #preloadNext()"]
+  L --> B
+      </div>
+    </section>
+
+    <section id="invariants">
+      <h2>9. 关键不变量与检查点</h2>
+      <div class="grid">
+        <div class="panel">
+          <h3>active 的所有写入点</h3>
+          <ul>
+            <li><code>#init()</code>：首屏初始化。</li>
+            <li><code>#navigate()</code>：push / replace 导航。</li>
+            <li><code>#onPopstate()</code>：外部跳转重置栈，或栈内恢复。</li>
+          </ul>
+          <p class="note">
+            这三个点都应该通过统一的 <code>#setActive()</code> 或等价路径提交，才能让 hash watcher 的语义一致。
+            栈内记录还需要保存 <code>url</code>，否则 <code>/article</code> 与 <code>/article#title</code> 会被误认为同一个历史项。
+          </p>
+        </div>
+        <div class="panel">
+          <h3>hash 的所有输入来源</h3>
+          <ul>
+            <li>首屏 URL 自带 hash。</li>
+            <li>push / replace 导航带 hash。</li>
+            <li>同一 active 下的 hash-only popstate。</li>
+            <li>外部跳转或手动改地址栏后的 hash。</li>
+          </ul>
+          <p class="note">
+            文档对应的实现已经把这四类输入统一到同一个 post watcher。
+          </p>
+        </div>
+        <div class="panel">
+          <h3>浏览器与 DOM 的时序</h3>
+          <ul>
+            <li>CSR：render 先创建 DOM，再让 post watcher 读取 hash。</li>
+            <li>Hydrate：SSR DOM 已存在，post watcher 只负责定位与滚动。</li>
+            <li>导航中的新页面 DOM 可能来自异步渲染 effect，因此不能同步查找。</li>
+            <li>浏览器原生滚动恢复被设为 <code>manual</code>，由 Router 在当前 <code>scrollRootId</code> 对应节点上统一保存和恢复。</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>简化版执行序列</h3>
+      <pre><code>1. 路由触发：pushState / replaceState / popstate / 首屏 init
+2. 解析 URL，匹配 RouteMap，准备目标 entry
+3. 守卫通过后，写 history 或恢复 stack
+4. 加载组件，回填 component / meta / layout
+5. 通过 #setActive() 提交 active，并绑定 pending hash
+6. active 触发模板渲染或 hydrate
+7. post hash watcher 消费 pendingHash
+8. querySelector(hash)
+9. scrollIntoView({ behavior: 'smooth' })
+10. 启动 #preloadNext()</code></pre>
+    </section>
+
+    <section>
+      <h2>10. 备注</h2>
+      <p class="note warn">
+        当前实现没有 Router teardown 生命周期，因此 <code>#hashEffect</code>、click 监听和 popstate 监听都是长期持有的。
+        如果后续要支持销毁，需要把这些监听和 effect 一起释放。
+      </p>
+      <p class="note">
+        这份 HTML 只是运行时行为图，不涉及插件扫描、路由生成或 SSR 注入流程。那些内容在 <code>packages/router/docs/plugin.md</code>
+        和现有 SSR 模板中已经有单独路径。
+      </p>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,0 +1,1229 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Router 运行时重构流程</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #5e6b77;
+      --line: #d9e1ea;
+      --accent: #1d5fd1;
+      --accent-soft: #e8f0ff;
+      --code-bg: #0d1524;
+      --code-text: #e9f0ff;
+      --warn-bg: #fff8e6;
+      --warn-text: #7a4b00;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+      line-height: 1.6;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .page {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px 22px 72px;
+    }
+
+    header {
+      margin-bottom: 16px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      line-height: 1.2;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 24px;
+      line-height: 1.3;
+    }
+
+    h3 {
+      margin: 18px 0 10px;
+      font-size: 17px;
+      line-height: 1.35;
+    }
+
+    p {
+      margin: 8px 0 12px;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.95em;
+    }
+
+    pre {
+      margin: 0;
+      overflow: auto;
+    }
+
+    .lead {
+      max-width: 980px;
+      color: var(--muted);
+    }
+
+    .toc {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      margin: 0 -22px 20px;
+      padding: 12px 22px;
+      background: rgba(247, 248, 251, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(12px);
+    }
+
+    .toc nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 10px;
+    }
+
+    .toc a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 4px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .tips {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin: 18px 0 6px;
+    }
+
+    .tip {
+      padding: 12px 14px;
+      border: 1px solid #f0d99f;
+      border-radius: 8px;
+      background: var(--warn-bg);
+      color: var(--warn-text);
+      font-size: 14px;
+    }
+
+    section {
+      margin: 22px 0;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+    }
+
+    .mermaid {
+      margin: 12px 0 0;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      overflow-x: auto;
+    }
+
+    .type-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .type-links li {
+      margin: 0;
+    }
+
+    .type-links a,
+    .type-links span {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 3px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f8fafc;
+      font-size: 13px;
+    }
+
+    .types-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
+    }
+
+    .type-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      overflow: hidden;
+    }
+
+    .type-card h3 {
+      margin: 0;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #f4f7fb;
+      font-size: 15px;
+    }
+
+    .type-card pre {
+      padding: 12px;
+      background: var(--code-bg);
+      color: var(--code-text);
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Router 运行时重构流程</h1>
+      <p class="lead">
+        这份文档按 Router 当前 runtime 实现整理对外 API 和运行时 hook。导航通过同一条事务管线提交，
+        守卫只执行一次，浏览器历史用 router 自有 state 识别，滚动在 active 渲染完成后统一处理。
+      </p>
+      <div class="tips">
+        <div class="tip">导航事务：match、build target、guard、load、commit、scroll、preload 必须按一次事务提交。</div>
+        <div class="tip">守卫只跑一次：public history API 和 popstate 之间用 pending token 衔接，不重复派发。</div>
+        <div class="tip">history.state：用 historyKey / entryId / index 识别历史项，避免重复 URL 或刷新后内存栈重置导致 stackIndex 错乱。</div>
+        <div class="tip">失败回滚：guard 拒绝或 import 失败时，不提交 active；必要时补偿浏览器历史。</div>
+        <div class="tip">事务执行器只负责 handler 串行和 token 校验；token 失效默认抛弃结果，不做通用撤回。</div>
+        <div class="tip">首屏守卫只能来自 RuntimeRouterOptions；构造后再赋值的 guard 只能影响后续导航。</div>
+        <div class="tip">滚动作为 handleScroll 留在事务队列中；active 提交前创建一次性 RenderWaiter，handleScroll 通过 Promise + await 等渲染完成后执行。</div>
+        <div class="tip">异步 handler 在 await 后、产生副作用前必须校验 token；事务执行器只负责 handler 边界的兜底校验。</div>
+      </div>
+    </header>
+
+    <div class="toc">
+      <nav aria-label="Router api and hook toc">
+        <a href="#run-navigation-transaction">#runNavigation</a>
+        <a href="#constructor">constructor</a>
+        <a href="#ready">ready</a>
+        <a href="#push-state">pushState</a>
+        <a href="#replace-state">replaceState</a>
+        <a href="#back">back</a>
+        <a href="#forward">forward</a>
+        <a href="#go">go</a>
+        <a href="#guards">enterGuard / leaveGuard</a>
+        <a href="#on-click">onClick</a>
+        <a href="#on-popstate">onPopstate</a>
+        <a href="#handle-prepare-scroll-waiter">handlePrepareScrollWaiter</a>
+        <a href="#handle-scroll">handleScroll</a>
+        <a href="#on-idle-preload">onIdlePreload</a>
+        <a href="#on-route-import">onRouteImport</a>
+        <a href="#types">数据类型</a>
+      </nav>
+    </div>
+
+    <section id="run-navigation-transaction">
+      <h2>#runNavigation(request, handlers)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["Router 内部调用: #runNavigation(request, handlers)"] --> A1["NavigationTransactionRunner.run(router, handlers, request)"]
+  A1 --> B["创建 NavigationContext: router / request / token / status=running / rollbackStack=[]"]
+  B --> C["createToken(request): token.id++ 并标记为 current"]
+  C --> D["复制 handler queue = [...handlers]"]
+  D --> E{"queue 是否为空?"}
+  E -- "yes" --> F["若 status 仍为 running, 设置 completed 并返回 NavigationResult"]
+  E -- "no" --> G["shift 下一个 NavigationHandler"]
+  G --> H["await handler(ctx)"]
+  H --> I{"handler 是否抛错?"}
+  I -- "yes" --> J["ctx.error = error; ctx.status = error"]
+  J --> K["倒序执行 ctx.rollbackStack"]
+  K --> L["返回 NavigationResult(status=error, ctx, error)"]
+  I -- "no" --> M{"token 是否仍为 current 且未 cancelled?"}
+  M -- "no" --> N["ctx.status = cancelled; 返回 cancelled"]
+  M -- "yes" --> O{"handler result 类型?"}
+  O -- "void" --> D
+  O -- "stop" --> P["ctx.status = result.status ?? ctx.status; 返回"]
+  O -- "prepend" --> Q["queue.unshift(...result.handlers)"]
+  Q --> D
+  O -- "replace" --> R["queue = [...result.handlers]"]
+  R --> D
+  L --> S["#runNavigation 读取 NavigationResult(error)"]
+  S --> T{"router.onError 是否存在?"}
+  T -- "yes" --> U["await onError(error, ctx); 用户自行弹窗或记录"]
+  T -- "no" --> V["console.error(error)"]
+  U --> W["返回 NavigationResult; 不切 errorComponent"]
+  V --> W
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-navigation-handler">NavigationHandler</a></li>
+        <li><a href="#type-navigation-handler-result">NavigationHandlerResult</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+        <li><a href="#type-navigation-status">NavigationStatus</a></li>
+        <li><a href="#type-navigation-token">NavigationToken</a></li>
+        <li><a href="#type-navigation-result">NavigationResult</a></li>
+        <li><a href="#type-router-error-handler">RouterErrorHandler</a></li>
+        <li><a href="#type-rollback-handler">RollbackHandler</a></li>
+        <li><a href="#type-runtime-router-like">RuntimeRouterLike</a></li>
+      </ul>
+    </section>
+
+    <section id="constructor">
+      <h2>constructor(opt?)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["外部调用: new Router(opt)"] --> B["读取 RuntimeRouterOptions"]
+  B --> C["合并 routes: opt.routes 优先, 否则使用插件注入"]
+  B --> D["合并 menus: 使用插件注入菜单"]
+  B --> E["确定初始 URL: opt.initialPath / SSR path / location / '/'"]
+  B --> F["保存 scrollRootId, maxPreload, historyKey"]
+  B --> F0["读取当前 history.state 到 initialHistoryState"]
+  B --> F1["读取 opt.enterGuard / opt.leaveGuard; 首屏守卫只能来自 RuntimeRouterOptions"]
+  C --> G["初始化 route 状态集合"]
+  D --> G
+  F1 --> H["#runNavigation(init request, init handlers)"]
+  E --> H
+  H --> I["handleCreateUrlContext(request)"]
+  I --> I2["handleBuildRouteEntry: match url + create RouteEntry + ScrollIntent"]
+  I2 --> I3["handleRunGuards"]
+  I3 --> I4{"GuardDecision 是什么?"}
+  I4 -- "blocked" --> I5["事务 stop(blocked): 不提交首屏 active"]
+  I4 -- "redirect" --> IR["replace queue 为 replaceHandlers(redirect request)"]
+  IR --> H
+  I4 -- "allowed" --> I6["handleLoadComponent"]
+  I6 --> I7["handleBuildCommitPlan(replace, replace-current, initialHistoryState index)"]
+  I7 --> I8["handleCommitHistory: history.replaceState"]
+  I8 --> I9["handleCommitStack: replace-current"]
+  I9 --> I10["handlePrepareScrollWaiter"]
+  I10 --> I11["handleSetActive"]
+  I11 --> I12["handleScroll"]
+  I12 --> I13["handleStartIdlePreload"]
+  I5 --> J["注册浏览器 hook: click, popstate"]
+  I13 --> J
+  J --> K["标记 ready 并 flush readyQueue"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-runtime-router-options">RuntimeRouterOptions</a></li>
+        <li><a href="#type-route-map">RouteMap</a></li>
+        <li><a href="#type-menu">Menu</a></li>
+        <li><a href="#type-navigation-request">NavigationRequest</a></li>
+        <li><a href="#type-route-match">RouteMatch</a></li>
+        <li><a href="#type-route-entry">RouteEntry</a></li>
+        <li><a href="#type-router-history-state">RouterHistoryState</a></li>
+        <li><a href="#type-pending-history-delta">PendingHistoryDelta</a></li>
+        <li><a href="#type-scroll-intent">ScrollIntent</a></li>
+        <li><a href="#type-scroll-retry-policy">ScrollRetryPolicy</a></li>
+        <li><a href="#type-render-waiter">RenderWaiter</a></li>
+      </ul>
+    </section>
+
+    <section id="ready">
+      <h2>ready(cb?)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["外部调用: router.ready(cb?)"] --> B{"Router 是否已完成首屏事务?"}
+  B -- "yes" --> C{"是否传入 callback?"}
+  C -- "yes" --> D["同步执行 callback"]
+  C -- "no" --> E["返回 resolved Promise"]
+  B -- "no" --> F{"是否传入 callback?"}
+  F -- "yes" --> G["加入 readyQueue"]
+  F -- "no" --> H["创建 Promise 并把 resolve 加入 readyQueue"]
+  G --> I["等待 constructor 的首屏事务完成"]
+  H --> I
+  I --> J["flush readyQueue"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-ready-callback">ReadyCallback</a></li>
+      </ul>
+    </section>
+
+    <section id="push-state">
+      <h2>pushState(url)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["外部调用: router.pushState(url)"] --> B["创建 NavigationRequest(source=api, historyMode=push)"]
+  B --> C["#runNavigation(request, push inline handlers)"]
+  C --> D["handleCreateUrlContext(request)"]
+  D --> E["handleBuildRouteEntry: match url + create RouteEntry + ScrollIntent"]
+  E --> F["handleSaveCurrentScroll"]
+  F --> G["handleRunGuards"]
+  G --> H{"ctx 是否 blocked / redirect?"}
+  H -- "blocked" --> I["stop(blocked): 不提交; 如来自 history delta 则回滚浏览器历史"]
+  H -- "redirect" --> J["replace queue 为 replaceHandlers(redirect request)"]
+  H -- "allowed" --> K["handleLoadComponent"]
+  K --> L["handleBuildCommitPlan(push, append)"]
+  L --> M["handleCommitHistory: history.pushState"]
+  M --> N["handleCommitStack: append"]
+  N --> O["handlePrepareScrollWaiter"]
+  O --> P["handleSetActive"]
+  P --> Q["handleScroll"]
+  Q --> R["handleStartIdlePreload"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-navigation-request">NavigationRequest</a></li>
+        <li><a href="#type-navigation-result">NavigationResult</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+        <li><a href="#type-navigation-handler">NavigationHandler</a></li>
+        <li><a href="#type-route-match">RouteMatch</a></li>
+        <li><a href="#type-route-record">RouteRecord</a></li>
+        <li><a href="#type-route-entry">RouteEntry</a></li>
+        <li><a href="#type-navigation-token">NavigationToken</a></li>
+        <li><a href="#type-navigation-commit-plan">NavigationCommitPlan</a></li>
+        <li><a href="#type-guard-result">GuardResult</a></li>
+        <li><a href="#type-guard-decision">GuardDecision</a></li>
+        <li><a href="#type-router-history-state">RouterHistoryState</a></li>
+        <li><a href="#type-scroll-intent">ScrollIntent</a></li>
+        <li><a href="#type-render-waiter">RenderWaiter</a></li>
+      </ul>
+    </section>
+
+    <section id="replace-state">
+      <h2>replaceState(url)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["外部调用: router.replaceState(url)"] --> B["创建 NavigationRequest(source=api, historyMode=replace)"]
+  B --> C["#runNavigation(request, replaceHandlers(request))"]
+  C --> D["handleCreateUrlContext(request)"]
+  D --> E["handleBuildRouteEntry: match url + create RouteEntry + ScrollIntent"]
+  E --> F["handleRunGuards"]
+  F --> G{"ctx 是否 blocked / redirect?"}
+  G -- "blocked" --> H["事务提前完成: 保持当前 entry"]
+  G -- "redirect" --> I["replace queue 为 replaceHandlers(redirect request)"]
+  G -- "allowed" --> J["handleLoadComponent"]
+  J --> K["handleBuildCommitPlan(replace, replace-current)"]
+  K --> L["handleCommitHistory: history.replaceState"]
+  L --> M["handleCommitStack: replace-current"]
+  M --> N["handlePrepareScrollWaiter"]
+  N --> O["handleSetActive"]
+  O --> P["handleScroll"]
+  P --> Q["handleStartIdlePreload"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-navigation-request">NavigationRequest</a></li>
+        <li><a href="#type-navigation-result">NavigationResult</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+        <li><a href="#type-navigation-handler">NavigationHandler</a></li>
+        <li><a href="#type-route-match">RouteMatch</a></li>
+        <li><a href="#type-route-entry">RouteEntry</a></li>
+        <li><a href="#type-navigation-token">NavigationToken</a></li>
+        <li><a href="#type-navigation-commit-plan">NavigationCommitPlan</a></li>
+        <li><a href="#type-guard-result">GuardResult</a></li>
+        <li><a href="#type-guard-decision">GuardDecision</a></li>
+        <li><a href="#type-router-history-state">RouterHistoryState</a></li>
+        <li><a href="#type-scroll-intent">ScrollIntent</a></li>
+        <li><a href="#type-render-waiter">RenderWaiter</a></li>
+      </ul>
+    </section>
+
+    <section id="back">
+      <h2>back()</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["外部调用: router.back()"] --> A1["调用 #goByDelta(-1)"]
+  A1 --> B["#runNavigation(browser-delta request, inline preflight handlers)"]
+  B --> C["inline handler: ctx.historyDelta={ delta:-1 }; ctx.from=active"]
+  C --> D["handleResolveHistoryDeltaTarget"]
+  D --> E{"是否可预判目标 entry?"}
+  E -- "no" --> F["handleAllowExternalHistoryDelta"]
+  F --> G["调用 history.go(-1)"]
+  G --> H["onPopstate 处理外部历史"]
+  E -- "yes" --> I["handleBuildRouteEntryFromStack"]
+  I --> I1["handleSaveCurrentScroll"]
+  I1 --> J["handleRunGuards"]
+  J --> K{"ctx 是否 allowed?"}
+  K -- "no" --> L["stop(blocked): 不调用 history.go(-1)"]
+  K -- "yes" --> M["handleLoadComponent"]
+  M --> N["handleSetPendingHistoryDelta"]
+  N --> O["inline handler: 调用 history.go(-1)"]
+  O --> P["onPopstate 消费 pending token 并提交"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-history-delta-request">HistoryDeltaRequest</a></li>
+        <li><a href="#type-pending-history-delta">PendingHistoryDelta</a></li>
+        <li><a href="#type-router-history-state">RouterHistoryState</a></li>
+        <li><a href="#type-route-entry">RouteEntry</a></li>
+        <li><a href="#type-navigation-request">NavigationRequest</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+        <li><a href="#type-navigation-token">NavigationToken</a></li>
+        <li><a href="#type-navigation-result">NavigationResult</a></li>
+        <li><a href="#type-guard-result">GuardResult</a></li>
+        <li><a href="#type-guard-decision">GuardDecision</a></li>
+      </ul>
+    </section>
+
+    <section id="forward">
+      <h2>forward()</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["外部调用: router.forward()"] --> A1["调用 #goByDelta(1)"]
+  A1 --> B["#runNavigation(browser-delta request, inline preflight handlers)"]
+  B --> C["inline handler: ctx.historyDelta={ delta:1 }; ctx.from=active"]
+  C --> D["handleResolveHistoryDeltaTarget"]
+  D --> E{"是否可预判目标 entry?"}
+  E -- "no" --> F["handleAllowExternalHistoryDelta"]
+  F --> G["调用 history.go(1)"]
+  G --> H["onPopstate 处理外部历史"]
+  E -- "yes" --> I["handleBuildRouteEntryFromStack"]
+  I --> I1["handleSaveCurrentScroll"]
+  I1 --> J["handleRunGuards"]
+  J --> K{"ctx 是否 allowed?"}
+  K -- "no" --> L["stop(blocked): 不调用 history.go(1)"]
+  K -- "yes" --> M["handleLoadComponent"]
+  M --> N["handleSetPendingHistoryDelta"]
+  N --> O["inline handler: 调用 history.go(1)"]
+  O --> P["onPopstate 消费 pending token 并提交"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-history-delta-request">HistoryDeltaRequest</a></li>
+        <li><a href="#type-pending-history-delta">PendingHistoryDelta</a></li>
+        <li><a href="#type-router-history-state">RouterHistoryState</a></li>
+        <li><a href="#type-route-entry">RouteEntry</a></li>
+        <li><a href="#type-navigation-request">NavigationRequest</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+        <li><a href="#type-navigation-token">NavigationToken</a></li>
+        <li><a href="#type-navigation-result">NavigationResult</a></li>
+        <li><a href="#type-guard-result">GuardResult</a></li>
+        <li><a href="#type-guard-decision">GuardDecision</a></li>
+      </ul>
+    </section>
+
+    <section id="go">
+      <h2>go(delta)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["外部调用: router.go(delta)"] --> B{"delta 是否为 0?"}
+  B -- "yes" --> C["结束"]
+  B -- "no" --> D["调用 #goByDelta(delta)"]
+  D --> E["#runNavigation(browser-delta request, inline preflight handlers)"]
+  E --> E1["inline handler: ctx.historyDelta={ delta }; ctx.from=active"]
+  E1 --> F["handleResolveHistoryDeltaTarget"]
+  F --> G{"目标是否可预判?"}
+  G -- "no" --> H["handleAllowExternalHistoryDelta"]
+  H --> I["调用 history.go(delta)"]
+  I --> J["onPopstate 处理外部历史"]
+  G -- "yes" --> K["handleBuildRouteEntryFromStack"]
+  K --> K1["handleSaveCurrentScroll"]
+  K1 --> L["handleRunGuards"]
+  L --> M{"ctx 是否 allowed?"}
+  M -- "no" --> N["事务提前完成: 不调用 history.go"]
+  M -- "yes" --> O["handleLoadComponent"]
+  O --> P["handleSetPendingHistoryDelta"]
+  P --> Q["调用 history.go(delta)"]
+  Q --> R["onPopstate 消费 pending token 并提交"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-history-delta-request">HistoryDeltaRequest</a></li>
+        <li><a href="#type-pending-history-delta">PendingHistoryDelta</a></li>
+        <li><a href="#type-router-history-state">RouterHistoryState</a></li>
+        <li><a href="#type-route-entry">RouteEntry</a></li>
+        <li><a href="#type-navigation-request">NavigationRequest</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+        <li><a href="#type-navigation-token">NavigationToken</a></li>
+        <li><a href="#type-navigation-result">NavigationResult</a></li>
+        <li><a href="#type-guard-result">GuardResult</a></li>
+        <li><a href="#type-guard-decision">GuardDecision</a></li>
+      </ul>
+    </section>
+
+    <section id="guards">
+      <h2>enterGuard / leaveGuard</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["导航事务进入 runGuardsOnce"] --> B{"是否存在当前 active 和 leaveGuard?"}
+  B -- "yes" --> C["调用 leaveGuard(from)"]
+  B -- "no" --> D["跳过 leave"]
+  C --> E{"GuardResult 是否允许?"}
+  E -- "no" --> F["中止当前 NavigationRequest"]
+  E -- "redirect" --> G["创建 redirect NavigationRequest"]
+  D --> H{"是否存在 enterGuard?"}
+  E -- "yes" --> H
+  H -- "yes" --> I["调用 enterGuard(to)"]
+  H -- "no" --> J["guard 阶段通过"]
+  I --> K{"GuardResult 是否允许?"}
+  K -- "yes" --> J
+  K -- "no" --> F
+  K -- "redirect" --> G
+  G --> L["返回 replace result, 使用 replaceHandlers(redirect request) 替换剩余队列"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-route-entry">RouteEntry</a></li>
+        <li><a href="#type-guard-result">GuardResult</a></li>
+        <li><a href="#type-guard-decision">GuardDecision</a></li>
+        <li><a href="#type-navigation-request">NavigationRequest</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+        <li><a href="#type-navigation-token">NavigationToken</a></li>
+      </ul>
+    </section>
+
+    <section id="on-click">
+      <h2>onClick(e)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["document 触发 click"] --> B["查找最近的 a 标签"]
+  B --> C{"是否可被 Router 接管?"}
+  C -- "no" --> D["放行浏览器默认行为"]
+  C -- "yes" --> E["阻止默认行为"]
+  E --> F["解析 href 为同源 URL"]
+  F --> G{"是否仅 hash 且无需 Router 接管滚动?"}
+  G -- "yes" --> H["放行浏览器原生 hash"]
+  G -- "no, same-route hash change" --> H1["#runNavigation(undefined, hashOnlyScrollHandlers)"]
+  H1 --> H2["inline handler: 写入 ctx.url / ctx.to / ctx.scrollIntent / commitPlan"]
+  H2 --> H3["handlePrepareScrollWaiter + handleScroll"]
+  H3 --> H4["更新 active.url / active.hash 和当前 stack entry"]
+  H4 --> H5["history.pushState(当前 historyState + nextUrl)"]
+  G -- "no, route change" --> I["调用 pushState(path + search + hash)"]
+  I --> J["进入 pushState 事务流程"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-navigation-request">NavigationRequest</a></li>
+        <li><a href="#type-scroll-intent">ScrollIntent</a></li>
+        <li><a href="#type-scroll-retry-policy">ScrollRetryPolicy</a></li>
+        <li><a href="#type-render-waiter">RenderWaiter</a></li>
+      </ul>
+    </section>
+
+    <section id="on-popstate">
+      <h2>onPopstate(e)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["window 触发 popstate"] --> B["读取 location 和 event.state"]
+  B --> B1{"是否为当前 active 的 hash-only 变化?"}
+  B1 -- "yes" --> B2["#runNavigation(undefined, hashOnlyScrollHandlers)"]
+  B2 --> B3["inline handler: 写入 ctx.url / ctx.to / ctx.scrollIntent / commitPlan"]
+  B3 --> B4["handlePrepareScrollWaiter + handleScroll"]
+  B1 -- "no" --> C{"event.state 是否属于当前 Router historyKey?"}
+  C -- "yes" --> D{"是否命中 pendingHistoryDelta?"}
+  C -- "no" --> E["#runNavigation(external-popstate request, inline handlers)"]
+  D -- "yes" --> G["#runNavigation(popstate commit inline handlers)"]
+  G --> H["consume pendingHistoryDelta"]
+  H --> I["set ctx.to / ctx.url / ctx.scrollIntent / commitPlan(move-index)"]
+  I --> I1["handleCommitStack"]
+  I1 --> J["handlePrepareScrollWaiter"]
+  J --> K["handleSetActive"]
+  K --> K1["handleScroll"]
+  D -- "no" --> L["#runNavigation(popstate request, guarded handlers)"]
+  L --> M["handleCreateUrlContext(request)"]
+  M --> M1["handleBuildRouteEntryFromHistoryState"]
+  M1 --> N["handleSaveCurrentScroll"]
+  N --> O["handleRunGuards"]
+  O --> P{"ctx 是否 allowed?"}
+  P -- "no" --> Y["handleRollbackBrowserHistoryIfNeeded"]
+  P -- "redirect" --> R["replace queue 为 replaceHandlers(redirect request)"]
+  P -- "yes" --> Q["handleLoadComponent"]
+  Q --> Q1{"组件是否加载成功?"}
+  Q1 -- "no" --> Y
+  Q1 -- "yes" --> Q2["handleBuildPopstateMoveCommitPlan"]
+  Q2 --> Q3["handleCommitHistory: replace 或 none"]
+  Q3 --> Q4["handleCommitStack: move-index 或 reset"]
+  Q4 --> J
+  E --> S["handleCreateUrlContext(request)"]
+  S --> T["handleBuildRouteEntry"]
+  T --> U["handleSaveCurrentScroll"]
+  U --> V["handleRunGuards"]
+  V --> W{"ctx 是否 allowed?"}
+  W -- "no" --> Y
+  W -- "redirect" --> R
+  W -- "yes" --> X["handleLoadComponent"]
+  X --> X1{"组件是否加载成功?"}
+  X1 -- "no" --> Y
+  X1 -- "yes" --> X2["handleBuildCommitPlan(replace, reset)"]
+  X2 --> X3["handleCommitHistory: history.replaceState"]
+  X3 --> X4["handleCommitStack: reset"]
+  X4 --> J
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-router-history-state">RouterHistoryState</a></li>
+        <li><a href="#type-pending-history-delta">PendingHistoryDelta</a></li>
+        <li><a href="#type-navigation-request">NavigationRequest</a></li>
+        <li><a href="#type-navigation-result">NavigationResult</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+        <li><a href="#type-navigation-handler">NavigationHandler</a></li>
+        <li><a href="#type-route-match">RouteMatch</a></li>
+        <li><a href="#type-route-entry">RouteEntry</a></li>
+        <li><a href="#type-navigation-token">NavigationToken</a></li>
+        <li><a href="#type-navigation-commit-plan">NavigationCommitPlan</a></li>
+        <li><a href="#type-guard-result">GuardResult</a></li>
+        <li><a href="#type-guard-decision">GuardDecision</a></li>
+        <li><a href="#type-scroll-intent">ScrollIntent</a></li>
+        <li><a href="#type-scroll-snapshot">ScrollSnapshot</a></li>
+        <li><a href="#type-render-waiter">RenderWaiter</a></li>
+      </ul>
+    </section>
+
+    <section id="handle-prepare-scroll-waiter">
+      <h2>handlePrepareScrollWaiter(ctx)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["事务 handler 进入 handlePrepareScrollWaiter(ctx)"] --> B["读取 ctx.scrollIntent / commitPlan.scrollIntent"]
+  B --> C{"是否需要滚动?"}
+  C -- "no" --> D["不创建 RenderWaiter, 返回 void"]
+  C -- "yes" --> E{"本次滚动是否依赖 active 变化后的 DOM?"}
+  E -- "yes" --> F["在 active 提交前创建一次性 post effect Promise"]
+  F --> G["effect 监听 [() => this.active], type = post, immediate = false"]
+  G --> H["post effect 首次触发后 resolve Promise"]
+  H --> I["立即 dispose effect, 避免重复派发"]
+  E -- "no, hash-only / same-active" --> J["创建 resolved 或 raf Promise"]
+  I --> K["写入 ctx.renderWaiter / commitPlan.renderWaiter"]
+  J --> K
+  K --> L["把 dispose 加入 rollbackStack 或由 Promise finally 清理"]
+  L --> M["返回 void, 等后续 handleSetActive / handleScroll"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-scroll-intent">ScrollIntent</a></li>
+        <li><a href="#type-render-waiter">RenderWaiter</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+        <li><a href="#type-navigation-commit-plan">NavigationCommitPlan</a></li>
+        <li><a href="#type-rollback-handler">RollbackHandler</a></li>
+      </ul>
+    </section>
+
+    <section id="handle-scroll">
+      <h2>handleScroll(ctx)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["事务 handler 进入 handleScroll(ctx)"] --> B["从 ctx / commitPlan 构造 ScrollIntent"]
+  B --> C{"是否需要滚动?"}
+  C -- "no" --> D["返回 void, 事务继续"]
+  C -- "yes" --> E["读取 ctx.renderWaiter"]
+  E --> F{"renderWaiter 是否存在?"}
+  F -- "no" --> G["创建 fallback waiter: resolved 或 raf Promise"]
+  F -- "yes" --> H["复用 active 提交前准备的一次性 effect Promise"]
+  G --> I["await renderWaiter"]
+  H --> I
+  I --> J{"token 是否仍有效?"}
+  J -- "no" --> K["返回 stop(cancelled), 不产生滚动副作用"]
+  J -- "yes" --> L{"ScrollIntent.type 是什么?"}
+  L -- "hash" --> M["查找 hash 目标 DOM"]
+  M --> N{"目标是否存在?"}
+  N -- "yes" --> O["目标元素 scrollIntoView"]
+  N -- "no" --> P{"retry 是否未耗尽?"}
+  P -- "yes" --> Q["await retry waiter, 如 raf Promise"]
+  Q --> R{"token 是否仍有效?"}
+  R -- "yes" --> M
+  R -- "no" --> K
+  P -- "no" --> S["结束本次滚动, 事务继续"]
+  L -- "restore" --> T["查找 scrollRootId 对应元素"]
+  T --> U{"scrollRoot 是否存在或未配置?"}
+  U -- "no" --> P
+  U -- "yes" --> V["恢复 top / left; 未配置时使用 window"]
+  L -- "top" --> W["查找 scrollRootId 对应元素"]
+  W --> X{"scrollRoot 是否存在或未配置?"}
+  X -- "no" --> P
+  X -- "yes" --> Y["滚动到顶部; 未配置时使用 window"]
+  O --> Z["返回 void, 事务继续"]
+  V --> Z
+  Y --> Z
+  S --> Z
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-scroll-intent">ScrollIntent</a></li>
+        <li><a href="#type-scroll-retry-policy">ScrollRetryPolicy</a></li>
+        <li><a href="#type-scroll-target">ScrollTarget</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+        <li><a href="#type-navigation-commit-plan">NavigationCommitPlan</a></li>
+        <li><a href="#type-render-waiter">RenderWaiter</a></li>
+      </ul>
+    </section>
+
+    <section id="on-idle-preload">
+      <h2>onIdlePreload()</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["导航提交后或 import 完成后触发 onIdlePreload"] --> B{"loadingCount 是否小于 maxPreload?"}
+  B -- "no" --> C["结束"]
+  B -- "yes" --> D["从 idle route 中取一个 path"]
+  D --> E{"是否存在可预加载 path?"}
+  E -- "no" --> F["结束"]
+  E -- "yes" --> G["立即从 idleSet 删除 path, 避免重复 schedule"]
+  G --> H["创建 PreloadTask 并 loadingCount++"]
+  H --> I["requestIdleCallback 或 setTimeout"]
+  I --> J["onRouteImport(path, preloadTask)"]
+  J --> J1{"预加载 import 是否失败?"}
+  J1 -- "yes" --> J2["记录 route.status = error; 吞掉错误避免 unhandled rejection"]
+  J1 -- "no" --> K["finally: loadingCount--"]
+  J2 --> K
+  K --> L["继续 onIdlePreload"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-route-map">RouteMap</a></li>
+        <li><a href="#type-route-record">RouteRecord</a></li>
+        <li><a href="#type-preload-task">PreloadTask</a></li>
+      </ul>
+    </section>
+
+    <section id="on-route-import">
+      <h2>onRouteImport(path)</h2>
+      <h3>进入 hook/api 后的流程图</h3>
+      <pre class="mermaid">
+flowchart TD
+  A["导航事务或预加载触发 onRouteImport(path)"] --> B["读取 RouteRecord"]
+  B --> C{"route.status 是什么?"}
+  C -- "loaded" --> D["返回已有 component"]
+  C -- "loading" --> E["复用已有 promise"]
+  C -- "idle / error" --> F{"是否存在 route.import?"}
+  F -- "no" --> G["返回同步 component 或抛出路由配置错误"]
+  F -- "yes" --> H["设置 status = loading"]
+  H --> I["调用 route.import"]
+  I --> J{"import 是否成功?"}
+  J -- "yes" --> K["读取 RouteModule.default / routeMeta / layout"]
+  K --> L["更新 RouteRecord 并设置 status = loaded"]
+  J -- "no" --> M["设置 status = error"]
+  M --> N{"是否来自 PreloadTask?"}
+  N -- "yes" --> N1["返回 undefined; 错误由预加载流程吞掉"]
+  N -- "no" --> N2["把错误返回给导航事务决定是否回滚"]
+  D --> O["返回 component"]
+  E --> O
+  L --> O
+  A --> T["导航 handler 额外进入 loadComponentWithTimeout(path, ctx)"]
+  T --> U{"loadTimeout 是否配置且大于 0?"}
+  U -- "no" --> V["await onRouteImport(path)"]
+  U -- "yes" --> W["Promise.race(importPromise, timeoutPromise)"]
+  W --> X{"先完成的是 import 吗?"}
+  X -- "yes" --> O
+  X -- "no, timeout" --> Y{"onTimeout(ctx) 返回什么?"}
+  Y -- "continue" --> Z["继续 await 原 importPromise; 成功后继续导航"]
+  Y -- "cancel" --> Z1["抛出 timeout error; 事务 rollback; #runNavigation 调用 onError"]
+      </pre>
+      <h3>这个 api 用到的所有自定义的数据类型</h3>
+      <ul class="type-links">
+        <li><a href="#type-route-record">RouteRecord</a></li>
+        <li><a href="#type-route-module">RouteModule</a></li>
+        <li><a href="#type-preload-task">PreloadTask</a></li>
+        <li><a href="#type-router-timeout-handler">RouterTimeoutHandler</a></li>
+        <li><a href="#type-router-timeout-decision">RouterTimeoutDecision</a></li>
+        <li><a href="#type-navigation-context">NavigationContext</a></li>
+      </ul>
+    </section>
+
+    <section id="types">
+      <h2>统一数据类型</h2>
+      <div class="types-grid">
+        <article class="type-card" id="type-runtime-router-options">
+          <h3>RuntimeRouterOptions</h3>
+          <pre><code>interface RuntimeRouterOptions {
+  routes?: RouteMap;
+  initialPath?: string;
+  enterGuard?: (to: RouteEntry) =&gt; GuardResult | Promise&lt;GuardResult&gt;;
+  leaveGuard?: (from: RouteEntry) =&gt; GuardResult | Promise&lt;GuardResult&gt;;
+  onError?: RouterErrorHandler;
+  loadTimeout?: number;
+  onTimeout?: RouterTimeoutHandler;
+  scrollRootId?: string;
+  maxPreload?: number;
+  historyKey?: string;
+}</code></pre>
+        </article>
+
+        <article class="type-card" id="type-route-map">
+          <h3>RouteMap</h3>
+          <pre><code>type RouteMap = Record&lt;string, RouteRecord&gt;;</code></pre>
+        </article>
+
+        <article class="type-card" id="type-route-record">
+          <h3>RouteRecord</h3>
+          <pre><code>type RouteRecord = {
+  import?: () =&gt; Promise&lt;RouteModule&gt;;
+  component?: typeof Store;
+  status: 'idle' | 'loading' | 'loaded' | 'error';
+  promise?: Promise&lt;unknown&gt;;
+  params?: Record&lt;string, string&gt;;
+  meta?: Record&lt;string, unknown&gt;;
+  layout?: typeof Store | (() =&gt; Promise&lt;RouteModule&gt;);
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-route-entry">
+          <h3>RouteEntry</h3>
+          <pre><code>type RouteEntry = {
+  id: string;
+  path: string;
+  url: string;
+  hash: string;
+  params: Record&lt;string, string&gt;;
+  scroll?: ScrollSnapshot;
+  component?: typeof Store | Store;
+  meta?: Record&lt;string, unknown&gt;;
+  layout?: typeof Store | (() =&gt; Promise&lt;RouteModule&gt;);
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-menu">
+          <h3>Menu</h3>
+          <pre><code>type Menu = {
+  name: string;
+  path?: string;
+  hasComponent: boolean;
+  children?: Menu[];
+  meta?: Record&lt;string, unknown&gt;;
+  nearestFile?: {
+    name: string;
+    path: string;
+  };
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-route-match">
+          <h3>RouteMatch</h3>
+          <pre><code>type RouteMatch = {
+  pattern: string;
+  path: string;
+  url: string;
+  search: string;
+  hash: string;
+  params: Record&lt;string, string&gt;;
+  record: RouteRecord;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-guard-result">
+          <h3>GuardResult</h3>
+          <pre><code>type GuardResult =
+  | boolean
+  | {
+      ok: boolean;
+      redirect?: string;
+    };</code></pre>
+        </article>
+
+        <article class="type-card" id="type-navigation-request">
+          <h3>NavigationRequest</h3>
+          <pre><code>type NavigationRequest =
+  | {
+      source: 'init' | 'api' | 'click' | 'popstate' | 'external-popstate' | 'redirect';
+      url: string;
+      historyMode: 'push' | 'replace' | 'none';
+      runGuards: boolean;
+      restoreScroll: boolean;
+    }
+  | {
+      source: 'api';
+      historyMode: 'browser-delta';
+      delta: number;
+      runGuards: boolean;
+      restoreScroll: true;
+    };</code></pre>
+        </article>
+
+        <article class="type-card" id="type-navigation-context">
+          <h3>NavigationContext</h3>
+          <pre><code>type NavigationContext = {
+  router: RuntimeRouterLike;
+  request?: NavigationRequest;
+  token: NavigationToken;
+  status: NavigationStatus;
+  url?: string;
+  match?: RouteMatch;
+  from?: RouteEntry | null;
+  to?: RouteEntry;
+  historyDelta?: HistoryDeltaRequest;
+  pendingHistoryDelta?: PendingHistoryDelta;
+  guard?: GuardDecision;
+  commitPlan?: NavigationCommitPlan;
+  scrollIntent?: ScrollIntent;
+  renderWaiter?: RenderWaiter;
+  error?: unknown;
+  rollbackStack: RollbackHandler[];
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-navigation-handler">
+          <h3>NavigationHandler</h3>
+          <pre><code>type NavigationHandler =
+  (ctx: NavigationContext) =&gt;
+    NavigationHandlerResult | Promise&lt;NavigationHandlerResult&gt;;</code></pre>
+        </article>
+
+        <article class="type-card" id="type-navigation-handler-result">
+          <h3>NavigationHandlerResult</h3>
+          <pre><code>type NavigationHandlerResult =
+  | void
+  | {
+      type: 'stop';
+      status?: NavigationStatus;
+    }
+  | {
+      type: 'prepend';
+      handlers: NavigationHandler[];
+    }
+  | {
+      type: 'replace';
+      handlers: NavigationHandler[];
+    };</code></pre>
+        </article>
+
+        <article class="type-card" id="type-navigation-token">
+          <h3>NavigationToken</h3>
+          <pre><code>type NavigationToken = {
+  id: number;
+  request?: NavigationRequest;
+  cancelled: boolean;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-navigation-status">
+          <h3>NavigationStatus</h3>
+          <pre><code>type NavigationStatus = 'running' | 'completed' | 'ignored' | 'blocked' | 'cancelled' | 'error';</code></pre>
+        </article>
+
+        <article class="type-card" id="type-navigation-result">
+          <h3>NavigationResult</h3>
+          <pre><code>type NavigationResult = {
+  status: NavigationStatus;
+  ctx: NavigationContext;
+  error?: unknown;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-router-error-handler">
+          <h3>RouterErrorHandler</h3>
+          <pre><code>type RouterErrorHandler =
+  (error: unknown, ctx: NavigationContext) =&gt; void | Promise&lt;void&gt;;</code></pre>
+        </article>
+
+        <article class="type-card" id="type-router-timeout-decision">
+          <h3>RouterTimeoutDecision</h3>
+          <pre><code>type RouterTimeoutDecision = 'continue' | 'cancel';</code></pre>
+        </article>
+
+        <article class="type-card" id="type-router-timeout-handler">
+          <h3>RouterTimeoutHandler</h3>
+          <pre><code>type RouterTimeoutHandler =
+  (ctx: NavigationContext) =&gt;
+    RouterTimeoutDecision | Promise&lt;RouterTimeoutDecision&gt;;</code></pre>
+        </article>
+
+        <article class="type-card" id="type-rollback-handler">
+          <h3>RollbackHandler</h3>
+          <pre><code>type RollbackHandler =
+  (ctx: NavigationContext) =&gt; void | Promise&lt;void&gt;;</code></pre>
+        </article>
+
+        <article class="type-card" id="type-runtime-router-like">
+          <h3>RuntimeRouterLike</h3>
+          <pre><code>interface RuntimeRouterLike {
+  active: RouteEntry | null;
+  routes: RouteMap;
+  menus: Menu[];
+  enterGuard?: (to: RouteEntry) =&gt; GuardResult | Promise&lt;GuardResult&gt;;
+  leaveGuard?: (from: RouteEntry) =&gt; GuardResult | Promise&lt;GuardResult&gt;;
+  scrollRootId?: string;
+}</code></pre>
+        </article>
+
+        <article class="type-card" id="type-navigation-commit-plan">
+          <h3>NavigationCommitPlan</h3>
+          <pre><code>type NavigationCommitPlan = {
+  historyState?: RouterHistoryState;
+  historyAction: 'push' | 'replace' | 'none';
+  stackAction: 'append' | 'replace-current' | 'move-index' | 'reset' | 'none';
+  nextStackIndex?: number;
+  scrollIntent?: ScrollIntent;
+  renderWaiter?: RenderWaiter;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-guard-decision">
+          <h3>GuardDecision</h3>
+          <pre><code>type GuardDecision =
+  | { type: 'allowed' }
+  | { type: 'blocked'; result: GuardResult }
+  | { type: 'redirect'; to: string; result: GuardResult };</code></pre>
+        </article>
+
+        <article class="type-card" id="type-router-history-state">
+          <h3>RouterHistoryState</h3>
+          <pre><code>type RouterHistoryState = {
+  __bobeRouter: true;
+  historyKey: string;
+  entryId: string;
+  index: number;
+  url: string;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-history-delta-request">
+          <h3>HistoryDeltaRequest</h3>
+          <pre><code>type HistoryDeltaRequest = {
+  delta: number;
+  targetState?: RouterHistoryState;
+  targetEntry?: RouteEntry;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-pending-history-delta">
+          <h3>PendingHistoryDelta</h3>
+          <pre><code>type PendingHistoryDelta = {
+  tokenId: number;
+  delta: number;
+  fromIndex: number;
+  toIndex: number;
+  targetEntryId: string;
+  targetUrl: string;
+  consumed: boolean;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-scroll-intent">
+          <h3>ScrollIntent</h3>
+          <pre><code>type ScrollIntent =
+  | {
+      type: 'hash';
+      hash: string;
+      retry: ScrollRetryPolicy;
+      behavior?: ScrollBehavior;
+    }
+  | {
+      type: 'restore';
+      top: number;
+      left: number;
+      retry: ScrollRetryPolicy;
+    }
+  | {
+      type: 'top';
+      retry: ScrollRetryPolicy;
+    };</code></pre>
+        </article>
+
+        <article class="type-card" id="type-scroll-retry-policy">
+          <h3>ScrollRetryPolicy</h3>
+          <pre><code>type ScrollRetryPolicy = {
+  attempts: number;
+  maxAttempts: number;
+  wait: 'post-effect' | 'raf';
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-render-waiter">
+          <h3>RenderWaiter</h3>
+          <pre><code>type RenderWaiter = {
+  /** 在 active 提交前创建，避免错过由 active 触发的 post effect */
+  promise: Promise&lt;void&gt;;
+  source: 'post-effect' | 'raf' | 'resolved';
+  dispose?: () =&gt; void;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-scroll-snapshot">
+          <h3>ScrollSnapshot</h3>
+          <pre><code>type ScrollSnapshot = {
+  top: number;
+  left: number;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-scroll-target">
+          <h3>ScrollTarget</h3>
+          <pre><code>type ScrollTarget = {
+  root: HTMLElement | Window;
+  scrollRootId?: string;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-preload-task">
+          <h3>PreloadTask</h3>
+          <pre><code>type PreloadTask = {
+  path: string;
+  scheduledAt: number;
+  fromIdleQueue: true;
+};</code></pre>
+        </article>
+
+        <article class="type-card" id="type-route-module">
+          <h3>RouteModule</h3>
+          <pre><code>type RouteModule =
+  | typeof Store
+  | {
+      default?: typeof Store;
+      routeMeta?: Record&lt;string, unknown&gt;;
+      layout?: typeof Store | (() =&gt; Promise&lt;RouteModule&gt;);
+    };</code></pre>
+        </article>
+
+        <article class="type-card" id="type-ready-callback">
+          <h3>ReadyCallback</h3>
+          <pre><code>type ReadyCallback = () =&gt; void;</code></pre>
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: true,
+      securityLevel: 'loose',
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#eef4ff',
+        primaryTextColor: '#17202a',
+        primaryBorderColor: '#96b7ef',
+        lineColor: '#7890a8',
+        secondaryColor: '#f6f8fb',
+        tertiaryColor: '#ffffff',
+        fontFamily: 'Inter, PingFang SC, Microsoft YaHei, sans-serif'
+      },
+      flowchart: {
+        curve: 'basis',
+        htmlLabels: true
+      }
+    });
+  </script>
+</body>
+</html>

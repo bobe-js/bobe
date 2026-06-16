@@ -1,4 +1,4 @@
-export { Router, createRouteRecord } from './runtime/router';
+export { Router, createRouteRecord } from './router';
 export type {
   GuardDecision,
   HistoryDeltaRequest,
@@ -23,4 +23,4 @@ export type {
   ScrollRetryPolicy,
   ScrollSnapshot,
   ScrollTarget,
-} from './runtime/types';
+} from './types';

@@ -4,6 +4,8 @@ import type { Store } from 'aoye';
 export interface RouterOptions {
   routes?: RouteMap;
   initialPath?: string;
+  /** 滚动容器 id；未设置或找不到 DOM 时回退到 window */
+  scrollRootId?: string;
 }
 
 /** 路由表中每条记录 */
@@ -30,6 +32,9 @@ export type RouteMap = Record<string, RouteRecord>;
 /** 历史栈中的一条记录 */
 export type RouteEntry = {
   path: string;
+  /** 完整浏览器 URL（path + search + hash），用于区分同一路由下的不同 hash 历史 */
+  url?: string;
+  hash?: string;
   params: Record<string, string>;
   /** 离开时的 scrollY，popstate 时恢复 */
   scroll?: number;

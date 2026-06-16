@@ -1,4 +1,3 @@
-import 'bobe-router/csr-routes';
 import { hydrate } from 'bobe-dom';
 import { App } from './app';
 import { router } from './router';

@@ -7,7 +7,7 @@ export default class MyLayout extends Store {
   ui = bobe`
     div
       ${MenuComp} name="🤡" menus={menus}
-    div
+    div id="router-scroll-root"
       {children}
   `;
 }

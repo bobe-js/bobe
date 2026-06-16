@@ -1,4 +1,4 @@
-import { Store, StoreIgnoreKeys } from 'aoye';
+import { Store, StoreIgnoreKeys, effect } from 'aoye';
 import type { RouteMap, RouteEntry, RouteRecord, GuardResult, Menu, RouterOptions } from './type';
 import { match } from './match';
 import { GlobalKey } from './global';
@@ -18,7 +18,7 @@ export function createRouteRecord(
 }
 
 export class Router extends Store {
-  static [StoreIgnoreKeys] = ['routes', 'menus', 'stack', 'ready'] as string[];
+  static [StoreIgnoreKeys] = ['routes', 'menus', 'stack', 'ready', 'scrollRootId'] as string[];
 
   /** 当前激活的路由，模板用 {active.component} 渲染 */
   active: RouteEntry | null = null;
@@ -34,6 +34,9 @@ export class Router extends Store {
 
   /** 离开守卫 */
   leaveGuard?: (from: RouteEntry) => GuardResult | Promise<GuardResult>;
+
+  /** 滚动容器 id；滚动时即时查找 DOM，以获取 active 渲染后的最新节点 */
+  scrollRootId?: string;
 
   /** 历史栈（不响应式） */
   private stack: RouteEntry[] = [];
@@ -69,11 +72,24 @@ export class Router extends Store {
   #inited = false;
   #readyQueue: (() => void)[] = [];
 
+  /** 触发纯 hash 滚动的响应式版本号 */
+  private hashScrollVersion = 0;
+
+  /** active 实际提交版本，用于丢弃过期 hash 滚动 */
+  private activeCommitId = 0;
+
+  /** 下一次渲染完成后待滚动的位置；hash 为空字符串时表示滚动到顶部 */
+  #pendingHash: { hash: string; activeCommitId: number } | null = null;
+
+  /** hash 滚动 watcher 的 dispose 句柄 */
+  #hashEffect?: { dispose(): void };
+
   constructor(opt?: RouterOptions) {
     super();
 
     const routes = opt?.routes;
     const initialPath = opt?.initialPath;
+    this.scrollRootId = opt?.scrollRootId;
 
     // 1. routes 优先级：用户传入 > SSR 注入 > 空
     this.routes = routes
@@ -97,6 +113,7 @@ export class Router extends Store {
 
     // 1. 初始化 idleSet（在加载首屏前，让预加载尽早启动）
     this.#initIdleSet();
+    this.#initHashEffect();
 
     // 2. 首屏：匹配路由，已有 component 则跳过 load
     const result = match(path, this.routes);
@@ -110,16 +127,21 @@ export class Router extends Store {
         await this.#loadComponent(result.path);
       }
 
-      this.active = {
+      const entry: RouteEntry = {
         path: result.url,
         params: result.params,
         component: route?.component,
         meta: route?.meta,
         layout: route?.layout,
       };
+      this.#setActive(entry, this.#getHash(path));
     }
 
-    this.stack = [{ path: this.active?.path ?? '/', params: this.active?.params ?? {} }];
+    this.stack = [{
+      path: this.active?.path ?? '/',
+      url: this.#getBrowserUrl(this.active?.path ?? '/', this.#getSearch(path), this.#getHash(path)),
+      params: this.active?.params ?? {},
+    }];
     this.stackIndex = 0;
     this.#initBrowser();
 
@@ -134,12 +156,85 @@ export class Router extends Store {
 
   #initBrowser(): void {
     if (typeof window === 'undefined') return;
+    this.#initHashEffect();
+
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
 
     // 劫持容器内链接点击
     document.addEventListener('click', this.#onClick);
 
     // 浏览器前进/后退
     window.addEventListener('popstate', this.#onPopstate);
+
+  }
+
+  #initHashEffect(): void {
+    if (typeof window === 'undefined' || this.#hashEffect) return;
+
+    // hash 滚动 watcher：active 变更触发的 render effect 在 render 优先级队列中执行，
+    // 本 watcher 注册为 post 优先级，保证在新页面 DOM 挂载之后才运行。
+    // hashScrollVersion 只用于同一个 active 下的纯 hash popstate；hash 为空时滚到顶部。
+    this.#hashEffect = effect(
+      () => {
+        const pending = this.#pendingHash;
+        if (!pending) return;
+        this.#pendingHash = null;
+        if (pending.activeCommitId !== this.activeCommitId) return;
+        if (!pending.hash) {
+          this.#scrollTo(0);
+          return;
+        }
+        const el = document.querySelector(decodeURIComponent(pending.hash));
+        if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth' });
+      },
+      [() => this.active, () => this.hashScrollVersion],
+      { type: 'post', immediate: false }
+    );
+  }
+
+  #setActive(entry: RouteEntry, hash?: string | null): void {
+    const activeCommitId = ++this.activeCommitId;
+    this.#pendingHash = hash ? { hash, activeCommitId } : null;
+    if (!entry.url) {
+      entry.url = this.#getBrowserUrl(entry.path, this.#getSearch(entry.path), hash || '');
+    }
+    this.active = entry;
+  }
+
+  #setPendingHash(hash: string | null | undefined, trigger = false): void {
+    if (hash == null && !trigger) {
+      this.#pendingHash = null;
+      return;
+    }
+    this.#pendingHash = {
+      hash: hash || '',
+      activeCommitId: this.activeCommitId,
+    };
+    if (trigger) this.hashScrollVersion++;
+  }
+
+  #getHash(url: string): string {
+    try {
+      const base = typeof location !== 'undefined' ? location.origin : 'http://localhost';
+      return new URL(url, base).hash;
+    } catch {
+      return '';
+    }
+  }
+
+  #getSearch(url: string): string {
+    try {
+      const base = typeof location !== 'undefined' ? location.origin : 'http://localhost';
+      return new URL(url, base).search;
+    } catch {
+      return '';
+    }
+  }
+
+  #getBrowserUrl(path: string, search = '', hash = ''): string {
+    return path + search + hash;
   }
 
   #initIdleSet(): void {
@@ -163,12 +258,22 @@ export class Router extends Store {
 
     // 从原始 URL 中提取 search 和 hash（match 已将其剥离，此处保留到浏览器 URL）
     const parsed = new URL(url, location.origin);
-    const target: RouteEntry = { path: result.url, params: result.params };
+    const target: RouteEntry = {
+      path: result.url,
+      url: this.#getBrowserUrl(result.url, parsed.search, parsed.hash),
+      params: result.params,
+    };
+    const prevStackIndex = this.stackIndex;
     // 截断当前位置之后的历史，再追加
     this.stack.length = this.stackIndex + 1;
     this.stack.push(target);
     this.stackIndex = this.stack.length - 1;
-    await this.#navigate(target, { pattern: result.path, search: parsed.search, hash: parsed.hash });
+    await this.#navigate(target, {
+      pattern: result.path,
+      search: parsed.search,
+      hash: parsed.hash,
+      saveScrollIndex: prevStackIndex,
+    });
   }
 
   /** 替换当前页面（不追加历史记录） */
@@ -177,15 +282,28 @@ export class Router extends Store {
     if (!result) return;
 
     const parsed = new URL(url, location.origin);
-    const target: RouteEntry = { path: result.url, params: result.params };
+    const target: RouteEntry = {
+      path: result.url,
+      url: this.#getBrowserUrl(result.url, parsed.search, parsed.hash),
+      params: result.params,
+    };
     this.stack[this.stackIndex] = target;
-    await this.#navigate(target, { replace: true, pattern: result.path, search: parsed.search, hash: parsed.hash });
+    await this.#navigate(target, {
+      replace: true,
+      pattern: result.path,
+      search: parsed.search,
+      hash: parsed.hash,
+      saveScrollIndex: false,
+    });
   }
 
   /** 后退 */
   async back(): Promise<void> {
-    if (this.stackIndex <= 0) return;
     if (!(await this.#checkGuard(this.active!, 'leave'))) return;
+    if (this.stackIndex <= 0) {
+      history.back();
+      return;
+    }
 
     const target = this.stack[this.stackIndex - 1];
     if (!(await this.#checkGuard(target, 'enter'))) return;
@@ -220,7 +338,16 @@ export class Router extends Store {
 
   private navId = 0;
 
-  async #navigate(target: RouteEntry, opts: { replace?: boolean; pattern?: string; search?: string; hash?: string } = {}): Promise<void> {
+  async #navigate(
+    target: RouteEntry,
+    opts: {
+      replace?: boolean;
+      pattern?: string;
+      search?: string;
+      hash?: string;
+      saveScrollIndex?: number | false;
+    } = {}
+  ): Promise<void> {
     const id = ++this.navId;
     const lookupKey = opts.pattern || target.path;
     const browserUrl = target.path + (opts.search || '') + (opts.hash || '');
@@ -231,8 +358,8 @@ export class Router extends Store {
     if (id !== this.navId) return;
 
     // 保存当前页滚动位置
-    if (this.active && this.stack[this.stackIndex]) {
-      this.stack[this.stackIndex].scroll = window.scrollY;
+    if (opts.saveScrollIndex !== false) {
+      this.#saveScroll(opts.saveScrollIndex ?? this.stackIndex);
     }
 
     if (!opts.replace) {
@@ -249,15 +376,39 @@ export class Router extends Store {
     target.component = route?.component;
     target.meta = route?.meta;
     target.layout = route?.layout;
-    this.active = target;
 
-    // hash 滚动
-    if (opts.hash) {
-      const el = document.querySelector(decodeURIComponent(opts.hash));
-      if (el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth' });
-    }
+    // 标记待滚动 hash，再切换 active；
+    // active 的 render effect 渲染完新页面后，post 优先级的 #hashEffect 会读取并滚动。
+    this.#setActive(target, opts.hash);
 
     this.#preloadNext();
+  }
+
+  #saveScroll(index: number): void {
+    if (this.active && this.stack[index]) {
+      this.stack[index].scroll = this.#getScrollTop();
+    }
+  }
+
+  #getScrollElement(): HTMLElement | null {
+    if (!this.scrollRootId || typeof document === 'undefined') return null;
+    return document.getElementById(this.scrollRootId);
+  }
+
+  #getScrollTop(): number {
+    const el = this.#getScrollElement();
+    if (el) return el.scrollTop;
+    return window.scrollY;
+  }
+
+  #scrollTo(top: number): void {
+    const el = this.#getScrollElement();
+    if (el) {
+      el.scrollTop = top;
+      el.scrollLeft = 0;
+      return;
+    }
+    window.scrollTo(0, top);
   }
 
   async #checkGuard(
@@ -375,34 +526,59 @@ export class Router extends Store {
   // ====== popstate 回调 ======
 
   #onPopstate = (): void => {
+    void this.#handlePopstate();
+  };
+
+  async #handlePopstate(): Promise<void> {
     const current = location.pathname + location.search + location.hash;
     const result = match(current, this.routes);
     const normalized = result?.url || current;
-    const idx = this.stack.findLastIndex((r) => r.path === normalized);
+    const idx = this.stack.findLastIndex((r) => (r.url ?? r.path) === current);
+
+    if (idx === -1 && this.active?.path === normalized) {
+      this.#setPendingHash(location.hash, true);
+      return;
+    }
 
     if (idx !== -1) {
-      // 仅 hash 变化，浏览器已更新 URL 并处理滚动，跳过 #navigate（避免 replaceState 抹掉 hash）
-      if (idx === this.stackIndex) return;
+      // 仅 hash 变化，浏览器已更新 URL；Router 仍需要在 post 队列里等异步 DOM。
+      if (idx === this.stackIndex) {
+        this.#setPendingHash(location.hash, true);
+        return;
+      }
       // 在栈中 → Router 产生的历史，移动指针
+      this.#saveScroll(this.stackIndex);
       this.stackIndex = idx;
       const entry = this.stack[idx];
-      this.#navigate(entry, { replace: true, pattern: result?.path, hash: location.hash, search: location.search });
-      // 恢复滚动位置
-      if (entry.scroll != null) {
-        window.scrollTo(0, entry.scroll);
-      }
+      this.#navigate(entry, {
+        replace: true,
+        pattern: result?.path,
+        hash: location.hash,
+        search: location.search,
+        saveScrollIndex: false,
+      }).then(() => {
+        // 恢复滚动位置
+        if (entry.scroll != null) {
+          this.#scrollTo(entry.scroll);
+        }
+      });
     } else {
       // 不在栈中 → 外部跳转，重置栈
       const route = result ? this.routes[result.path] : undefined;
+      if (result && route && !route.component && route.import) {
+        await this.#loadComponent(result.path);
+      }
       const entry: RouteEntry = {
         path: normalized,
+        url: current,
         params: result?.params ?? {},
+        component: route?.component,
         meta: route?.meta,
         layout: route?.layout,
       };
       this.stack = [entry];
       this.stackIndex = 0;
-      this.active = entry;
+      this.#setActive(entry, location.hash);
     }
-  };
+  }
 }

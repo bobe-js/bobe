@@ -1,4 +1,3 @@
-import 'bobe-router/csr-routes';
 import { Router } from "bobe-router";
 
-export const router = new Router();
+export const router = new Router({ scrollRootId: 'router-scroll-root' });

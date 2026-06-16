@@ -1,6 +1,6 @@
-import { isStore, Keys } from "aoye";
-import { UI } from "./type";
-import type { Tokenizer } from "./tokenizer";
+import { isStore, Keys } from 'aoye';
+import { UI } from './type';
+import type { Tokenizer } from './tokenizer';
 
 export function macInc(arr: number[]) {
   const len = arr.length;
@@ -52,7 +52,6 @@ export function macInc(arr: number[]) {
   return candyLast;
 }
 
-
 export class InlineFragment {
   [Keys.ProxyFreeObject] = true;
   constructor(
@@ -65,15 +64,13 @@ export class InlineFragment {
 
 export const isUI = (fn: any): fn is UI => typeof fn === 'function' && fn.__BOBE_IS_UI;
 
-export const isRenderAble = (val: any) => isStore(val) || isUI(val) || val instanceof InlineFragment
+export const isRenderAble = (val: any) => isStore(val) || isUI(val) || val instanceof InlineFragment;
+
+const SAFE_HAS = () => true;
 
 const SAFE_HANDLER: ProxyHandler<object> = {
-  has: () => true,
-  get: (t, k) => {
-    // 返回原型上的值，缺失返回 undefined
-    if (typeof k === 'symbol') return (t as any)[k];
-    return (t as any)[k];
-  },
+  has: SAFE_HAS,
+  get: (t, k, r) => Reflect.get(t, k, r)
 };
 
 /**
@@ -81,3 +78,19 @@ const SAFE_HANDLER: ProxyHandler<object> = {
  * ReferenceError 的问题。缺失的属性返回 undefined，可选链自然兼容。
  */
 export const safe = (data: any) => new Proxy(data, SAFE_HANDLER);
+
+/**
+ * 包装 data 为 safe proxy，解决 with(data) 中访问不存在的标识符抛出
+ * ReferenceError 的问题。缺失的属性返回 undefined，可选链自然兼容。
+ * excludes 可以指定哪些字段不在 data 中
+ */
+export const safeExclude = (data: any, excludes: Record<string, true>) => {
+  const proxy = new Proxy(data, SAFE_HANDLER);
+  return new Proxy(proxy, {
+    has: SAFE_HAS,
+    get(t, k, r) {
+      if (k === Symbol.unscopables) return excludes;
+      return Reflect.get(t, k, r);
+    }
+  });
+};

@@ -6,8 +6,7 @@ export class App extends Store {
   router = (globalThis as any).__SSR_ROUTER__ || router;
   defaultLayout = Layout;
   notFound = NotFound;
-  ui = bobe`
-    div
+  ui = bobe`    
     {router.active?.layout || defaultLayout}
     | menus={router.menus}
     | activePath={router.active?.path}

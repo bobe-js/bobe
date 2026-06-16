@@ -9,6 +9,7 @@ export default class Layout extends Store {
   menus: Menu[] = [];
   activePath = '/';
   children: any = null;
+  router = (globalThis as any).__SSR_ROUTER__ || router;
 
   findDeep(menu: Menu, activePath: string): Menu | undefined {
     if(menu.path === '/') {
@@ -106,7 +107,7 @@ export default class Layout extends Store {
             ${MenuComp} name={sidebarTitle} menus={sidebarMenus}
 
         // 右侧内容区
-        main class="flex-1 overflow-y-auto p-6 text-(--md-text)"
+        main id={router.scrollRootId} class="flex-1 overflow-y-auto p-6 text-(--md-text)"
           {children}
   `;
 }

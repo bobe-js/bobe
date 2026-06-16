@@ -14,16 +14,16 @@ function makeMap(paths: string[]): RouteMap {
 describe('match', () => {
   it('should match static paths', () => {
     const map = makeMap(['/', '/about', '/contact']);
-    expect(match('/', map)).toEqual({ path: '/', params: {} });
-    expect(match('/about', map)).toEqual({ path: '/about', params: {} });
-    expect(match('/contact', map)).toEqual({ path: '/contact', params: {} });
+    expect(match('/', map)).toEqual({ path: '/', params: {}, url: '/' });
+    expect(match('/about', map)).toEqual({ path: '/about', params: {}, url: '/about' });
+    expect(match('/contact', map)).toEqual({ path: '/contact', params: {}, url: '/contact' });
     expect(match('/notfound', map)).toBeNull();
   });
 
   it('should match dynamic segments', () => {
     const map = makeMap(['/post/:id', '/user/:name']);
-    expect(match('/post/42', map)).toEqual({ path: '/post/:id', params: { id: '42' } });
-    expect(match('/user/alice', map)).toEqual({ path: '/user/:name', params: { name: 'alice' } });
+    expect(match('/post/42', map)).toEqual({ path: '/post/:id', params: { id: '42' }, url: '/post/42' });
+    expect(match('/user/alice', map)).toEqual({ path: '/user/:name', params: { name: 'alice' }, url: '/user/alice' });
   });
 
   it('should match multiple dynamic segments', () => {
@@ -32,6 +32,7 @@ describe('match', () => {
     expect(result).toEqual({
       path: '/blog/:year/:month/:slug',
       params: { year: '2024', month: '12', slug: 'hello-world' },
+      url: '/blog/2024/12/hello-world'
     });
   });
 
@@ -45,6 +46,6 @@ describe('match', () => {
 
   it('should handle paths without leading slash', () => {
     const map = makeMap(['/about']);
-    expect(match('about', map)).toEqual({ path: '/about', params: {} });
+    expect(match('about', map)).toEqual({ path: '/about', params: {}, url: '/about' });
   });
 });
