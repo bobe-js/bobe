@@ -14,7 +14,7 @@ export default defineConfig({
       apply: 'serve',
       resolveId(id) {
         if (id === '/pagefind/pagefind.js') {
-          return path.resolve(__dirname, 'dist/client/pagefind/pagefind.js');
+          return path.resolve(__dirname, `dist/client${id}`);
         }
       }
     }

@@ -67,7 +67,7 @@ export default class Layout extends Store {
   ui = bobe`
     div class="h-screen flex flex-col"
       // ======== 顶部导航栏 ========
-      header class="grid grid-cols-[1fr_minmax(130px,400px)_1fr] px-6 border-b border-(--md-border)"
+      header class="grid grid-cols-[1fr_minmax(130px,520px)_1fr] px-6 border-b border-(--md-border)"
         // 左侧 Logo
         div class="justify-self-start whitespace-nowrap shrink-0 flex items-center gap-2"
           img alt="B" class="h-8 w-7" 
@@ -75,7 +75,7 @@ export default class Layout extends Store {
           span class="text-lg font-semibold text-(--md-text)" "Bobe SSR"
 
         // 中间搜索框
-        div class="w-full max-w-[400px] justify-self-center p-[16px]"
+        div class="w-full max-w-[520px] justify-self-center p-[16px]"
           ${SearchComp}
 
 	        // 占位 spacer，将右侧导航推到右端

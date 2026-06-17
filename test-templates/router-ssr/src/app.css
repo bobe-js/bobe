@@ -29,3 +29,10 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #dfdfdf59 #2d2d36;
 }
+
+.pagefind-highlight {
+  background-color: var(--md-bg-mark);
+  color: var(--md-text);
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px var(--md-bg-mark);
+}

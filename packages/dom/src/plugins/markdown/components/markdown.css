@@ -145,6 +145,127 @@
   text-underline-offset: .2rem;
 }
 
+.markdown {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  justify-content: space-between;
+}
+
+.markdown-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.markdown-aside {
+  position: sticky;
+  top: 0;
+  flex: 0 0 220px;
+  width: 220px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-border) transparent;
+}
+
+.markdown-aside-content {
+  position: relative;
+}
+
+.markdown-aside-border {
+  position: absolute;
+  left: 2.5px;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 1px;
+  background: var(--md-border);
+  pointer-events: none;
+}
+
+.markdown-aside-indicator {
+  position: relative;
+  left: 1px;
+  top: 0;
+  z-index: 1;
+  width: 4px;
+  height: 25px;
+  margin-bottom: -25px;
+  border-radius: 999px;
+  background: var(--md-accent-focus);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.2s ease,
+    height 0.2s ease,
+    opacity 0.15s ease;
+}
+
+.markdown-aside-indicator-active {
+  opacity: 1;
+}
+
+.markdown-aside-item {
+  display: block;
+  position: relative;
+  z-index: 2;
+  margin: 1px 0 1px 12px;
+  padding: 4px 8px 4px 12px;
+  border-radius: 4px;
+  color: var(--md-text-muted);
+  text-decoration: none;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.markdown-aside-item:hover {
+  color: var(--md-text);
+  background-color: var(--md-bg-secondary);
+  text-decoration: none;
+}
+
+.markdown-aside-item-active {
+  color: var(--md-text);
+  background-color: var(--md-bg-secondary);
+  font-weight: 600;
+}
+
+.markdown-aside-depth-1 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.markdown-aside-depth-2 {
+  padding-left: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.markdown-aside-depth-3 {
+  padding-left: 32px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.markdown-aside-depth-4,
+.markdown-aside-depth-5,
+.markdown-aside-depth-6 {
+  padding-left: 44px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+@media (max-width: 960px) {
+  .markdown {
+    display: block;
+  }
+
+  .markdown-aside {
+    display: none;
+  }
+}
+
 .markdown-body .octicon {
   display: inline-block;
   fill: currentColor;

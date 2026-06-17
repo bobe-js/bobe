@@ -24,3 +24,5 @@ export type {
   ScrollSnapshot,
   ScrollTarget,
 } from './runtime/types';
+
+export type { Menu } from './type';

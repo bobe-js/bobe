@@ -19,6 +19,21 @@ function esc(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
 }
 
+function plainText(tokens: any[]): string {
+  return tokens.map(token => {
+    if (Array.isArray(token.tokens)) return plainText(token.tokens);
+    return typeof token.text === 'string' ? token.text : token.raw || '';
+  }).join('');
+}
+
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^\w一-鿿]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function escAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /** 将 HTML 字符串编译为 bobe 组件模块源码 */
 function gen(
   html: string,
@@ -29,7 +44,7 @@ function gen(
   routeMeta?: Record<string, any>
 ): string {
   const hasCode = codeTrees.length > 0;
-  const lines = [`import { bobe, Store } from 'bobe';`];
+  const lines = [`import { bobe, Store, effect } from 'bobe';`];
 
   // layout 组件导入
   if (layoutPath) {
@@ -44,6 +59,7 @@ function gen(
   }
 
   lines.push(`const mdHtml = \`${esc(html)}\`;`);
+  lines.push(`const headings = ${JSON.stringify(headers)};`);
 
   // 代码树数据
   if (hasCode) {
@@ -54,17 +70,70 @@ function gen(
 
   // Markdown Store 组件
   lines.push(`class Markdown extends Store {`);
+  lines.push(`  headings = headings;`);
   lines.push(`  mdRef = null;`);
+  lines.push(`  asideRef = null;`);
+  lines.push(`  activeHeadingId = '';`);
+  lines.push(`  indicatorTop = 0;`);
+  lines.push(`  indicatorHeight = 25;`);
+  lines.push(``);
+  lines.push(`  constructor() {`);
+  lines.push(`    super();`);
+  lines.push(`    effect(() => {`);
+  lines.push(`      if (typeof window === 'undefined') return;`);
+  lines.push(`      const syncActiveHeading = () => {`);
+  lines.push(`        const rawHash = window.location.hash.slice(1);`);
+  lines.push(`        let hash = rawHash;`);
+  lines.push(`        try {`);
+  lines.push(`          hash = decodeURIComponent(rawHash);`);
+  lines.push(`        } catch {}`);
+  lines.push(`        this.activeHeadingId = headings.some(item => item.id === hash) ? hash : '';`);
+  lines.push(`        this.updateIndicator();`);
+  lines.push(`      };`);
+  lines.push(`      syncActiveHeading();`);
+  lines.push(`      window.addEventListener('hashchange', syncActiveHeading);`);
+  lines.push(`      return () => window.removeEventListener('hashchange', syncActiveHeading);`);
+  lines.push(`    });`);
+  lines.push(`  }`);
+  lines.push(``);
+  lines.push(`  getAsideClass(item) {`);
+  lines.push(`    const active = this.activeHeadingId === item.id ? ' markdown-aside-item-active' : '';`);
+  lines.push(`    return 'markdown-aside-item markdown-aside-depth-' + item.depth + active;`);
+  lines.push(`  }`);
+  lines.push(``);
+  lines.push(`  get indicatorStyle() {`);
+  lines.push(`    return 'transform: translateY(' + this.indicatorTop + 'px); height: ' + this.indicatorHeight + 'px;';`);
+  lines.push(`  }`);
+  lines.push(``);
+  lines.push(`  updateIndicator() {`);
+  lines.push(`    if (typeof window === 'undefined') return;`);
+  lines.push(`    window.requestAnimationFrame(() => {`);
+  lines.push(`      const active = this.asideRef?.querySelector?.('.markdown-aside-item-active');`);
+  lines.push(`      if (!active) {`);
+  lines.push(`        this.indicatorTop = 0;`);
+  lines.push(`        this.indicatorHeight = 25;`);
+  lines.push(`        return;`);
+  lines.push(`      }`);
+  lines.push(`      const style = window.getComputedStyle(active);`);
+  lines.push(`      const marginTop = Number.parseFloat(style.marginTop) || 0;`);
+  lines.push(`      this.indicatorTop = active.offsetTop - marginTop + (active.offsetHeight - this.indicatorHeight) / 2;`);
+  lines.push(`      this.indicatorHeight = 25;`);
+  lines.push(`    });`);
+  lines.push(`  }`);
+  lines.push(``);
   lines.push(`  ui = bobe\``);
-  lines.push(`    div class="markdown" style="display: flex; gap: 16px; justify-content: space-between;"`);
-  lines.push(`      main ref={mdRef} class="markdown-body" style="overflow-y: auto; flex: 1;" html=\${mdHtml}`);
+  lines.push(`    div class="markdown"`);
+  lines.push(`      main ref={mdRef} class="markdown-body" html=\${mdHtml}`);
   lines.push(`      if showAside`);
-  lines.push(`        aside class="markdown-aside" style="flex: none; display: flex; flex-direction: column; overflow-y: auto; width: 220px;"`);
-  for (const { depth, id, text } of headers) {
-    lines.push(
-      `          a href="#${id}" children="${esc(text)}" class="markdown-aside-item markdown-aside-depth-${depth}"`
-    );
-  }
+  lines.push(`        aside ref={asideRef} class="markdown-aside"`);
+  lines.push(`          div class="markdown-aside-content"`);
+  lines.push(`            div class="markdown-aside-border"`);
+  lines.push(`            div class={activeHeadingId ? 'markdown-aside-indicator markdown-aside-indicator-active' : 'markdown-aside-indicator'} style={indicatorStyle}`);
+  lines.push(`            for headings; item ; item.id`);
+  lines.push(`              a`);
+  lines.push(`              | href={'#' + item.id}`);
+  lines.push(`              | children={item.text}`);
+  lines.push(`              | class={getAsideClass(item)}`);
   // tp + Code 组件
   if (hasCode) {
     for (let i = 0; i < codeTrees.length; i++) {
@@ -105,7 +174,7 @@ const CODE_TAG_RE = /<code\s+src="([^"]+)"(\s+preview)?\s*\/>/g;
 
 export default function markdownPlugin(opt: MarkdownPluginOptions = {}): Plugin {
   let headers: HeadItem[] = [];
-  const headClassMap = {
+  const headClassMap: Record<number, string> = {
     '1': 'cyber-title'
   }
   return {
@@ -118,12 +187,13 @@ export default function markdownPlugin(opt: MarkdownPluginOptions = {}): Plugin 
         gfm: true, // GitHub Flavored Markdown
         renderer: {
           heading({ tokens, depth }) {
-            const text = this.parser.parseInline(tokens);
-            const id = text.toLowerCase().replace(/[^\w一-鿿]+/g, '-');
+            const html = this.parser.parseInline(tokens);
+            const text = plainText(tokens);
+            const id = slugify(text);
             if (depth <= (opt.asideDeep || 3)) {
               headers.push({ depth, id, text });
             }
-            return `<h${depth} class="${headClassMap[depth]}" data-text="${text}" id="${id}">${text}</h${depth}>`;
+            return `<h${depth} class="${headClassMap[depth] || ''}" data-text="${escAttr(text)}" id="${id}">${html}</h${depth}>`;
           },
           code({ text, lang }) {
             return `<pre><code class="hljs">${hljs.highlight(text, { language: lang }).value}</code></pre>`;

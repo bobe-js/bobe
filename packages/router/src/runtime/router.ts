@@ -9,6 +9,7 @@ import type {
   NavigationContext,
   NavigationHandler,
   NavigationRequest,
+  NavigationResult,
   PendingHistoryDelta,
   PreloadTask,
   ReadyCallback,
@@ -112,7 +113,7 @@ export class Router extends Store {
     return new Promise<void>(resolve => this.ready(resolve));
   }
 
-  async pushState(url: string): Promise<void> {
+  async pushState(url: string): Promise<NavigationResult> {
     const request: NavigationRequest = {
       source: 'api',
       url,
@@ -120,7 +121,7 @@ export class Router extends Store {
       runGuards: true,
       restoreScroll: false,
     };
-    await this.#runNavigation(request, [
+    return this.#runNavigation(request, [
       this.#handleCreateUrlContext(request),
       this.#handleBuildRouteEntry,
       this.#handleSaveCurrentScroll,
@@ -136,7 +137,7 @@ export class Router extends Store {
     ]);
   }
 
-  async replaceState(url: string): Promise<void> {
+  async replaceState(url: string): Promise<NavigationResult> {
     const request: NavigationRequest = {
       source: 'api',
       url,
@@ -144,20 +145,38 @@ export class Router extends Store {
       runGuards: true,
       restoreScroll: false,
     };
-    await this.#runNavigation(request, this.#replaceHandlers(request));
+    return this.#runNavigation(request, this.#replaceHandlers(request));
   }
 
-  async back(): Promise<void> {
-    await this.#goByDelta(-1);
+  async back(): Promise<NavigationResult> {
+    return this.#goByDelta(-1);
   }
 
-  async forward(): Promise<void> {
-    await this.#goByDelta(1);
+  async forward(): Promise<NavigationResult> {
+    return this.#goByDelta(1);
   }
 
-  async go(delta: number): Promise<void> {
-    if (delta === 0) return;
-    await this.#goByDelta(delta);
+  async go(delta: number): Promise<NavigationResult> {
+    const request: NavigationRequest = {
+      source: 'api',
+      historyMode: 'browser-delta',
+      delta,
+      runGuards: true,
+      restoreScroll: true,
+    };
+    if (delta === 0) {
+      return {
+        status: 'ignored',
+        ctx: {
+          router: this,
+          request,
+          token: { id: 0, request, cancelled: false },
+          status: 'ignored',
+          rollbackStack: [],
+        },
+      };
+    }
+    return this.#goByDelta(delta, request);
   }
 
   async #init(url: string): Promise<void> {
@@ -194,18 +213,31 @@ export class Router extends Store {
     for (const cb of queue) cb();
   }
 
-  async #goByDelta(delta: number): Promise<void> {
-    if (!this.#hasBrowser()) return;
-    const request: NavigationRequest = {
-      source: 'api',
-      historyMode: 'browser-delta',
-      delta,
-      runGuards: true,
-      restoreScroll: true,
-    };
-    await this.#runNavigation(request, [
+  async #goByDelta(delta: number, request?: NavigationRequest): Promise<NavigationResult> {
+    const currentRequest =
+      request ||
+      ({
+        source: 'api',
+        historyMode: 'browser-delta',
+        delta,
+        runGuards: true,
+        restoreScroll: true,
+      } satisfies NavigationRequest);
+    if (!this.#hasBrowser()) {
+      return {
+        status: 'ignored',
+        ctx: {
+          router: this,
+          request: currentRequest,
+          token: { id: 0, request: currentRequest, cancelled: false },
+          status: 'ignored',
+          rollbackStack: [],
+        },
+      };
+    }
+    return this.#runNavigation(currentRequest, [
       ctx => {
-        ctx.historyDelta = { delta: request.delta };
+        ctx.historyDelta = { delta };
         ctx.from = this.active;
       },
       this.#handleResolveHistoryDeltaTarget,
@@ -222,7 +254,10 @@ export class Router extends Store {
     ]);
   }
 
-  async #runNavigation(request: NavigationRequest | undefined, handlers: NavigationHandler[]) {
+  async #runNavigation(
+    request: NavigationRequest | undefined,
+    handlers: NavigationHandler[]
+  ): Promise<NavigationResult> {
     const result = await this.#transaction.run(this, handlers, request);
     if (result.status === 'error') {
       await this.#notifyNavigationError(result.error, result.ctx);

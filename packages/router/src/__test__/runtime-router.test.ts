@@ -125,9 +125,12 @@ describe('runtime Router', () => {
     const router = makeRouter();
     await router.ready();
 
-    await router.pushState('/about');
+    const result = await router.pushState('/about');
 
     expect(router.active?.path).toBe('/about');
+    expect(result.status).toBe('completed');
+    expect(result.ctx.request?.historyMode).toBe('push');
+    expect(result.ctx.to?.path).toBe('/about');
     expect(history.state?.__bobeRouter).toBe(true);
     expect(history.state?.index).toBe(1);
   });
@@ -166,9 +169,12 @@ describe('runtime Router', () => {
     await router.pushState('/about');
     expect(history.state?.index).toBe(1);
 
-    await router.replaceState('/post/7?mode=edit');
+    const result = await router.replaceState('/post/7?mode=edit');
 
     expect(router.active?.path).toBe('/post/7');
+    expect(result.status).toBe('completed');
+    expect(result.ctx.request?.historyMode).toBe('replace');
+    expect(result.ctx.to?.path).toBe('/post/7');
     expect(router.active?.url).toBe('/post/7?mode=edit');
     expect(router.active?.params).toEqual({ id: '7' });
     expect(history.state?.index).toBe(1);
@@ -181,9 +187,11 @@ describe('runtime Router', () => {
     const active = router.active;
     const state = history.state;
 
-    await router.pushState('/missing');
+    const result = await router.pushState('/missing');
 
     expect(router.active).toBe(active);
+    expect(result.status).toBe('ignored');
+    expect(result.ctx.request?.historyMode).toBe('push');
     expect(history.state).toBe(state);
     expect(location.pathname).toBe('/');
   });
@@ -193,8 +201,14 @@ describe('runtime Router', () => {
     await router.ready();
 
     const goSpy = vi.spyOn(history, 'go');
-    await router.go(0);
+    const result = await router.go(0);
 
+    expect(result.status).toBe('ignored');
+    expect(result.ctx.request?.historyMode).toBe('browser-delta');
+    if (result.ctx.request?.historyMode !== 'browser-delta') {
+      throw new Error('Expected browser delta navigation request');
+    }
+    expect(result.ctx.request.delta).toBe(0);
     expect(goSpy).not.toHaveBeenCalled();
     expect(router.active?.path).toBe('/');
     expect(history.state?.index).toBe(0);
@@ -207,18 +221,22 @@ describe('runtime Router', () => {
     await router.pushState('/post/2');
 
     const backPopstate = waitForPopstate();
-    await router.go(-2);
+    const backResult = await router.go(-2);
     await backPopstate;
     await waitUntil(() => router.active?.path === '/');
 
+    expect(backResult.status).toBe('completed');
+    expect(backResult.ctx.historyDelta?.delta).toBe(-2);
     expect(router.active?.path).toBe('/');
     expect(history.state?.index).toBe(0);
 
     const forwardPopstate = waitForPopstate();
-    await router.forward();
+    const forwardResult = await router.forward();
     await forwardPopstate;
     await waitUntil(() => router.active?.path === '/about');
 
+    expect(forwardResult.status).toBe('completed');
+    expect(forwardResult.ctx.historyDelta?.delta).toBe(1);
     expect(router.active?.path).toBe('/about');
     expect(history.state?.index).toBe(1);
   });
@@ -230,9 +248,11 @@ describe('runtime Router', () => {
     const enterGuard = vi.fn(() => false);
     router.enterGuard = enterGuard;
 
-    await router.pushState('/about');
+    const result = await router.pushState('/about');
 
     expect(router.active?.path).toBe('/');
+    expect(result.status).toBe('blocked');
+    expect(result.ctx.guard?.type).toBe('blocked');
     expect(history.state?.index).toBe(0);
     expect(history.state?.url).toBe('/');
     expect(enterGuard).toHaveBeenCalledTimes(1);
@@ -285,8 +305,10 @@ describe('runtime Router', () => {
     const goSpy = vi.spyOn(history, 'go');
     router.leaveGuard = vi.fn(() => false);
 
-    await router.back();
+    const result = await router.back();
 
+    expect(result.status).toBe('blocked');
+    expect(result.ctx.guard?.type).toBe('blocked');
     expect(goSpy).not.toHaveBeenCalled();
     expect(router.active?.path).toBe('/about');
     expect(history.state?.index).toBe(1);
@@ -620,9 +642,11 @@ describe('runtime Router', () => {
       throw error;
     });
 
-    await router.pushState('/about');
+    const result = await router.pushState('/about');
 
     expect(router.active?.path).toBe('/');
+    expect(result.status).toBe('error');
+    expect(result.error).toBe(error);
     expect(history.state?.index).toBe(0);
     expect(history.state?.url).toBe('/');
     expect(onError).toHaveBeenCalledTimes(1);
@@ -663,9 +687,11 @@ describe('runtime Router', () => {
     );
     await router.ready();
 
-    await router.pushState('/lazy');
+    const result = await router.pushState('/lazy');
 
     expect(router.active?.path).toBe('/');
+    expect(result.status).toBe('error');
+    expect(result.error).toBe(error);
     expect(history.state?.index).toBe(0);
     expect(history.state?.url).toBe('/');
     expect(onError).toHaveBeenCalledTimes(1);
@@ -703,9 +729,11 @@ describe('runtime Router', () => {
     expect(router.active?.path).toBe('/');
 
     resolveImport({ default: createMockComponent('lazy') });
-    await navigation;
+    const result = await navigation;
 
     expect(router.active?.path).toBe('/lazy');
+    expect(result.status).toBe('completed');
+    expect(result.ctx.to?.path).toBe('/lazy');
     expect(history.state?.index).toBe(1);
     expect(history.state?.url).toBe('/lazy');
   });
@@ -733,9 +761,11 @@ describe('runtime Router', () => {
 
     const navigation = router.pushState('/lazy');
     await vi.advanceTimersByTimeAsync(10);
-    await navigation;
+    const result = await navigation;
 
     expect(router.active?.path).toBe('/');
+    expect(result.status).toBe('error');
+    expect(result.error).toBeInstanceOf(Error);
     expect(history.state?.index).toBe(0);
     expect(history.state?.url).toBe('/');
     expect(onTimeout).toHaveBeenCalledTimes(1);
