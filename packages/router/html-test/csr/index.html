@@ -48,7 +48,7 @@
       '/post':  createRouteRecord({ import: () => import('./post.js') }),
     };
 
-    const router = new Router(routes);
+    const router = new Router({ routes });
     
 
     // ====== App 模板 ======
