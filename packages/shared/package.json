@@ -1,6 +1,6 @@
 {
   "name": "bobe-shared",
-  "version": "0.0.68",
+  "version": "0.0.69",
   "type": "module",
   "main": "dist/bobe-shared.cjs",
   "module": "dist/bobe-shared.esm.js",
