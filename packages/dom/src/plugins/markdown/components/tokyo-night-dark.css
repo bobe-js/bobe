@@ -34,7 +34,7 @@ code.hljs {
 /*  Comment */
 .hljs-meta,
 .hljs-comment {
-  color: #565f89
+  color: var(--md-code-comment)
 }
 /* Red */
 /*INFO: This keyword, HTML elements, Regex group symbol, CSS units, Terminal Red */
@@ -48,7 +48,7 @@ code.hljs {
 .hljs-selector-attr,
 .hljs-variable.language_,
 .hljs-deletion {
-  color: #f7768e
+  color: var(--md-code-red)
 }
 /*Orange */
 /*INFO: Number and Boolean constants, Language support constants */
@@ -59,18 +59,18 @@ code.hljs {
 .hljs-type,
 .hljs-params,
 .hljs-link {
-  color: #ff9e64
+  color: var(--md-code-orange)
 }
 /*  Yellow */
 /* INFO:  	Function parameters, Regex character sets, Terminal Yellow */
 .hljs-built_in,
 .hljs-attribute {
-  color: #e0af68
+  color: var(--md-code-yellow)
 }
 /* cyan */
 /* INFO: Language support functions, CSS HTML elements */
 .hljs-selector-tag {
-  color: #2ac3de
+  color: var(--md-code-cyan)
 }
 /* light blue */
 /* INFO: Object properties, Regex quantifiers and flags, Markdown headings, Terminal Cyan, Markdown code, Import/export keywords */
@@ -81,12 +81,12 @@ code.hljs {
 .hljs-title.class_.inherited__,
 .hljs-subst,
 .hljs-property {
-  color: #7dcfff
+  color: var(--md-code-blue)
 }
 /*Green*/
 /* INFO: Object literal keys, Markdown links, Terminal Green */
 .hljs-selector-tag {
-  color: #73daca
+  color: var(--md-code-teal)
 }
 /*Green(er) */
 /* INFO: Strings, CSS class names */
@@ -95,14 +95,14 @@ code.hljs {
 .hljs-symbol,
 .hljs-bullet,
 .hljs-addition {
-  color: #9ece6a
+  color: var(--md-code-green)
 }
 /* Blue */
 /* INFO:  	Function names, CSS property names, Terminal Blue */
 .hljs-code,
 .hljs-formula,
 .hljs-section {
-  color: #7aa2f7
+  color: var(--md-code-indigo)
 }
 /* Magenta */
 /*INFO: Control Keywords, Storage Types, Regex symbols and operators, HTML Attributes, Terminal Magenta */
@@ -112,16 +112,16 @@ code.hljs {
 .hljs-keyword,
 .hljs-char.escape_,
 .hljs-attr {
-  color: #bb9af7
+  color: var(--md-code-purple)
 }
 /* white*/
 /* INFO: Variables, Class names, Terminal White */
 .hljs-punctuation {
-  color: #c0caf5
+  color: var(--md-code-punctuation)
 }
 .hljs {
-  background: #1a1b26;
-  color: #9aa5ce
+  background: var(--md-bg-code);
+  color: var(--md-code-text)
 }
 .hljs-emphasis {
   font-style: italic

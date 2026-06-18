@@ -1,16 +1,14 @@
 import { bobe, Store } from 'bobe';
 import styles from './drop-down.module.scss';
 
-
-
 export class DropDown<T> extends Store {
   readonly items: T[] = [];
   readonly content = '请选择';
   readonly auto = false;
   readonly bordered = true;
   readonly onSelect: ((item: T) => void) | null = null;
-  readonly label =  'label';
-  readonly value =  'value';
+  readonly label = 'label';
+  readonly value = 'value';
 
   isOpen = false;
   styles = styles;
@@ -45,20 +43,29 @@ export class DropDown<T> extends Store {
     }
   }
 
+  get btnClass() {
+    return (
+      'text-sm ' +
+      (this.bordered
+        ? styles.trigger
+        : `${styles.trigger} ${styles.borderless}${this.isOpen ? ` ${styles.dimmed}` : ''}`)
+    );
+  }
+
   ui = bobe`
     div
     | class={styles['drop-down']}
     | onmouseenter={() => handleMouseEnter()}
     | onmouseleave={() => handleMouseLeave()}
       button
-      | class={bordered ? styles.trigger : (styles.trigger + ' ' + styles.borderless + (isOpen ? ' ' + styles.dimmed : ''))}
+      | class={btnClass}
       | onclick={() => toggle()}
       | onkeydown={(e) => handleTriggerKeydown(e)}
       | {content}
       ul class={isOpen ? styles.menu + ' ' + styles.open : styles.menu}
         for items; item ; item[value]
           li
-          | class={styles.item}
+          | class={'text-sm ' + styles.item}
           | onclick={() => selectItem(item)}
           | {item[label]}
   `;

@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+:root {
+  --site-nav-icon: #9898a5;
+  --site-nav-icon-hover: #e1e1e5;
+  --site-nav-icon-hover-bg: #2a2a33;
+}
+
+:root[data-theme="light"] {
+  --site-nav-icon: #6f665d;
+  --site-nav-icon-hover: #2f2a24;
+  --site-nav-icon-hover-bg: #e0d3c2;
+}
+
 html {
   height: 100vh;
   width: 100vw;
@@ -23,11 +35,6 @@ body {
   height: 100%;
   width: 100%;
   overflow: hidden;
-}
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #dfdfdf59 #2d2d36;
 }
 
 .pagefind-highlight {

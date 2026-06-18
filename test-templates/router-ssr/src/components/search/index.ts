@@ -47,6 +47,8 @@ export default class SearchComp extends Store {
   searchSeq = 0;
   isComposing = false;
   autoFillLimit = 3;
+  shortcutModifier = '';
+  shortcutReady = false;
 
   constructor() {
     super();
@@ -64,6 +66,30 @@ export default class SearchComp extends Store {
       document.addEventListener('mousedown', handleMouseDown);
       return () => document.removeEventListener('mousedown', handleMouseDown);
     });
+
+    effect(
+      () => {
+        if (typeof document === 'undefined' || !this.rootRef) return;
+
+        this.shortcutModifier = /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘' : 'Ctrl';
+        this.shortcutReady = true;
+
+        const handleShortcut = (event: KeyboardEvent) => {
+          if (event.key.toLowerCase() !== 'k') return;
+          if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+
+          event.preventDefault();
+          this.open();
+          this.inputRef?.focus();
+          this.inputRef?.select();
+        };
+
+        document.addEventListener('keydown', handleShortcut);
+        return () => document.removeEventListener('keydown', handleShortcut);
+      },
+      [() => this.rootRef],
+      { type: 'post', immediate: false }
+    );
   }
 
   async initPagefind() {
@@ -555,7 +581,10 @@ export default class SearchComp extends Store {
         | onkeydown={(e) => handleKeydown(e)}
         | oncompositionstart={() => onCompositionStart()}
         | oncompositionend={(e) => onCompositionEnd(e)}
-        | class="pointer-events-auto w-full pl-9 pr-3 py-1.5 bg-(--md-bg-secondary) border border-(--md-border) rounded-md outline-none text-sm text-(--md-text) placeholder:text-(--md-text-muted) focus:border-(--md-accent-focus)"
+        | class="pointer-events-auto w-full pl-9 pr-24 py-1.5 bg-(--md-bg-secondary) border border-(--md-border) rounded-md outline-none text-sm text-(--md-text) placeholder:text-(--md-text-muted) focus:border-(--md-accent-focus)"
+        div aria-hidden="true" class={shortcutReady ? 'pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-xs font-medium text-(--md-text-muted) opacity-100 transition-opacity duration-200' : 'pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-xs font-medium text-(--md-text-muted) opacity-0 transition-opacity duration-200'}
+          span class="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-(--md-border) bg-(--md-bg-code) px-1 leading-none shadow-sm" {shortcutModifier}
+          span class="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-(--md-border) bg-(--md-bg-code) px-1 leading-none shadow-sm" "K"
 
       if showPanel
         div
@@ -568,7 +597,8 @@ export default class SearchComp extends Store {
             div class="px-3 py-2 text-sm text-(--md-text-muted) border-b border-(--md-border)"
               span "最近访问"
           else loading
-            div class="px-3 py-2 text-base text-(--md-text-muted)" "搜索中..."
+            div class="flex aspect-square min-h-16 items-center justify-center text-(--md-text-muted)"
+              iconify-icon icon="lucide:loader-circle" aria-label="搜索中" class="animate-spin text-6xl"
           if error
             div class="px-3 py-2 text-base text-(--md-text-muted)" {error}
           for visibleResults; entry i

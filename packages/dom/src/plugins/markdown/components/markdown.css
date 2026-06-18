@@ -58,6 +58,19 @@
   /* 元数据：pl-ml */
   --md-syntax-meta: #f2cc60;
 
+  --md-code-comment: #565f89;
+  --md-code-red: #f7768e;
+  --md-code-orange: #ff9e64;
+  --md-code-yellow: #e0af68;
+  --md-code-cyan: #2ac3de;
+  --md-code-blue: #7dcfff;
+  --md-code-teal: #73daca;
+  --md-code-green: #9ece6a;
+  --md-code-indigo: #7aa2f7;
+  --md-code-purple: #bb9af7;
+  --md-code-punctuation: #c0caf5;
+  --md-code-text: #9aa5ce;
+
   /* === Diff 色 === */
 
   /* 删除文字：pl-md */
@@ -121,6 +134,9 @@
   /* 注意标题：.markdown-alert-caution .markdown-alert-title */
   --md-alert-caution-title: #f85149;
 
+  --md-scrollbar-thumb: #dfdfdf59;
+  --md-scrollbar-track: #2d2d36;
+
   color-scheme: dark;
   /** CSS default easing. Use for hover state changes and micro-interactions. */
   /** Accelerating motion. Use for elements exiting the viewport (moving off-screen). */
@@ -138,6 +154,66 @@
   line-height: 1.5;
   word-wrap: break-word;
   flex: 1 1 auto;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --md-text: #2f2a24;
+  --md-text-muted: #746a5f;
+  --md-text-link: #8a4f2b;
+  --md-bg: #eee6da;
+  --md-bg-secondary: #eadbca;
+  --md-bg-code: #e0d3c2;
+  --md-bg-inline-code: #e0d3c2;
+  --md-bg-mark: #e1c789;
+  --md-border: #cdbcaa;
+  --md-border-muted: #d8c8b7;
+  --md-accent-focus: #9f5f38;
+  --md-syntax-keyword: #9b1f2e;
+  --md-syntax-string: #176226;
+  --md-syntax-number: #85400f;
+  --md-syntax-function: #0f5f95;
+  --md-syntax-builtin: #0a6657;
+  --md-syntax-variable: #6c2698;
+  --md-syntax-meta: #744c0c;
+  --md-code-comment: #746b62;
+  --md-code-red: #ad3744;
+  --md-code-orange: #98551f;
+  --md-code-yellow: #84601f;
+  --md-code-cyan: #1f7467;
+  --md-code-blue: #2c719a;
+  --md-code-teal: #1f7467;
+  --md-code-green: #32733c;
+  --md-code-indigo: #3f67af;
+  --md-code-purple: #8248ac;
+  --md-code-punctuation: #6f655b;
+  --md-code-text: #5f554b;
+  --md-diff-del-text: #7c2f28;
+  --md-diff-del-bg: #efd8d2;
+  --md-diff-add-text: #365f35;
+  --md-diff-add-bg: #dbe7d4;
+  --md-diff-changed-text: #7a5520;
+  --md-diff-changed-bg: #efe0c6;
+  --md-diff-meta-bg: #d9d1c4;
+  --md-danger-fg: #a13d33;
+  --md-danger-bg: #efd8d2;
+  --md-alert-note-border: #9f5f38;
+  --md-alert-note-title: #8a4f2b;
+  --md-alert-important-border: #7a5f8f;
+  --md-alert-important-title: #704f8a;
+  --md-alert-warning-border: #9a6a2f;
+  --md-alert-warning-title: #8b5e28;
+  --md-alert-tip-border: #5f7b4a;
+  --md-alert-tip-title: #4f6f45;
+  --md-alert-caution-border: #a13d33;
+  --md-alert-caution-title: #a13d33;
+  --md-scrollbar-thumb: #c1ae98;
+  --md-scrollbar-track: #e4d8c8;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-scrollbar-thumb) var(--md-scrollbar-track);
 }
 
 .markdown-body a {

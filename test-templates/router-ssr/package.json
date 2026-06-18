@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server.js",
+    "dev": "bash scripts/dev.sh",
     "build": "vite build --outDir dist/client && vite build --ssr src/entry-server.ts --outDir dist/server",
     "build:ssg": "vite build --outDir dist/client && vite build --ssr src/entry-server.ts --outDir dist/server && node build.js && cd dist/client && npx pagefind --site .",
     "build:pagefind": "vite build --ssr src/entry-server.ts --outDir dist/server && node build.js && cd dist/client && npx pagefind --site .",

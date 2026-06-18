@@ -21,8 +21,7 @@
   background: var(--md-bg);
   border: 1px solid var(--md-border);
   border-radius: 6px;
-  font-size: 14px;
-  color: var(--md-text);
+  color: var(--md-text-muted);
   cursor: pointer;
   user-select: none;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -55,7 +54,7 @@
     }
 
     &.dimmed {
-      color: var(--md-text-muted);
+      color: var(--md-text);
     }
   }
 }
@@ -88,13 +87,13 @@
 .item {
   display: block;
   padding: 8px 16px;
-  font-size: 14px;
-  color: var(--md-text);
+  color: var(--md-text-muted);
   cursor: pointer;
   user-select: none;
   transition: background-color 0.1s;
 
   &:hover {
+    color: var(--md-text);
     background-color: var(--md-bg-secondary);
   }
 
