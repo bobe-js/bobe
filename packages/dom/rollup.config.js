@@ -32,6 +32,25 @@ const markdownDts = {
   plugins: [alias({ entries: [{ find: '#', replacement: path.resolve(__dirname, './src') }] }), dts()]
 };
 
+// iconify 插件构建
+const iconifyJs = {
+  input: 'src/plugins/iconify/index.ts',
+  output: [
+    { file: 'dist/iconify.cjs', format: 'cjs', sourcemap: true, exports: 'named' },
+    { file: 'dist/iconify.esm.js', format: 'esm', sourcemap: true }
+  ],
+  plugins: createPlugins(pkg, __dirname),
+  external: [...Object.keys(pkg.dependencies || {}), 'vite', 'node:fs', 'node:path', 'node:module']
+};
+
+// iconify 插件类型构建
+const iconifyDts = {
+  input: 'src/plugins/iconify/index.ts',
+  output: { file: 'dist/iconify.d.ts', format: 'es' },
+  plugins: [alias({ entries: [{ find: '#', replacement: path.resolve(__dirname, './src') }] }), dts()],
+  external: [...Object.keys(pkg.dependencies || {}), 'vite', 'node:fs', 'node:path', 'node:module']
+};
+
 // Code 组件构建
 const codeJs = {
   input: 'src/plugins/markdown/components/code.ts',
@@ -81,4 +100,4 @@ const ssrJs = {
   external: Object.keys(pkg.dependencies || {})
 };
 
-export default [...base, markdownJs, markdownDts, codeJs, ssrJs];
+export default [...base, markdownJs, markdownDts, iconifyJs, iconifyDts, codeJs, ssrJs];

@@ -535,22 +535,27 @@ export default class SearchComp extends Store {
 
   ui = bobe`
     div ref={rootRef} data-search-root="true" class="relative"
-      input
-      | ref={inputRef}
-      | type="text"
-      | role="combobox"
-      | aria-expanded={showPanel}
-      | aria-controls={panelId}
-      | aria-activedescendant={activeDescendant}
-      | autocomplete="off"
-      | placeholder="搜索..."
-      | value={query}
-      | oninput={(e) => onInput(e)}
-      | onfocus={() => onFocus()}
-      | onkeydown={(e) => handleKeydown(e)}
-      | oncompositionstart={() => onCompositionStart()}
-      | oncompositionend={(e) => onCompositionEnd(e)}
-      | class="pointer-events-auto w-full px-3 py-1.5 bg-(--md-bg-secondary) border border-(--md-border) rounded-md outline-none text-sm text-(--md-text) placeholder:text-(--md-text-muted) focus:border-(--md-accent-focus)"
+      div class="relative"
+        iconify-icon
+        | icon="lucide:search"
+        | aria-hidden="true"
+        | class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-(--md-text-muted)"
+        input
+        | ref={inputRef}
+        | type="text"
+        | role="combobox"
+        | aria-expanded={showPanel}
+        | aria-controls={panelId}
+        | aria-activedescendant={activeDescendant}
+        | autocomplete="off"
+        | placeholder="搜索..."
+        | value={query}
+        | oninput={(e) => onInput(e)}
+        | onfocus={() => onFocus()}
+        | onkeydown={(e) => handleKeydown(e)}
+        | oncompositionstart={() => onCompositionStart()}
+        | oncompositionend={(e) => onCompositionEnd(e)}
+        | class="pointer-events-auto w-full pl-9 pr-3 py-1.5 bg-(--md-bg-secondary) border border-(--md-border) rounded-md outline-none text-sm text-(--md-text) placeholder:text-(--md-text-muted) focus:border-(--md-accent-focus)"
 
       if showPanel
         div
