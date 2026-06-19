@@ -1,7 +1,7 @@
 import { flushMicroEffectManual, Keys, Store } from 'aoye';
 import { Interpreter } from './terp';
 import { Tokenizer } from './tokenizer';
-import { UI, ComponentNode, CustomRenderConf, FakeType } from './type';
+import { UI, ComponentNode, CustomRenderConf, FakeType, TerpConf, RenderWithMw, MwHook } from './type';
 
 export function bobe<T extends Record<any, any> = any>(fragments: TemplateStringsArray, ...values: any[]) {
   const ui: UI<T> = function ui(isSub: boolean) {
@@ -19,13 +19,15 @@ export function bobe<T extends Record<any, any> = any>(fragments: TemplateString
 
 // render -> options
 export function customRender(option: CustomRenderConf) {
+  const mw = new Mw();
   // 保存 options
-  return function render<T extends typeof Store>(Ctor: T, root: any) {
+  function render<T extends typeof Store>(Ctor: T, root: any) {
     const store = Ctor.new() as InstanceType<T>;
     // @ts-ignore
     const tokenizer: Tokenizer = store.ui(false);
     const terp = new Interpreter(tokenizer);
     terp.config(option);
+    mw.wrapHooks(terp);
 
     const componentNode: ComponentNode = {
       __logicType: FakeType.Component,
@@ -36,10 +38,73 @@ export function customRender(option: CustomRenderConf) {
 
     terp.program(root, componentNode);
 
-    option.onBeforeFlush?.();
+    
+    const onBeforeFlush = mw.wrapHook('onBeforeFlush', option.onBeforeFlush);
+    onBeforeFlush?.();
 
     flushMicroEffectManual();
     // ui => bobe`` 返回的函数
     return [componentNode, store] as const;
-  };
+  }
+
+  render.use = mw.use.bind(mw);
+
+  return render as RenderWithMw;
+}
+
+export class MwCtx<T> {
+  ctx: Record<any, any> = {};
+  handlers: T[];
+  constructor(handlers: T[] = [], base: T) {
+    this.handlers = [...handlers, base];
+  }
+  i = 0;
+  get next(): T | null {
+    if (this.i < this.handlers.length) {
+      const handler = this.handlers[this.i];
+      this.i++;
+      return handler;
+    }
+    return null;
+  }
+
+  get hasNext() {
+    return this.i < this.handlers.length && this.handlers[this.i];
+  }
+}
+
+export class Mw extends Map<string, any[]> {
+  use(mw: MwHook) {
+    for (const key in mw) {
+      const list = this.get(key);
+      if (list) {
+        list.push(mw[key]);
+      } else {
+        this.set(key, [mw[key]]);
+      }
+    }
+  }
+
+  wrapHooks(terp: Interpreter) {
+    this.forEach((list, key) => {
+      const base = terp[key];
+      function wrapped(...args) {
+        const ctx = new MwCtx(list, base);
+        return (ctx.next as Function).apply(ctx, args);
+      }
+
+      terp[key] = wrapped;
+    });
+  }
+
+  wrapHook(key: string, base: Function) {
+    const list = this.get(key);
+    if (!list) return base;
+    function wrapped(...args) {
+      const ctx = new MwCtx(list, base);
+      return (ctx.next as Function).apply(ctx, args);
+    }
+
+    return wrapped;
+  }
 }

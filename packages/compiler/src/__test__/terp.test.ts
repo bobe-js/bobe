@@ -185,14 +185,14 @@ describe('Interpreter 纯单元测试', () => {
   });
 
   // ----------------------------------------------------------
-  describe('defaultInsert / defaultRemove', () => {
+  describe('insertAfter / remove', () => {
     it('头插 (no prev)', () => {
       const t = makeTerp();
       const child = t.createNode('a');
       const parent: any = { firstChild: null };
       const prev = null;
 
-      t.defaultInsert(parent, child, prev);
+      t.insertAfter(parent, child, prev);
       expect(parent.firstChild).toBe(child);
       expect(child.nextSibling).toBeNull();
     });
@@ -204,7 +204,7 @@ describe('Interpreter 纯单元测试', () => {
       const parent: any = { firstChild: a };
       a.nextSibling = null;
 
-      t.defaultInsert(parent, b, a);
+      t.insertAfter(parent, b, a);
       expect(parent.firstChild).toBe(a);
       expect(a.nextSibling).toBe(b);
       expect(b.nextSibling).toBeNull();
@@ -218,7 +218,7 @@ describe('Interpreter 纯单元测试', () => {
       a.nextSibling = c;
       const parent: any = { firstChild: a, nextSibling: undefined };
 
-      t.defaultInsert(parent, b, a);
+      t.insertAfter(parent, b, a);
       expect(a.nextSibling).toBe(b);
       expect(b.nextSibling).toBe(c);
     });
@@ -230,7 +230,7 @@ describe('Interpreter 纯单元测试', () => {
       a.nextSibling = b;
       const parent: any = { firstChild: a };
 
-      t.defaultRemove(a, parent, null);
+      t.remove(a, parent, null);
       expect(parent.firstChild).toBe(b);
     });
 
@@ -243,7 +243,7 @@ describe('Interpreter 纯单元测试', () => {
       b.nextSibling = c;
       const parent: any = { firstChild: a };
 
-      t.defaultRemove(b, parent, a);
+      t.remove(b, parent, a);
       expect(a.nextSibling).toBe(c);
     });
   });
@@ -470,6 +470,121 @@ describe('集成测试 — 基本渲染', () => {
     expect(div).toBeDefined();
     const hasP = div.children.some((c: any) => c.tag === 'p' && c.t === 'sub');
     expect(hasP).toBe(true);
+  });
+});
+
+describe('集成测试 — customRender 中间件', () => {
+  it('setProp 中间件可以改写参数，并通过同一个 ctx 共享字段', () => {
+    class App extends Store {
+      ui = bobe`div class="base" "hello"`;
+    }
+
+    const { render, root } = setupMock();
+    const calls: string[] = [];
+
+    render.use({
+      setProp(node, key, value) {
+        this.ctx.firstKey = key;
+        calls.push(`mw1:${key}:${value}`);
+        return this.next(node, key, key === 'class' ? `mw-${value}` : value);
+      }
+    });
+
+    render.use({
+      setProp(node, key, value) {
+        calls.push(`mw2:${this.ctx.firstKey}:${key}:${value}`);
+        return this.next(node, key, value);
+      }
+    });
+
+    render(App, root);
+
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    expect(div.props.class).toBe('mw-base');
+    expect(div.t).toBe('hello');
+    expect(calls).toContain('mw1:class:base');
+    expect(calls).toContain('mw2:class:class:mw-base');
+  });
+
+  it('setProp 中间件不调用 next 时会短路后续中间件和原函数', () => {
+    class App extends Store {
+      ui = bobe`div class="blocked" id="ok"`;
+    }
+
+    const { render, root } = setupMock();
+    const second = vi.fn();
+
+    render.use({
+      setProp(node, key, value) {
+        if (key === 'class') return;
+        return this.next(node, key, value);
+      }
+    });
+
+    render.use({
+      setProp(node, key, value) {
+        second(key);
+        return this.next(node, key, value);
+      }
+    });
+
+    render(App, root);
+
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    expect(div.props.class).toBeUndefined();
+    expect(div.props.id).toBe('ok');
+    expect(second).not.toHaveBeenCalledWith('class');
+  });
+
+  it('没有 option base 的可选 hook 也能通过中间件挂载', () => {
+    class App extends Store {
+      ui = bobe`
+        div
+          span
+      `;
+    }
+
+    const { render, root } = setupMock();
+    const left: string[] = [];
+
+    render.use({
+      leaveNode(node) {
+        left.push(node.name);
+        expect(this.hasNext).toBeFalsy();
+      }
+    });
+
+    render(App, root);
+
+    expect(left).toContain('span');
+    expect(left).toContain('div');
+  });
+
+  it('onBeforeFlush 可以被中间件包装', () => {
+    class App extends Store {
+      ui = bobe`div`;
+    }
+
+    const order: string[] = [];
+    const { render, root } = setupMock({
+      onBeforeFlush() {
+        order.push('base');
+      }
+    });
+
+    render.use({
+      onBeforeFlush() {
+        order.push('mw-before');
+        this.next();
+        order.push('mw-after');
+      }
+    });
+
+    render(App, root);
+
+    expect(order).toEqual(['mw-before', 'base', 'mw-after']);
   });
 });
 
@@ -1617,7 +1732,7 @@ function removeFromAnyParent(root: any, node: any): boolean {
   return walk(root);
 }
 
-function setupMock() {
+function setupMock(extraOption: Record<string, any> = {}) {
   const root: any = { name: 'root', children: [] };
 
   const render = customRender({
@@ -1663,7 +1778,8 @@ function setupMock() {
     },
     nextSib(node) {
       return node.nextSibling || null;
-    }
+    },
+    ...extraOption
   });
 
   return { root, render };

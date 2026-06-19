@@ -1613,9 +1613,6 @@ export class Interpreter {
   }
 
   insertAfter(parent: any, node: any, prev: any) {
-    return this.defaultInsert(parent, node, prev);
-  }
-  defaultInsert(parent: any, node: any, prev: any) {
     if (prev) {
       const next = prev.nextSibling;
       prev.nextSibling = node;
@@ -1627,11 +1624,7 @@ export class Interpreter {
     }
   }
 
-  remove(node: any, parent?: any, prev?: any) {
-    return this.defaultRemove(node, parent, prev);
-  }
-
-  defaultRemove(node: any, parent: any, prevSibling: any) {
+  remove(node: any, parent?: any, prevSibling?: any) {
     const next = node.nextSibling;
     if (prevSibling) {
       prevSibling.nextSibling = next;

@@ -2,6 +2,7 @@ import { Computed, Dispose, Effect, Scope, Signal, SignalNode, Store } from 'aoy
 import type { Tokenizer } from './tokenizer';
 import type { Interpreter } from './terp';
 import { MultiTypeStack } from './typed';
+import type { Mw, MwCtx } from './render';
 
 export enum TokenType {
   NewLine = 0b0000_0000_0000_0000_0000_0000_0000_0001,
@@ -120,21 +121,19 @@ export type HookProps = {
   parentNode?: any;
 };
 
-export type TerpConf = Partial<
-  Pick<
-    Interpreter,
-    | 'createNode'
-    | 'setProp'
-    | 'insertAfter'
-    | 'remove'
-    | 'createAnchor'
-    | 'firstChild'
-    | 'nextSib'
-    | 'beforeIndent'
-    | 'leaveNode'
-    | 'leaveLogicNode'
-    | 'beforeLogicIndent'
-  >
+export type TerpConf = Pick<
+  Interpreter,
+  | 'createNode'
+  | 'setProp'
+  | 'insertAfter'
+  | 'remove'
+  | 'createAnchor'
+  | 'firstChild'
+  | 'nextSib'
+  | 'beforeIndent'
+  | 'leaveNode'
+  | 'leaveLogicNode'
+  | 'beforeLogicIndent'
 > & {
   noopEffect?: boolean;
 };
@@ -155,6 +154,12 @@ export type CustomRenderConf = Pick<
 > & {
   /** program() 之后、flushMicroEffectManual() 之前调用 */
   onBeforeFlush?: () => void;
+};
+
+export type MwHook = {
+  [K in keyof CustomRenderConf]?: CustomRenderConf[K] extends (...args: infer P) => infer R
+    ? (this: MwCtx<any>, ...args: P) => R
+    : CustomRenderConf[K];
 };
 
 export type Hook = (props: HookProps) => any;
@@ -315,3 +320,8 @@ export const isDep = (target: unknown): target is Dep =>
     target instanceof Computed ||
     typeof target === 'function' ||
     typeof target === 'string');
+
+export type RenderWithMw = {
+  use: Mw['use'];
+  <T extends typeof Store>(Ctor: T, root: any): [ComponentNode, InstanceType<T>];
+};
