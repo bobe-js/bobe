@@ -1,6 +1,6 @@
 {
   "name": "aoye",
-  "version": "0.0.72",
+  "version": "0.0.73",
   "type": "module",
   "main": "dist/aoye.cjs",
   "module": "dist/aoye.esm.js",
