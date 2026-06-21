@@ -55,11 +55,13 @@ export class Interpreter {
 
   ctx: ProgramCtx;
   rootComponent: ComponentNode | null = null;
+  root: any;
 
   program(root: any, componentNode?: ComponentNode, before?: any, ctxProvider?: any) {
     // 首屏渲 app 组件需要创建对象
     this.rootComponent = componentNode;
-
+    // 给外部 hook 获取 root 节点
+    this.root = root;
     this.tokenizer.nextToken();
     const stack = new MultiTypeStack<StackItem>();
     setCtxStack(stack);

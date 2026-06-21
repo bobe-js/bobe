@@ -38,8 +38,7 @@ export function customRender(option: CustomRenderConf) {
 
     terp.program(root, componentNode);
 
-    
-    const onBeforeFlush = mw.wrapHook('onBeforeFlush', option.onBeforeFlush);
+    const onBeforeFlush = mw.wrapHook(terp, 'onBeforeFlush', option.onBeforeFlush);
     onBeforeFlush?.();
 
     flushMicroEffectManual();
@@ -55,7 +54,7 @@ export function customRender(option: CustomRenderConf) {
 export class MwCtx<T> {
   ctx: Record<any, any> = {};
   handlers: T[];
-  constructor(handlers: T[] = [], base: T) {
+  constructor(public terp: Interpreter, handlers: T[] = [], base: T) {
     this.handlers = [...handlers, base];
   }
   i = 0;
@@ -87,9 +86,11 @@ export class Mw extends Map<string, any[]> {
 
   wrapHooks(terp: Interpreter) {
     this.forEach((list, key) => {
-      const base = terp[key];
+      let base = terp[key];
+      base = base?.bind(terp);
+
       function wrapped(...args) {
-        const ctx = new MwCtx(list, base);
+        const ctx = new MwCtx(terp, list, base);
         return (ctx.next as Function).apply(ctx, args);
       }
 
@@ -97,11 +98,11 @@ export class Mw extends Map<string, any[]> {
     });
   }
 
-  wrapHook(key: string, base: Function) {
+  wrapHook(terp: Interpreter, key: string, base: Function) {
     const list = this.get(key);
-    if (!list) return base;
+    if (!list) return base?.bind(terp);
     function wrapped(...args) {
-      const ctx = new MwCtx(list, base);
+      const ctx = new MwCtx(terp, list, base?.bind(terp));
       return (ctx.next as Function).apply(ctx, args);
     }
 

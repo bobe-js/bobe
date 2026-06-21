@@ -538,6 +538,67 @@ describe('集成测试 — customRender 中间件', () => {
     expect(second).not.toHaveBeenCalledWith('class');
   });
 
+  it('middleware this 指向 MwCtx，base hook this 指向 terp', () => {
+    class App extends Store {
+      ui = bobe`div id="target"`;
+    }
+
+    const middlewareThis: any[] = [];
+    const baseThis: any[] = [];
+    const { render, root } = setupMock({
+      setProp(this: Interpreter, node: any, key: string, value: any) {
+        baseThis.push(this);
+        if (key === 'children') {
+          node.textContent = String(value);
+        } else if (key.startsWith('on')) {
+          node[key] = value;
+        } else {
+          node.props[key] = value;
+        }
+      }
+    });
+
+    render.use({
+      setProp(node, key, value) {
+        middlewareThis.push(this);
+        return this.next(node, key, value);
+      }
+    });
+
+    render(App, root);
+
+    expect(middlewareThis[0]).not.toBe(baseThis[0]);
+    expect(middlewareThis[0].terp).toBe(baseThis[0]);
+    expect(baseThis[0].root).toBe(root);
+  });
+
+  it('onBeforeFlush 的 middleware this 和 base this 保持区分', () => {
+    class App extends Store {
+      ui = bobe`div`;
+    }
+
+    const middlewareThis: any[] = [];
+    const baseThis: any[] = [];
+    const { render, root } = setupMock({
+      onBeforeFlush(this: Interpreter) {
+        baseThis.push(this);
+      }
+    });
+
+    render.use({
+      onBeforeFlush() {
+        middlewareThis.push(this);
+        return this.next();
+      }
+    });
+
+    render(App, root);
+
+    expect(middlewareThis[0]).not.toBe(baseThis[0]);
+    expect(middlewareThis[0].terp).toBe(baseThis[0]);
+    expect(baseThis[0].root).toBe(root);
+  });
+
   it('没有 option base 的可选 hook 也能通过中间件挂载', () => {
     class App extends Store {
       ui = bobe`
