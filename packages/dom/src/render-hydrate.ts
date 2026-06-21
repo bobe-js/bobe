@@ -1,6 +1,6 @@
-import { customRender, Store } from 'bobe';
+import { customRender, Interpreter, Store } from 'bobe';
 import {
-  setProp,
+  setProp as browserSetProp,
   createNode as browserCreateNode,
   remove,
   firstChild,
@@ -115,15 +115,16 @@ export const hydrate = (ComponentClass: typeof Store, rootEl: Element) => {
 
   // 首屏时 text/html 的 DOM 内容已由 SSR 生成，跳过 innerHTML/textContent 赋值避免重绘
   // 但仍需设 CONTENT_FLAG 保证 beforeIndent 冲突检测正常
-  const hydrateSetProp = (node: Node, key: string, value: any) => {
+  function setProp (node: Node, key: string, value: any) {
     if (isFirstRender && (key === 'children' || key === 'html')) {
       (node as any)[CONTENT_FLAG] = value != null;
       return;
     }
-    return setProp(node, key, value);
+    return browserSetProp.call(this,node, key, value);
   };
 
-  const createNode = (name: string): Node => {
+  function createNode (this: Interpreter, name: string): Node {
+    const doc = this.root?.ownerDocument || document;
     if (isFirstRender) {
       const claimed = name === 'text'
         ? cursor.tryClaimText()
@@ -131,26 +132,27 @@ export const hydrate = (ComponentClass: typeof Store, rootEl: Element) => {
       if (claimed) return claimed;
     }
     return name === 'text'
-      ? document.createTextNode('')
-      : browserCreateNode(name);
+      ? doc.createTextNode('')
+      : browserCreateNode.call(this, name);
   };
 
-  const createAnchor = (name: string): Comment => {
+  function createAnchor (name: string): Comment {
+    const doc = this.root?.ownerDocument || document;
     if (isFirstRender) {
       const claimed = cursor.tryClaimComment(name);
       if (claimed) return claimed;
     }
-    return document.createComment(name);
+    return doc.createComment(name);
   };
 
-  const insertAfter = (parent: Node, node: Node, prev: Node | null) => {
+  function insertAfter(parent: Node, node: Node, prev: Node | null) {
     if (node === parent) return;
     const expectedNext = prev ? prev.nextSibling : parent.firstChild;
     if (node === expectedNext) return;
     parent.insertBefore(node, expectedNext);
   };
 
-  const beforeIndent = (node: Node): boolean | void => {
+  function  beforeIndent(node: Node): boolean | void {
     if ((node as any)[CONTENT_FLAG]) {
       const tag = (node as Element).tagName?.toLowerCase();
       const hasText = (node as HTMLElement).textContent != null;
@@ -162,19 +164,19 @@ export const hydrate = (ComponentClass: typeof Store, rootEl: Element) => {
     if (isFirstRender) cursor.enterChildren(node);
   };
 
-  const leaveNode = (node: Node) => {
+  function leaveNode (node: Node) {
     if (isFirstRender) cursor.leaveToParent(node);
   };
 
   // tp 节点进入 indent 时，将游标切入目标 DOM，使其子节点在正确位置认领
-  const beforeLogicIndent = (node: any) => {
+  function beforeLogicIndent (node: any) {
     if (isFirstRender && node.tpData) {
       const targetDom = node.tpData.node;
       if (targetDom) cursor.enterChildren(targetDom);
     }
   };
 
-  const leaveLogicNode = (node: any, _isDedent: boolean) => {
+  function leaveLogicNode (node: any, _isDedent: boolean) {
     // tp 节点离开时，通过 realAfter 锚点找到模板父级 DOM 恢复游标
     if (isFirstRender && node.tpData) {
       const parentDom = node.realAfter?.parentNode;
@@ -190,7 +192,7 @@ export const hydrate = (ComponentClass: typeof Store, rootEl: Element) => {
 
   const render = customRender({
     createNode,
-    setProp: hydrateSetProp,
+    setProp,
     insertAfter,
     createAnchor,
     remove,

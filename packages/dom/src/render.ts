@@ -1,4 +1,4 @@
-import { customRender } from 'bobe';
+import { customRender, Interpreter } from 'bobe';
 
 export const BOOLEAN_ATTRS = new Set([
   'disabled', 'readonly', 'checked', 'selected', 'hidden',
@@ -38,16 +38,17 @@ const isNS = (el: Element) => el.namespaceURI === SVG_NS || el.namespaceURI === 
 
 // ---- exported for unit testing ----
 
-export const createNode = (name: string): Node => {
-  if (name === 'text') return document.createTextNode('');
-  if (MATH_TAGS.has(name)) return document.createElementNS(MATH_NS, name);
-  if (SVG_TAGS.has(name)) return document.createElementNS(SVG_NS, name);
-  return document.createElement(name);
+export function createNode(this: Interpreter, name: string): Node  {
+  const doc = this.root?.ownerDocument || document;
+  if (name === 'text') return doc.createTextNode('');
+  if (MATH_TAGS.has(name)) return doc.createElementNS(MATH_NS, name);
+  if (SVG_TAGS.has(name)) return doc.createElementNS(SVG_NS, name);
+  return doc.createElement(name);
 };
 
 export const CONTENT_FLAG = Symbol('hasContent');
 
-export const setProp = (node: Node, key: string, value: any): (() => void) | undefined => {
+export function setProp(node: Node, key: string, value: any): (() => void) | undefined {
   const el = node as HTMLElement;
 
   // 0. children
@@ -167,20 +168,23 @@ export const setProp = (node: Node, key: string, value: any): (() => void) | und
   }
 };
 
-export const insertAfter = (parent: Node, node: Node, prev: Node | null) => {
+export function insertAfter(parent: Node, node: Node, prev: Node | null) {
   if (!prev) parent.insertBefore(node, parent.firstChild);
   else parent.insertBefore(node, prev.nextSibling);
 };
 
-export const createAnchor = (name: string) => document.createComment(name);
+export function createAnchor(name: string) { 
+  const doc = this.root?.ownerDocument || document;
+  return doc.createComment(name); 
+}
 
-export const remove = (node: Node) => { (node as Element).remove(); };
+export function remove(node: Node) { (node as Element).remove(); };
 
-export const firstChild = (node: Node) => node.firstChild;
+export function firstChild(node: Node) {return node.firstChild};
 
-export const nextSib = (node: Node) => node.nextSibling;
+export function nextSib(node: Node) {return node.nextSibling;}
 
-export const beforeIndent = (node: Node): boolean | void => {
+export function beforeIndent(node: Node): boolean | void  {
   if ((node as any)[CONTENT_FLAG]) {
     const tag = (node as Element).tagName?.toLowerCase();
     const hasText = (node as HTMLElement).textContent != null;
@@ -188,10 +192,6 @@ export const beforeIndent = (node: Node): boolean | void => {
     return false;
   }
 };
-
-// 浏览器渲染器中 leave 不需要额外操作（DOM 插入已由 insertAfter 完成）
-export const leaveNode = () => {};
-export const leaveLogicNode = () => {};
 
 export const render = customRender({
   createNode,
@@ -201,7 +201,5 @@ export const render = customRender({
   remove,
   firstChild,
   nextSib,
-  beforeIndent,
-  leaveNode,
-  leaveLogicNode
+  beforeIndent
 });

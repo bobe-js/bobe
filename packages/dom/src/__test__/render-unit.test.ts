@@ -1,13 +1,24 @@
 import { createNode, setProp, insertAfter, createAnchor, remove, firstChild, nextSib } from '#/render';
+import type { Interpreter } from 'bobe';
+
+let mockInterpreter: Interpreter;
+
+function createMockInterpreter(root: Node = document.createElement('div')) {
+  return { root } as Interpreter;
+}
+
+beforeEach(() => {
+  mockInterpreter = createMockInterpreter();
+});
 
 describe('createNode', () => {
   it('should create a text node', () => {
-    const node = createNode('text');
+    const node = createNode.call(mockInterpreter, 'text');
     expect(node.nodeType).toBe(Node.TEXT_NODE);
   });
 
   it('should create an HTML element', () => {
-    const node = createNode('div') as HTMLElement;
+    const node = createNode.call(mockInterpreter, 'div') as HTMLElement;
     expect(node.tagName).toBe('DIV');
     expect(node.namespaceURI).toBe('http://www.w3.org/1999/xhtml');
   });
@@ -15,7 +26,7 @@ describe('createNode', () => {
   it('should create SVG elements with SVG namespace', () => {
     // 注意：'children' 是 bobe 的保留字（TextNode），不在 SVG_TAGS 中
     for (const tag of ['svg', 'circle', 'rect', 'path', 'g', 'line', 'polygon', 'tspan']) {
-      const node = createNode(tag) as Element;
+      const node = createNode.call(mockInterpreter, tag) as Element;
       // jsdom 中 namespaceURI 可能返回 null，用 class setAttribute 行为验证（下面 setProp 测试单独覆盖）
       expect(node.tagName).toBe(tag);
     }
@@ -23,14 +34,24 @@ describe('createNode', () => {
 
   it('should create MathML elements', () => {
     for (const tag of ['math', 'mi', 'mo', 'mn', 'mfrac', 'msqrt', 'mrow']) {
-      const node = createNode(tag) as Element;
+      const node = createNode.call(mockInterpreter, tag) as Element;
       expect(node.tagName).toBe(tag);
     }
   });
 
   it('should not treat unknown tags as SVG/MathML', () => {
-    const node = createNode('custom-component') as Element;
+    const node = createNode.call(mockInterpreter, 'custom-component') as Element;
     expect(node.namespaceURI).toBe('http://www.w3.org/1999/xhtml');
+  });
+
+  it('should create nodes from this.root.ownerDocument', () => {
+    const doc = document.implementation.createHTMLDocument('custom');
+    const root = doc.createElement('main');
+    mockInterpreter = createMockInterpreter(root);
+
+    const node = createNode.call(mockInterpreter, 'div');
+
+    expect(node.ownerDocument).toBe(doc);
   });
 });
 
@@ -292,9 +313,19 @@ describe('insertAfter', () => {
 
 describe('createAnchor', () => {
   it('should create a comment node with given text', () => {
-    const node = createAnchor('test');
+    const node = createAnchor.call(mockInterpreter, 'test');
     expect(node.nodeType).toBe(Node.COMMENT_NODE);
     expect(node.textContent).toBe('test');
+  });
+
+  it('should create comments from this.root.ownerDocument', () => {
+    const doc = document.implementation.createHTMLDocument('custom');
+    const root = doc.createElement('main');
+    mockInterpreter = createMockInterpreter(root);
+
+    const node = createAnchor.call(mockInterpreter, 'test');
+
+    expect(node.ownerDocument).toBe(doc);
   });
 });
 
