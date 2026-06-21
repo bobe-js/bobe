@@ -173,7 +173,7 @@ export function insertAfter(parent: Node, node: Node, prev: Node | null) {
   else parent.insertBefore(node, prev.nextSibling);
 };
 
-export function createAnchor(name: string) { 
+export function createAnchor(this: Interpreter, name: string) { 
   const doc = this.root?.ownerDocument || document;
   return doc.createComment(name); 
 }

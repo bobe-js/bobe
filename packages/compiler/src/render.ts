@@ -1,7 +1,7 @@
 import { flushMicroEffectManual, Keys, Store } from 'aoye';
 import { Interpreter } from './terp';
 import { Tokenizer } from './tokenizer';
-import { UI, ComponentNode, CustomRenderConf, FakeType, TerpConf, RenderWithMw, MwHook } from './type';
+import { UI, ComponentNode, CustomRenderConf, FakeType, TerpConf, RenderWithMw, MwHook, RenderOptions } from './type';
 
 export function bobe<T extends Record<any, any> = any>(fragments: TemplateStringsArray, ...values: any[]) {
   const ui: UI<T> = function ui(isSub: boolean) {
@@ -21,8 +21,11 @@ export function bobe<T extends Record<any, any> = any>(fragments: TemplateString
 export function customRender(option: CustomRenderConf) {
   const mw = new Mw();
   // 保存 options
-  function render<T extends typeof Store>(Ctor: T, root: any) {
+  function render<T extends typeof Store>(Ctor: T, root: any, options: RenderOptions<T> = {}) {
     const store = Ctor.new() as InstanceType<T>;
+    if(options.props) {
+      Object.assign(store, options.props);
+    }
     // @ts-ignore
     const tokenizer: Tokenizer = store.ui(false);
     const terp = new Interpreter(tokenizer);

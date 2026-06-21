@@ -452,6 +452,24 @@ describe('集成测试 — 基本渲染', () => {
     expect(span.t).toBe('hello');
   });
 
+  it('render options props 初始化根组件属性', () => {
+    class App extends Store {
+      name = 'hello';
+      ui = bobe`
+        div
+          span children={name}
+      `;
+    }
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root, { props: { name: 'from-props' } });
+    const tree = getMockTree(root);
+    const div = tree.children.find((c: any) => c.tag === 'div');
+    const span = div.children.find((c: any) => c.tag === 'span');
+
+    expect(store.name).toBe('from-props');
+    expect(span.t).toBe('from-props');
+  });
+
   it('渲染静态组件 ${Comp}', () => {
     class Sub extends Store {
       msg = 'sub';

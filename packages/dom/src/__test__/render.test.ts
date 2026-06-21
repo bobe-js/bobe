@@ -82,6 +82,19 @@ describe('DOM integration — bobe template rendering', () => {
   });
 
   describe('reactive values', () => {
+    it('should initialize root App props from render options', () => {
+      class App extends Store {
+        name = 'Alice';
+        ui = bobe`span children={name}`;
+      }
+
+      const root = document.createElement('div');
+      const [, store] = render(App, root, { props: { name: 'Bob' } });
+
+      expect(store.name).toBe('Bob');
+      expect(root.querySelector('span')!.textContent).toBe('Bob');
+    });
+
     it('should update text when reactive value changes', async () => {
       class App extends Store {
         name = 'Alice';

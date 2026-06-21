@@ -323,5 +323,9 @@ export const isDep = (target: unknown): target is Dep =>
 
 export type RenderWithMw = {
   use: Mw['use'];
-  <T extends typeof Store>(Ctor: T, root: any): [ComponentNode, InstanceType<T>];
+  <T extends typeof Store>(Ctor: T, root: any, options?: RenderOptions<T>): [ComponentNode, InstanceType<T>];
+};
+
+export type RenderOptions<T extends typeof Store> = {
+  props?: Partial<Omit<InstanceType<T>, 'ui' | 'parent'>>;
 };
