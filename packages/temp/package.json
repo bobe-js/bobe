@@ -1,6 +1,6 @@
 {
   "name": "__name__",
-  "version": "0.0.73",
+  "version": "0.0.74",
   "type": "module",
   "main": "dist/__name__.cjs",
   "module": "dist/__name__.esm.js",
