@@ -359,6 +359,7 @@ export class Interpreter {
       _node = this.createNode(value);
     }
     this.tokenizer.nextToken(); // 跳过 node 本身，token -> id
+    this.skipComponentTypeArguments(_node);
     this.headerLineAndExtensions(_node);
     // 组件用完，切换回 真实node 的方法
     this.onePropParsed = this.oneRealPropParsed;
@@ -417,6 +418,7 @@ export class Interpreter {
             this.ctx.stack.push({ node: node.parentDataProvider, prev: null }, NodeSort.CtxProvider);
           }
           this.tokenizer.nextToken(); // 跳过 node 本身，token -> id
+          this.skipComponentTypeArguments(node);
           this.headerLineAndExtensions(node);
           if (isUpdate) {
             this.ctx.stack.pop();
@@ -453,6 +455,7 @@ export class Interpreter {
               this.handleInsert(node.realParent, textNode, node.realBefore);
             } else {
               this.tokenizer.nextToken();
+              this.skipComponentTypeArguments(node, true);
               this.headerLineAndExtensions(node);
               const { realParent, prevSibling } = this.ctx;
               this.handleInsert(realParent, textNode, prevSibling);
@@ -1399,6 +1402,12 @@ export class Interpreter {
       point = next;
     }
   }
+  private skipComponentTypeArguments(node: any, force = false) {
+    if ((force || node.__logicType & TokenizerSwitcherBit) && this.tokenizer.token.type & TokenType.TypeArguments) {
+      this.tokenizer.nextToken();
+    }
+  }
+
   /**
    * 首行属性 + 可选的 pipe 扩展行
    * <headerLineAndExtensions> ::= <attributeList> NEWLINE (PIPE <attributeList> NEWLINE)*

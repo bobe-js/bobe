@@ -127,9 +127,16 @@ interface LoopNode extends BaseNode {
 }
 
 // 组件节点（复用NodeType.Component）
+interface TypeArgumentNode extends BaseNode {
+  type: NodeType.StaticValue;
+  raw: string;
+}
+
 interface ComponentNode extends BaseNode {
   type: NodeType.Component;
   componentName: PropertyValue; // 组件名称
+  typeArguments?: TypeArgumentNode[];
+  typeArgumentsLoc?: SourceLocation;
   props: Property[]; // 组件属性
   children?: TemplateNode[]; // 组件插槽内容
 }
@@ -152,6 +159,7 @@ export {
   InterpolationNode,
   Property,
   PropertyValue,
+  TypeArgumentNode,
   StaticValue,
   PropertyKeyNode,
   DynamicValue,

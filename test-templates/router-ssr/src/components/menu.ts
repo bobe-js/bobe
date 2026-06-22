@@ -32,7 +32,7 @@ class MenuItem extends Store {
 }
 
 class MenuComp extends Store {
-  name!: string;
+  name?: string;
   menus!: Menu[];
 
   ui = bobe`

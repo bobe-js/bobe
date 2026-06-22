@@ -143,10 +143,21 @@ export class Compiler {
   parseComponentNode(node?: ComponentNode) {
     const name = this.parseName();
     this.tokenizer.nextToken(); // 跳过标签名
+    const typeArgumentsToken = this.tokenizer.token.type & TokenType.TypeArguments ? this.tokenizer.token : undefined;
+    if (typeArgumentsToken) {
+      this.tokenizer.nextToken(); // 跳过泛型参数
+    }
 
     // 解析属性
     node.type = NodeType.Component;
     node.componentName = name;
+    node.typeArguments = typeArgumentsToken?.typeArguments?.map(arg => ({
+      type: NodeType.StaticValue,
+      raw: arg.raw,
+      loc: arg.loc
+    })) as any;
+    node.typeArgumentsLoc = typeArgumentsToken?.loc;
+    this.hooks.parseComponentNode?.nameAdded?.call(this, node);
     const props: Property[] = this.headerLineAndExtensions();
     node.props = props;
     this.hooks.parseComponentNode?.propsAdded?.call(this, node);
@@ -531,6 +542,7 @@ type ParseHooks = Partial<{
   [K in keyof ParseProps]: {
     enter?: (this: Compiler, ...args: Parameters<ParseProps[K]>) => void;
     leave?: (this: Compiler, ...args: Parameters<ParseProps[K]>) => void;
+    nameAdded?: (this: Compiler, ...args: Parameters<ParseProps[K]>) => void;
     propsAdded?: (this: Compiler, ...args: Parameters<ParseProps[K]>) => void;
   };
 }>;

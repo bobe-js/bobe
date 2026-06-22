@@ -489,6 +489,22 @@ describe('集成测试 — 基本渲染', () => {
     const hasP = div.children.some((c: any) => c.tag === 'p' && c.t === 'sub');
     expect(hasP).toBe(true);
   });
+
+  it('静态组件显式泛型只跳过语法并正常解析 props', () => {
+    class Sub extends Store {
+      value = '';
+      ui = bobe` p children={value} `;
+    }
+    class App extends Store {
+      ui = bobe`
+        div
+          ${Sub}<User> value="generic-static"
+      `;
+    }
+    const { render, root } = setupMock();
+    render(App, root);
+    expect(findSpanText(root, 'generic-static')).toBeTruthy();
+  });
 });
 
 describe('集成测试 — customRender 中间件', () => {
@@ -924,6 +940,38 @@ describe('集成测试 — 动态组件', () => {
     render(App, root);
     const tree = getMockTree(root);
     expect(JSON.stringify(tree)).toContain('COMPONENT_A');
+  });
+
+  it('动态组件显式泛型只跳过语法并正常解析 props', () => {
+    class CompA extends Store {
+      value = '';
+      ui = bobe` span children={value} `;
+    }
+    class CompB extends Store {
+      value = '';
+      ui = bobe` span children={value} `;
+    }
+    class App extends Store {
+      comp: any = CompA;
+      value = 'dynamic-a';
+      switchComp = () => {
+        this.comp = CompB;
+        this.value = 'dynamic-b';
+      };
+      ui = bobe`
+        div
+          {comp}<User> value={value}
+      `;
+    }
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+    expect(findSpanText(root, 'dynamic-a')).toBeTruthy();
+
+    store.switchComp();
+    flushEffects();
+    expect(findSpanText(root, 'dynamic-b')).toBeTruthy();
+    expect(findSpanText(root, 'dynamic-a')).toBeFalsy();
   });
 });
 

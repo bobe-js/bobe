@@ -21,7 +21,8 @@ export enum TokenType {
   Boolean = 0b0000_0000_0000_0000_0001_0000_0000_0000,
   Null = 0b0000_0000_0000_0000_0010_0000_0000_0000,
   Undefined = 0b0000_0000_0000_0000_0100_0000_0000_0000,
-  Comment = 0b0000_0000_0000_0000_1000_0000_0000_0000
+  Comment = 0b0000_0000_0000_0000_1000_0000_0000_0000,
+  TypeArguments = 0b0000_0000_0000_0001_0000_0000_0000_0000
 }
 
 export const ChildrenSugarType = __IS_COMPILER__
@@ -110,6 +111,7 @@ export type Token = {
   typeName: string;
   value: BaseType;
   loc: SourceLocation;
+  typeArguments?: { raw: string; loc: SourceLocation }[];
 };
 
 export type HookProps = {
@@ -183,7 +185,8 @@ export enum ParseErrorCode {
   MISSING_FOR_ITEM,
   MISSING_COMMENT_SECOND_SLASH,
   MISSING_PROP_ASSIGNMENT,
-  PIPE_IN_WRONG_CONTEXT
+  PIPE_IN_WRONG_CONTEXT,
+  UNCLOSED_TYPE_ARGUMENTS
 }
 export type ParseError = {
   code: ParseErrorCode;

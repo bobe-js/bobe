@@ -233,7 +233,7 @@ export class Tokenizer {
     // return this.code[this.i] === undefined;
   }
 
-  private setToken(type: TokenType, value: BaseType, dt = 1) {
+  private setToken(type: TokenType, value: BaseType, dt = 1, extra?: Partial<Token>) {
     this.token = {
       type,
       typeName: TokenType[type],
@@ -254,7 +254,8 @@ export class Tokenizer {
               // TODO: 文件名
               source: this.code.slice(this.preI, this.i + dt)
             }
-          : null
+          : null,
+      ...extra
     };
     this.isFirstToken = false;
   }
@@ -315,6 +316,9 @@ export class Tokenizer {
                 case '{':
                   const braceToken = this.brace();
                   this.setToken(TokenType.InsertionExp, braceToken);
+                  break;
+                case '<':
+                  this.typeArguments();
                   break;
                 case '$':
                   const handled = this.staticIns();
@@ -433,6 +437,105 @@ export class Tokenizer {
     this.handledTokens.push(this.token);
     this.locEnd();
     return this.token;
+  }
+
+
+  private typeArguments() {
+    const startOffset = this.i;
+    const startLine = this.line;
+    const startColumn = this.column;
+    let angleDepth = 0;
+    let braceDepth = 0;
+    let bracketDepth = 0;
+    let parenDepth = 0;
+    let current = '';
+    const args: { raw: string; loc: SourceLocation }[] = [];
+    let argStart = this.i + 1;
+
+    const makeLoc = (start: number, end: number): SourceLocation => ({
+      start: { offset: start, line: startLine, column: startColumn + (start - startOffset) },
+      end: { offset: end, line: startLine, column: startColumn + (end - startOffset) },
+      source: this.code.slice(start, end)
+    });
+
+    const pushArg = (end: number) => {
+      const raw = current.trim();
+      if (!raw) return;
+      const leading = current.length - current.trimStart().length;
+      const trailingEnd = current.trimEnd().length;
+      args.push({ raw, loc: makeLoc(argStart + leading, argStart + trailingEnd) });
+    };
+
+    while (true) {
+      const char = this.code[this.i];
+      if (char === undefined || char === '\n') {
+        throw new ParseSyntaxError(
+          ParseErrorCode.UNCLOSED_TYPE_ARGUMENTS,
+          '未闭合的组件泛型参数',
+          makeLoc(startOffset, this.i)
+        );
+      }
+
+      if (char === '\'' || char === '"' || char === '`') {
+        const quote = char;
+        current += char;
+        this.next();
+        while (true) {
+          const inner = this.code[this.i];
+          if (inner === undefined || inner === '\n') {
+            throw new ParseSyntaxError(
+              ParseErrorCode.UNCLOSED_TYPE_ARGUMENTS,
+              '未闭合的组件泛型参数',
+              makeLoc(startOffset, this.i)
+            );
+          }
+          current += inner;
+          if (inner === '\\') {
+            this.next();
+            current += this.code[this.i] ?? '';
+          } else if (inner === quote) {
+            break;
+          }
+          this.next();
+        }
+      } else if (char === '<') {
+        angleDepth++;
+        if (angleDepth > 1) current += char;
+      } else if (char === '>' && this.code[this.i - 1] !== '=') {
+        angleDepth--;
+        if (angleDepth === 0) {
+          pushArg(this.i);
+          this.setToken(TokenType.TypeArguments, this.code.slice(startOffset + 1, this.i), 1, { typeArguments: args });
+          return;
+        }
+        current += char;
+      } else if (char === '{') {
+        braceDepth++;
+        current += char;
+      } else if (char === '}') {
+        braceDepth = Math.max(0, braceDepth - 1);
+        current += char;
+      } else if (char === '[') {
+        bracketDepth++;
+        current += char;
+      } else if (char === ']') {
+        bracketDepth = Math.max(0, bracketDepth - 1);
+        current += char;
+      } else if (char === '(') {
+        parenDepth++;
+        current += char;
+      } else if (char === ')') {
+        parenDepth = Math.max(0, parenDepth - 1);
+        current += char;
+      } else if (char === ',' && angleDepth === 1 && braceDepth === 0 && bracketDepth === 0 && parenDepth === 0) {
+        pushArg(this.i);
+        current = '';
+        argStart = this.i + 1;
+      } else {
+        current += char;
+      }
+      this.next();
+    }
   }
 
   public peekChar() {

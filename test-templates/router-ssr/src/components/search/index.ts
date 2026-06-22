@@ -634,8 +634,8 @@ export default class SearchComp extends Store {
             div class="px-3 py-2 text-sm text-center text-(--md-text-muted)" "已加载全部结果"
           if showEmpty
             div class="px-3 py-2 text-sm text-(--md-text-muted)"
-              span "No results for '"
+              span "无 '"
               span class="font-medium text-(--md-text)" {query}
-              span "'"
+              span "' 的搜索结果"
   `;
 }

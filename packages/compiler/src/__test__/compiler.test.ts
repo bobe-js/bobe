@@ -4,7 +4,7 @@
  * 从 bobe/compiler 导入，该产物以 __IS_COMPILER__ = true 编译
  */
 // @ts-ignore
-import { Compiler, Tokenizer } from 'bobe/compiler';
+import { Compiler, Tokenizer, ParseErrorCode } from 'bobe/compiler';
 import { describe, it, expect } from 'vitest';
 
 function comp(code: string) {
@@ -213,6 +213,40 @@ describe('Compiler — 组件', () => {
   it('组件带属性', () => {
     const c = first(comp('${MyComp} title="hello"').parseProgram());
     expect(c.props[0].key.key).toBe('title');
+  });
+
+  it('组件带显式泛型', () => {
+    const c = first(comp('${MyComp}<User> title="hello"').parseProgram());
+    expect(c.typeArguments[0].raw).toBe('User');
+    expect(c.props[0].key.key).toBe('title');
+  });
+
+  it('组件带嵌套泛型和多个参数', () => {
+    const c = first(comp('${MyComp}<Map<string, User>, keyof User> value={x}').parseProgram());
+    expect(c.typeArguments.map((arg: any) => arg.raw)).toEqual(['Map<string, User>', 'keyof User']);
+    expect(c.props[0].key.key).toBe('value');
+  });
+
+  it('组件泛型后可以直接换行并解析子节点', () => {
+    const c = first(comp(`
+\${MyComp}<User>
+  span "slot"`).parseProgram());
+    expect(c.typeArguments[0].raw).toBe('User');
+    expect(c.children[0].tagName).toBe('span');
+  });
+
+  it('组件泛型后可以接 pipe 扩展属性行', () => {
+    const c = first(comp(`
+\${MyComp}<User> title="a"
+| value={x}`).parseProgram());
+    expect(c.typeArguments[0].raw).toBe('User');
+    expect(c.props.map((p: any) => p.key.key)).toEqual(['title', 'value']);
+  });
+
+  it('未闭合组件泛型会记录解析错误', () => {
+    const c = comp('${MyComp}<User title="hello"');
+    c.parseProgram();
+    expect(c.errors.some((e: any) => e.code === ParseErrorCode.UNCLOSED_TYPE_ARGUMENTS)).toBe(true);
   });
 });
 

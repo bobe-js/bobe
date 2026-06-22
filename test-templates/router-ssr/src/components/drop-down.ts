@@ -1,14 +1,14 @@
 import { bobe, Store } from 'bobe';
 import styles from './drop-down.module.scss';
 
-export class DropDown<T> extends Store {
+export class DropDown<T extends Record<string, any>> extends Store {
   readonly items: T[] = [];
-  readonly content = '请选择';
-  readonly auto = false;
-  readonly bordered = true;
+  readonly auto: boolean = false;
+  readonly bordered: boolean = true;
   readonly onSelect: ((item: T) => void) | null = null;
-  readonly label = 'label';
-  readonly value = 'value';
+  readonly content: string = '请选择';
+  readonly label: string = 'label';
+  readonly value: string = 'value';
 
   isOpen = false;
   styles = styles;
