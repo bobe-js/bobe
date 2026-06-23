@@ -804,6 +804,46 @@ describe('集成测试 — if/else', () => {
     expect(JSON.stringify(div)).not.toContain('hidden');
     expect(JSON.stringify(div)).toContain('always');
   });
+
+  it('truthy 条件值变化但 Boolean 结果不变时不重建 if 块', () => {
+    class App extends Store {
+      count = 1;
+      ui = bobe`
+        div
+          if count
+            span id="map-cond" children="map"
+          if count + 1
+            span id="expr-cond" children="expr"
+      `;
+    }
+
+    const findAllById = (root: any, id: string) => {
+      const nodes: any[] = [];
+      const walk = (node: any) => {
+        if (node.props?.id === id) nodes.push(node);
+        for (const child of node.children || []) walk(child);
+      };
+      walk(root);
+      return nodes;
+    };
+
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    const mapNode = mustFind(root, 'map-cond');
+    const exprNode = mustFind(root, 'expr-cond');
+    expect(findAllById(root, 'map-cond')).toHaveLength(1);
+    expect(findAllById(root, 'expr-cond')).toHaveLength(1);
+
+    store.count = 2;
+    flushEffects();
+
+    expect(mustFind(root, 'map-cond')).toBe(mapNode);
+    expect(mustFind(root, 'expr-cond')).toBe(exprNode);
+    expect(findAllById(root, 'map-cond')).toHaveLength(1);
+    expect(findAllById(root, 'expr-cond')).toHaveLength(1);
+  });
 });
 
 describe('集成测试 — for 循环', () => {

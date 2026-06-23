@@ -1240,6 +1240,9 @@ export class Interpreter {
   getFn(data: any, expression: string | number) {
     return new Function('data', `with(data){return (${expression})}`).bind(undefined, safe(data));
   }
+  getBoolFn(data: any, expression: string | number) {
+    return new Function('data', `with(data){return Boolean(${expression})}`).bind(undefined, safeExclude(data, { 'Boolean': true }));
+  }
   getAssignFn(data: any, expression: string | number) {
     const valueId = `value_bobe_${date32()}`;
     return new Function('data', valueId, `with(data){${expression}=${valueId}};`).bind(undefined, safeExclude(data, { [valueId]: true }));
@@ -1279,13 +1282,13 @@ export class Interpreter {
     switch (keyWord.value) {
       case 'if':
         if (valueIsMapKey) {
-          // 确保 signal 已生成
-          runWithPulling(() => data[value], null);
-          // 拿到 signal
-          const { cells } = data[Keys.Meta];
-          signal = cells.get(value);
+          // // 确保 signal 已生成
+          // runWithPulling(() => data[value], null);
+          // // 拿到 signal
+          // const { cells } = data[Keys.Meta];
+          signal = new Computed(() => Boolean(data[value]))
         } else {
-          const fn = this.getFn(data, value);
+          const fn = this.getBoolFn(data, value);
           // 是 getter 使用 computed 计算出一个 signal
           signal = new Computed(fn);
         }
@@ -1310,7 +1313,7 @@ export class Interpreter {
         }
         // else if xxx
         else {
-          const fn = valueIsMapKey ? null : this.getFn(data, value);
+          const fn = valueIsMapKey ? null : this.getBoolFn(data, value);
           signal = new Computed(() => {
             let point = ifNode.preCond;
             while (point) {
@@ -1323,7 +1326,7 @@ export class Interpreter {
               }
               point = point.preCond;
             }
-            return valueIsMapKey ? data[value] : fn();
+            return valueIsMapKey ? Boolean(data[value]) : fn();
           });
         }
         break;
