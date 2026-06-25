@@ -1006,11 +1006,20 @@ export class Interpreter {
 
   removeForItem(children: ForItemNode[], i: number) {
     const child = children[i];
+    const after = child.realAfter!;
     this.removeLogicNode(child);
     this.remove(child.realBefore);
     this.remove(child.realAfter);
     // 释放删除项 effect
     child.effect.dispose();
+    child.effect = undefined;
+    child.data = undefined;
+    child.context = undefined;
+    after[FakeNode] = undefined;
+    child.forNode = undefined;
+    child.realParent = undefined;
+    child.realAfter = undefined;
+    child.realBefore = undefined;
   }
 
   reuseForItem(

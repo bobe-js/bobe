@@ -349,7 +349,7 @@ export class Tokenizer {
     } catch (error) {
       throw error;
     } finally {
-      this.handledTokens.push(this.token);
+      // this.handledTokens.push(this.token);
     }
   }
 
@@ -404,7 +404,7 @@ export class Tokenizer {
     const trimmed = value.replace(/\/\/[\s\S]+/, '').trim();
 
     this.setToken(TokenType.Identifier, trimmed ? trimmed : true, 0);
-    this.handledTokens.push(this.token);
+    // this.handledTokens.push(this.token);
     this.locEnd();
     return this.token;
   }
@@ -434,7 +434,7 @@ export class Tokenizer {
       char = this.code[this.i];
     }
     this.setToken(TokenType.Identifier, value, 0);
-    this.handledTokens.push(this.token);
+    // this.handledTokens.push(this.token);
     this.locEnd();
     return this.token;
   }

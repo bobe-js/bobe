@@ -9,6 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, './package.json')));
 
 const configs = createConfig(pkg, __dirname);
+const __DEV__ = process.env.NODE_ENV === 'dev';
 
 export default [
   {
@@ -17,6 +18,7 @@ export default [
       ...configs[0].plugins,
       replace({
         __IS_COMPILER__: JSON.stringify(false),
+        __DEV__: JSON.stringify(__DEV__),
         preventAssignment: true
       })
     ]
@@ -39,6 +41,7 @@ export default [
       ...createPlugins(pkg, __dirname),
       replace({
         __IS_COMPILER__: JSON.stringify(true),
+        __DEV__: JSON.stringify(__DEV__),
         preventAssignment: true,
       })
     ],
