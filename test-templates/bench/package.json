@@ -1,0 +1,25 @@
+{
+  "name": "js-framework-benchmark-bobe",
+  "private": true,
+  "version": "0.0.0",
+  "js-framework-benchmark": {
+    "frameworkVersionFromPackage": "bobe",
+    "frameworkHomeURL": "",
+    "customURL": "/dist",
+    "language": "JavaScript"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build-prod": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "bobe-dom": "workspace:*",
+    "bobe": "workspace:*",
+    "aoye": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^7.0.5"
+  }
+}
