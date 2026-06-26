@@ -1657,7 +1657,7 @@ export class Interpreter {
     }
   }
 
-  setProp(node: any, key: string, value: any, hookI?: number): any | (() => void) {
+  setProp(node: any, key: string, value: any, hookI?: number): any | ((isDestroy: boolean) => void) {
     node.props[key] = value;
   }
 

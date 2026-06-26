@@ -1,4 +1,7 @@
-import { createNode, setProp, insertAfter, createAnchor, remove, firstChild, nextSib } from '#/render';
+import { createNode, insertAfter, createAnchor, remove, firstChild, nextSib } from '#/render';
+import { setProp } from '#/set-prop-csr';
+
+import { BOBE_MEMO } from '#/global';
 import type { Interpreter } from 'bobe';
 
 let mockInterpreter: Interpreter;
@@ -65,16 +68,63 @@ describe('setProp', () => {
       setProp(el, 'children', 'hello');
       expect(el.textContent).toBe('hello');
     });
+
+    it('should clear textContent for null', () => {
+      setProp(el, 'children', 'hello');
+      setProp(el, 'children', null);
+      expect(el.textContent).toBe('');
+    });
+
+    it('should skip same textContent writes', () => {
+      const descriptor = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!;
+      const setter = vi.fn(descriptor.set!);
+      const spy = vi.spyOn(Node.prototype, 'textContent', 'set').mockImplementation(setter);
+
+      setProp(el, 'children', 'hello');
+      setProp(el, 'children', 'hello');
+      setProp(el, 'children', 'world');
+
+      expect(setter).toHaveBeenCalledTimes(2);
+      expect(el.textContent).toBe('world');
+      spy.mockRestore();
+    });
+
+    it('should skip repeated null textContent clears', () => {
+      const descriptor = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!;
+      const setter = vi.fn(descriptor.set!);
+      const spy = vi.spyOn(Node.prototype, 'textContent', 'set').mockImplementation(setter);
+
+      setProp(el, 'children', 'hello');
+      setProp(el, 'children', null);
+      setProp(el, 'children', null);
+
+      expect(setter).toHaveBeenCalledTimes(2);
+      expect(el.textContent).toBe('');
+      spy.mockRestore();
+    });
   });
 
   describe('events', () => {
-    it('should add event listener and return cleanup', () => {
+    it('should delegate bubbling events on root and clear on destroy', () => {
+      mockInterpreter.root.appendChild(el);
       const fn = vi.fn();
-      const cleanup = setProp(el, 'onclick', fn);
+      const cleanup = setProp.call(mockInterpreter, el, 'onclick', fn);
       el.click();
       expect(fn).toHaveBeenCalledTimes(1);
-      cleanup!();
+      cleanup!(true);
       el.click();
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
+
+    it('should use node listener for non-delegated events', () => {
+      const fn = vi.fn();
+      const cleanup = setProp.call(mockInterpreter, el, 'onmouseenter', fn);
+
+      el.dispatchEvent(new MouseEvent('mouseenter'));
+      expect(fn).toHaveBeenCalledTimes(1);
+
+      cleanup!(false);
+      el.dispatchEvent(new MouseEvent('mouseenter'));
       expect(fn).toHaveBeenCalledTimes(1);
     });
   });
@@ -83,6 +133,49 @@ describe('setProp', () => {
     it('should set class from string', () => {
       setProp(el, 'class', 'foo bar');
       expect(el.className).toBe('foo bar');
+    });
+
+    it('should merge class and dot props in declaration order', () => {
+      setProp(el, '.foo', true);
+      setProp(el, 'class', 'base1 base2');
+      setProp(el, '.bar', true);
+      expect(el.className).toBe('foo base1 base2 bar');
+    });
+
+    it('should reuse same class slot without reordering', () => {
+      setProp(el, '.foo', true);
+      setProp(el, 'class', 'base');
+      setProp(el, '.foo', true);
+      expect(el.className).toBe('foo base');
+    });
+
+    it('should skip same class string writes', () => {
+      const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'className')!;
+      const setter = vi.fn(descriptor.set!);
+      const spy = vi.spyOn(Element.prototype, 'className', 'set').mockImplementation(setter);
+
+      setProp(el, 'class', 'foo bar');
+      setProp(el, 'class', 'foo bar');
+      setProp(el, 'class', 'foo baz');
+
+      expect(setter).toHaveBeenCalledTimes(2);
+      expect(el.className).toBe('foo baz');
+      spy.mockRestore();
+    });
+
+    it('should skip same dot class toggle state', () => {
+      const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'className')!;
+      const setter = vi.fn(descriptor.set!);
+      const spy = vi.spyOn(Element.prototype, 'className', 'set').mockImplementation(setter);
+
+      setProp(el, '.danger', true);
+      setProp(el, '.danger', true);
+      setProp(el, '.danger', false);
+      setProp(el, '.danger', false);
+
+      expect(setter).toHaveBeenCalledTimes(2);
+      expect(el.classList.contains('danger')).toBe(false);
+      spy.mockRestore();
     });
 
     it('should set class from object', () => {
@@ -129,6 +222,21 @@ describe('setProp', () => {
       expect(el.style.fontSize).toBe('12px');
     });
 
+    it('should skip same cssText writes but apply changed values', () => {
+      const descriptor = Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype, 'cssText')!;
+      const setter = vi.fn(descriptor.set!);
+      const spy = vi.spyOn(CSSStyleDeclaration.prototype, 'cssText', 'set').mockImplementation(setter);
+
+      // 归一化输入（与 el.style.cssText 回读一致）才能命中跳过
+      setProp(el, 'style', 'color: red;');
+      setProp(el, 'style', 'color: red;');
+      setProp(el, 'style', 'color: blue;');
+
+      expect(setter).toHaveBeenCalledTimes(2);
+      expect(el.style.color).toBe('blue');
+      spy.mockRestore();
+    });
+
     it('should clear style for null', () => {
       el.style.color = 'red';
       setProp(el, 'style', null);
@@ -148,10 +256,38 @@ describe('setProp', () => {
       expect(el.innerHTML).toBe('<span>hi</span>');
     });
 
-    it('should not modify innerHTML for null', () => {
+    it('should skip same innerHTML writes', () => {
+      const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML')!;
+      const setter = vi.fn(descriptor.set!);
+      const spy = vi.spyOn(Element.prototype, 'innerHTML', 'set').mockImplementation(setter);
+
+      setProp(el, 'html', '<span>hi</span>');
+      setProp(el, 'html', '<span>hi</span>');
+      setProp(el, 'html', '<span>bye</span>');
+
+      expect(setter).toHaveBeenCalledTimes(2);
+      expect(el.innerHTML).toBe('<span>bye</span>');
+      spy.mockRestore();
+    });
+
+    it('should clear innerHTML for null', () => {
       el.innerHTML = '<b>old</b>';
       setProp(el, 'html', null);
-      expect(el.innerHTML).toBe('<b>old</b>');
+      expect(el.innerHTML).toBe('');
+    });
+
+    it('should skip repeated null innerHTML clears', () => {
+      const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML')!;
+      const setter = vi.fn(descriptor.set!);
+      const spy = vi.spyOn(Element.prototype, 'innerHTML', 'set').mockImplementation(setter);
+
+      setProp(el, 'html', '<b>old</b>');
+      setProp(el, 'html', null);
+      setProp(el, 'html', null);
+
+      expect(setter).toHaveBeenCalledTimes(2);
+      expect(el.innerHTML).toBe('');
+      spy.mockRestore();
     });
 
     it('should clear innerHTML for empty string', () => {
@@ -165,6 +301,22 @@ describe('setProp', () => {
     it('should set disabled when truthy', () => {
       setProp(el, 'disabled', true);
       expect(el.hasAttribute('disabled')).toBe(true);
+    });
+
+    it('should skip same boolean attribute writes', () => {
+      const setSpy = vi.spyOn(el, 'setAttribute');
+      const removeSpy = vi.spyOn(el, 'removeAttribute');
+
+      setProp(el, 'disabled', true);
+      setProp(el, 'disabled', true);
+      setProp(el, 'disabled', false);
+      setProp(el, 'disabled', false);
+
+      expect(setSpy).toHaveBeenCalledTimes(1);
+      expect(removeSpy).toHaveBeenCalledTimes(1);
+      expect(el.hasAttribute('disabled')).toBe(false);
+      setSpy.mockRestore();
+      removeSpy.mockRestore();
     });
 
     it('should remove disabled when false', () => {
@@ -200,6 +352,21 @@ describe('setProp', () => {
       expect((input as HTMLInputElement).value).toBe('test');
     });
 
+    it('should skip same input value property writes', () => {
+      const input = document.createElement('input');
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!;
+      const setter = vi.fn(descriptor.set!);
+      const spy = vi.spyOn(HTMLInputElement.prototype, 'value', 'set').mockImplementation(setter);
+
+      setProp(input, 'value', 'test');
+      setProp(input, 'value', 'test');
+      setProp(input, 'value', 'next');
+
+      expect(setter).toHaveBeenCalledTimes(2);
+      expect(input.value).toBe('next');
+      spy.mockRestore();
+    });
+
     it('should set value on textarea', () => {
       const ta = document.createElement('textarea');
       setProp(ta, 'value', 'hello');
@@ -222,6 +389,21 @@ describe('setProp', () => {
       expect((input as HTMLInputElement).checked).toBe(true);
     });
 
+    it('should skip same checked property writes', () => {
+      const input = document.createElement('input');
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')!;
+      const setter = vi.fn(descriptor.set!);
+      const spy = vi.spyOn(HTMLInputElement.prototype, 'checked', 'set').mockImplementation(setter);
+
+      setProp(input, 'checked', true);
+      setProp(input, 'checked', true);
+      setProp(input, 'checked', false);
+
+      expect(setter).toHaveBeenCalledTimes(2);
+      expect(input.checked).toBe(false);
+      spy.mockRestore();
+    });
+
     it('should NOT use property for value on div', () => {
       setProp(el, 'value', 'test');
       expect(el.getAttribute('value')).toBe('test');
@@ -234,15 +416,60 @@ describe('setProp', () => {
       expect(el.getAttribute('data-id')).toBe('123');
     });
 
+    it('should skip same data attribute writes', () => {
+      const spy = vi.spyOn(el, 'setAttribute');
+
+      setProp(el, 'data-id', '123');
+      setProp(el, 'data-id', '123');
+      setProp(el, 'data-id', '456');
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(el.getAttribute('data-id')).toBe('456');
+      spy.mockRestore();
+    });
+
+    it('should not create memo for data attributes', () => {
+      setProp(el, 'data-id', '123');
+      setProp(el, 'data-id', '123');
+      setProp(el, 'data-id', null);
+      setProp(el, 'data-id', null);
+
+      expect((el as any)[BOBE_MEMO]).toBeUndefined();
+    });
+
     it('should remove data attribute for null', () => {
       el.setAttribute('data-id', '123');
       setProp(el, 'data-id', null);
       expect(el.hasAttribute('data-id')).toBe(false);
     });
 
+    it('should skip repeated memo attribute removals', () => {
+      const removeSpy = vi.spyOn(el, 'removeAttribute');
+
+      setProp(el, 'data-id', '123');
+      setProp(el, 'data-id', null);
+      setProp(el, 'data-id', null);
+
+      expect(removeSpy).toHaveBeenCalledTimes(1);
+      expect(el.hasAttribute('data-id')).toBe(false);
+      removeSpy.mockRestore();
+    });
+
     it('should set aria attribute', () => {
       setProp(el, 'aria-label', 'close');
       expect(el.getAttribute('aria-label')).toBe('close');
+    });
+
+    it('should skip same aria attribute writes', () => {
+      const spy = vi.spyOn(el, 'setAttribute');
+
+      setProp(el, 'aria-label', 'close');
+      setProp(el, 'aria-label', 'close');
+      setProp(el, 'aria-label', 'open');
+
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(el.getAttribute('aria-label')).toBe('open');
+      spy.mockRestore();
     });
 
     it('should remove aria attribute for null', () => {
@@ -276,6 +503,15 @@ describe('setProp', () => {
     it('should set custom attribute', () => {
       setProp(el, 'data-foo', 'bar');
       expect(el.getAttribute('data-foo')).toBe('bar');
+    });
+
+    it('should not create memo for fallback attributes', () => {
+      setProp(el, 'unknown-prop', 'bar');
+      setProp(el, 'unknown-prop', 'bar');
+      setProp(el, 'unknown-prop', null);
+      setProp(el, 'unknown-prop', null);
+
+      expect((el as any)[BOBE_MEMO]).toBeUndefined();
     });
 
     it('should remove attribute for null', () => {

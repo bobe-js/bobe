@@ -114,6 +114,14 @@ describe('hydrate — basic elements', () => {
     expect(root.outerHTML).toBe('<div>hello</div>');
   });
 
+  it('should hydrate class order from class and dot props', () => {
+    class App extends Store {
+      ui = bobe`div .foo=true class="base1 base2" .bar=true children="hi"`;
+    }
+    const root = renderAndHydrate(App);
+    expect(root.outerHTML).toBe('<div class="foo base1 base2 bar">hi</div>');
+  });
+
   it('should hydrate nested elements', () => {
     class App extends Store {
       ui = bobe`
@@ -258,6 +266,58 @@ describe('hydrate — text/html conflict', () => {
 });
 
 describe('hydrate — reactive updates', () => {
+  it('should skip same text updates after first render', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!;
+    const setter = vi.fn(descriptor.set!);
+    const spy = vi.spyOn(Node.prototype, 'textContent', 'set').mockImplementation(setter);
+
+    class App extends Store {
+      name = 'Alice';
+      ui = bobe`div\n  span children={name}`;
+    }
+    const { root, store } = mountHydrate(App);
+    expect(root.querySelector('span')!.textContent).toBe('Alice');
+    expect(setter).toHaveBeenCalledTimes(0);
+
+    (store as any).name = 'Alice';
+    await tick();
+    expect(setter).toHaveBeenCalledTimes(0);
+
+    (store as any).name = 'Bob';
+    await tick();
+    expect(setter).toHaveBeenCalledTimes(1);
+    expect(root.querySelector('span')!.textContent).toBe('Bob');
+    spy.mockRestore();
+  });
+
+  it('should seed html memo on first render and skip same html updates', async () => {
+    class App extends Store {
+      body = '<b>Alice</b>';
+      ui = bobe`div html={body}`;
+    }
+    const { html } = renderHtmlStr(App as any);
+    document.body.innerHTML = html;
+
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML')!;
+    const setter = vi.fn(descriptor.set!);
+    const spy = vi.spyOn(Element.prototype, 'innerHTML', 'set').mockImplementation(setter);
+
+    const [, store] = hydrate(App as any, document.body);
+    const root = document.body.firstElementChild as Element;
+    expect(root.innerHTML).toBe('<b>Alice</b>');
+    expect(setter).toHaveBeenCalledTimes(0);
+
+    (store as any).body = '<b>Alice</b>';
+    await tick();
+    expect(setter).toHaveBeenCalledTimes(0);
+
+    (store as any).body = '<i>Bob</i>';
+    await tick();
+    expect(setter).toHaveBeenCalledTimes(1);
+    expect(root.innerHTML).toBe('<i>Bob</i>');
+    spy.mockRestore();
+  });
+
   it('should update text when reactive value changes', async () => {
     class App extends Store {
       name = 'Alice';
@@ -282,6 +342,30 @@ describe('hydrate — reactive updates', () => {
     (store as any).cls = 'btn-danger';
     await tick();
     expect(root.querySelector('button')!.className).toBe('btn-danger');
+  });
+
+  it('should skip same hydrated class updates after first render', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'className')!;
+    const setter = vi.fn(descriptor.set!);
+    const spy = vi.spyOn(Element.prototype, 'className', 'set').mockImplementation(setter);
+
+    class App extends Store {
+      cls = 'foo';
+      ui = bobe`div class={cls} .bar=true children="hi"`;
+    }
+    const { root, store } = mountHydrate(App);
+    expect(root.outerHTML).toBe('<div class="foo bar">hi</div>');
+    expect(setter).toHaveBeenCalledTimes(0);
+
+    (store as any).cls = 'foo';
+    await tick();
+    expect(setter).toHaveBeenCalledTimes(0);
+
+    (store as any).cls = 'baz';
+    await tick();
+    expect(root.className).toBe('baz bar');
+    expect(setter).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
   });
 
   it('should show/hide content with if toggle', async () => {

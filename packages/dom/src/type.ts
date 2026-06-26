@@ -10,6 +10,8 @@ export class SSRNode {
   startClosed: boolean = false;
   // innerHTML 缓存
   _innerHtml: string | null = null;
+  _classSlots?: Record<string, number>;
+  _classList?: string[];
 }
 
 export enum SSRNodeType {
@@ -23,7 +25,7 @@ export class Element extends SSRNode {
   type = SSRNodeType.Element;
   textContent: string | null = null;
 
-  attrs: Record<string, string> = {};
+  attrs: Record<string, string | undefined> = {};
   constructor(
     /** 标签名 */
     public value: string,
@@ -80,6 +82,8 @@ export class SSRFiber {
   html?: string = undefined;
   /** 开标签 > 在原始 HTML 字符串中的索引位置 */
   openTagEnd?: number = undefined;
+  _classSlots?: Record<string, number>;
+  _classList?: string[];
   constructor(public type: any, public props: Record<any, any> = {}) {}
 
   querySelector(selector: string): SSRFiber | null {
@@ -89,6 +93,26 @@ export class SSRFiber {
     const classMatches = selector.match(/\.[\w-]+/g);
     const classes = classMatches ? classMatches.map(c => c.slice(1)) : [];
     const tag = selector.replace(/#[\w-]+/g, '').replace(/\.[\w-]+/g, '').trim() || null;
+    const collectClasses = (props: Record<string, any>) => {
+      const tokens = new Set<string>();
+      const classValue = props['class'];
+      if (classValue != null) {
+        if (typeof classValue === 'object' && !Array.isArray(classValue)) {
+          for (const [k, v] of Object.entries(classValue as Record<string, any>)) {
+            if (v) tokens.add(k);
+          }
+        } else {
+          const str = typeof classValue === 'boolean' ? (classValue ? 'true' : '') : String(classValue);
+          for (const token of str.split(/\s+/)) {
+            if (token) tokens.add(token);
+          }
+        }
+      }
+      for (const key in props) {
+        if (key.startsWith('.') && props[key]) tokens.add(key.slice(1));
+      }
+      return tokens;
+    };
 
     // 深度优先遍历 child → next 链表
     const walk = (node: SSRFiber | undefined): SSRFiber | null => {
@@ -97,10 +121,8 @@ export class SSRFiber {
       if (node.type !== 'root' && node.type !== 'anchor' && node.type !== 'text') {
         if (!tag || node.type === tag) {
           if (!id || node.props['id'] === id) {
-            if (
-              classes.length === 0 ||
-              classes.every(c => (node.props['class'] || '').split(/\s+/).includes(c))
-            ) {
+            const classTokens = collectClasses(node.props);
+            if (classes.length === 0 || classes.every(c => classTokens.has(c))) {
               return node;
             }
           }
@@ -116,4 +138,3 @@ export class SSRFiber {
     return this.querySelector(`#${id}`);
   }
 }
-

@@ -1,6 +1,8 @@
 import { customRender, Store } from 'bobe';
 import { SSRFiber } from './type';
 import { parseHtmlToFibers } from './parse-html';
+import { getClassNames } from './set-prop-csr';
+import { BOOLEAN_ATTRS } from './global';
 
 const VOID_TAGS = new Set([
   'area',
@@ -17,32 +19,6 @@ const VOID_TAGS = new Set([
   'source',
   'track',
   'wbr'
-]);
-
-const BOOLEAN_ATTRS = new Set([
-  'disabled',
-  'readonly',
-  'checked',
-  'selected',
-  'hidden',
-  'multiple',
-  'required',
-  'autofocus',
-  'autoplay',
-  'controls',
-  'loop',
-  'muted',
-  'defer',
-  'async',
-  'reversed',
-  'open',
-  'itemscope',
-  'ismap',
-  'nohref',
-  'noshade',
-  'nowrap',
-  'compact',
-  'default'
 ]);
 
 const ATTR_RE = /[&"<>]/g;
@@ -73,10 +49,23 @@ const createNode = (name: string) => {
   return new SSRFiber(name);
 };
 
+const setClassChunk = (node: SSRFiber, key: string, value: any) => {
+  const slots = node._classSlots || (node._classSlots = Object.create(null));
+  const list = node._classList || (node._classList = []);
+  let slot = slots[key];
+  if (slot === undefined) {
+    slot = list.length;
+    slots[key] = slot;
+  }
+  list[slot] = getClassNames(key, value);
+};
+
 const setProp = (node: SSRFiber, key: string, value: any) => {
   node.props[key] = value;
   if (key === 'html') {
     parseHtmlToFibers(value, node);
+  } else if (key === 'class' || key.startsWith('.')) {
+    setClassChunk(node, key, value);
   }
 };
 
@@ -143,8 +132,6 @@ export function walkFiber(root: SSRFiber) {
       point.html = `<${point.type}`;
       const props = point.props;
       let text;
-      let classStr = '';
-      const dotClasses: string[] = [];
       let idValue: string | null = null;
 
       for (const key in props) {
@@ -158,9 +145,7 @@ export function walkFiber(root: SSRFiber) {
           text = value;
           continue;
         }
-        // .xxx — class toggle，收集后与 class 合并
         if (key.startsWith('.')) {
-          if (value) dotClasses.push(key.slice(1));
           continue;
         }
         // #xxx — id toggle
@@ -169,15 +154,6 @@ export function walkFiber(root: SSRFiber) {
           continue;
         }
         if (key === 'class') {
-          if (value == null) continue;
-          if (typeof value === 'object' && !Array.isArray(value)) {
-            classStr = Object.entries(value as Record<string, any>)
-              .filter(([, v]) => !!v)
-              .map(([k]) => k)
-              .join(' ');
-          } else {
-            classStr = typeof value === 'boolean' ? (value ? 'true' : '') : String(value);
-          }
           continue;
         }
         if (key === 'style') {
@@ -202,10 +178,7 @@ export function walkFiber(root: SSRFiber) {
         if (value == null) continue;
         point.html += ` ${key}="${escapeAttr(value)}"`;
       }
-      // 合并 .xxx 类名到 class
-      if (dotClasses.length) {
-        classStr = (classStr ? classStr + ' ' : '') + dotClasses.join(' ');
-      }
+      const classStr = point._classList?.filter(Boolean).join(' ');
       if (classStr) {
         point.html += ` class="${escapeAttr(classStr)}"`;
       }

@@ -1,6 +1,7 @@
 import { customRender, Store, LogicNode } from 'bobe';
 import { cleanCtx, ctx } from './global';
 import { Root, Element, Text, Anchor, SSRNode, SSRNodeType } from './type';
+import { getClassNames } from './set-prop-csr';
 
 const VOID_TAGS = new Set([
   'area',
@@ -77,6 +78,29 @@ const createNode = (name: string) => {
   return new Element(name);
 };
 
+const setClassChunk = (node: Text | Element, key: string, value: any) => {
+  const slots = node._classSlots || (node._classSlots = Object.create(null));
+  const list = node._classList || (node._classList = []);
+  let slot = slots[key];
+  if (slot === undefined) {
+    slot = list.length;
+    slots[key] = slot;
+  }
+  list[slot] = getClassNames(key, value);
+};
+
+const flushId = (node: Text | Element) => {
+  const idValue = node.attrs['#id'];
+  if (idValue) ctx.root.value += ` id="${escapeAttr(idValue)}"`;
+};
+
+const flushClass = (node: Text | Element) => {
+  const classList = node._classList;
+  if (!classList) return;
+  const classStr = classList.filter(Boolean).join(' ');
+  if (classStr) ctx.root.value += ` class="${escapeAttr(classStr)}"`;
+};
+
 const setProp = (node: Text | Element, key: string, value: any) => {
   if (node.startClosed) return;
   if (key.startsWith('on') || key === 'ref') return;
@@ -97,27 +121,21 @@ const setProp = (node: Text | Element, key: string, value: any) => {
 
   // 2. class — 对齐 Browser：支持对象/字符串/null
   if (key.startsWith('.')) {
-    if (value) ctx.root.value += ` class="${escapeAttr(key.slice(1))}"`;
+    if (value) setClassChunk(node, key, value);
     return;
   }
 
   if (key.startsWith('#')) {
-    if (value) ctx.root.value += ` id="${escapeAttr(key.slice(1))}"`;
+    if (value) {
+      node.attrs['#id'] = key.slice(1);
+    } else {
+      node.attrs['#id'] = undefined;
+    }
     return;
   }
 
   if (key === 'class') {
-    if (value == null) return;
-    let classStr: string;
-    if (typeof value === 'object' && !Array.isArray(value)) {
-      classStr = Object.entries(value as Record<string, any>)
-        .filter(([, v]) => !!v)
-        .map(([k]) => k)
-        .join(' ');
-    } else {
-      classStr = typeof value === 'boolean' ? (value ? 'true' : '') : String(value);
-    }
-    if (classStr) ctx.root.value += ` class="${escapeAttr(classStr)}"`;
+    setClassChunk(node, key, value);
     return;
   }
 
@@ -177,8 +195,10 @@ const beforeIndent = (node: Text | Element): boolean => {
 
   if (hasText || hasHtml) {
     console.warn(`<${node.value}> has ${hasHtml ? 'html' : 'text'} content and child elements — children ignored`);
-    ctx.root.value += `>`;
     // 容器元素有 text/html 内容且检测到子节点冲突，立即闭合；与 leaveNode 叶元素路径互斥
+    flushClass(node);
+    flushId(node);
+    ctx.root.value += `>`;
     appendInnerContent(node);
     ctx.root.value += `</${node.value}>`;
     node.startClosed = true;
@@ -186,6 +206,8 @@ const beforeIndent = (node: Text | Element): boolean => {
     return false;
   }
 
+  flushClass(node);
+  flushId(node);
   ctx.root.value += `>`;
   node.startClosed = true;
   return true;
@@ -221,6 +243,8 @@ const leaveNode = (node: Text | Element, isDedent: boolean) => {
       }
       // 先加入 '>' 再看有内容加内容，最后反 Tag 闭合
       else {
+        flushClass(node);
+        flushId(node);
         ctx.root.value += `>`;
         // 叶元素，无子节点；与 beforeIndent 中的 appendInnerContent 互斥
         appendInnerContent(node);

@@ -141,6 +141,15 @@ describe('parseHtmlToFibers', () => {
   it('应正确解析属性', () => {
     const root = parse('<div id="myId" class="container"></div>');
     expect(root.child!.props).toEqual({ id: 'myId', class: 'container' });
+    expect(root.child!._classSlots?.class).toBe(0);
+    expect(root.child!._classList).toEqual(['container']);
+  });
+
+  it('应将 class 属性同步为 class slot 结构', () => {
+    const root = parse('<div class="foo bar"></div>');
+    expect(root.child!.props.class).toBe('foo bar');
+    expect(root.child!._classSlots?.class).toBe(0);
+    expect(root.child!._classList).toEqual(['foo bar']);
   });
 
   it('应正确处理属性值中的 >', () => {
