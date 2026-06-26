@@ -31,6 +31,8 @@ export function customRender(option: CustomRenderConf) {
     const terp = new Interpreter(tokenizer);
     terp.config(option);
     mw.wrapHooks(terp);
+    // 给外部 hook 和 DOM renderer 获取真正的 render 根节点。
+    terp.root = root;
 
     const componentNode: ComponentNode = {
       __logicType: FakeType.Component,
