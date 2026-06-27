@@ -1,7 +1,7 @@
 import { customRender, Store } from 'bobe';
 import { SSRFiber } from './type';
 import { parseHtmlToFibers } from './parse-html';
-import { getClassNames } from './set-prop-csr';
+import { normalizeClass } from './set-prop-csr';
 import { BOOLEAN_ATTRS } from './global';
 
 const VOID_TAGS = new Set([
@@ -49,23 +49,10 @@ const createNode = (name: string) => {
   return new SSRFiber(name);
 };
 
-const setClassChunk = (node: SSRFiber, key: string, value: any) => {
-  const slots = node._classSlots || (node._classSlots = Object.create(null));
-  const list = node._classList || (node._classList = []);
-  let slot = slots[key];
-  if (slot === undefined) {
-    slot = list.length;
-    slots[key] = slot;
-  }
-  list[slot] = getClassNames(key, value);
-};
-
 const setProp = (node: SSRFiber, key: string, value: any) => {
   node.props[key] = value;
   if (key === 'html') {
     parseHtmlToFibers(value, node);
-  } else if (key === 'class' || key.startsWith('.')) {
-    setClassChunk(node, key, value);
   }
 };
 
@@ -145,9 +132,6 @@ export function walkFiber(root: SSRFiber) {
           text = value;
           continue;
         }
-        if (key.startsWith('.')) {
-          continue;
-        }
         // #xxx — id toggle
         if (key.startsWith('#')) {
           if (value) idValue = key.slice(1);
@@ -178,7 +162,7 @@ export function walkFiber(root: SSRFiber) {
         if (value == null) continue;
         point.html += ` ${key}="${escapeAttr(value)}"`;
       }
-      const classStr = point._classList?.filter(Boolean).join(' ');
+      const classStr = normalizeClass(point.props.class);
       if (classStr) {
         point.html += ` class="${escapeAttr(classStr)}"`;
       }

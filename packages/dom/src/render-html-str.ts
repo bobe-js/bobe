@@ -1,7 +1,7 @@
 import { customRender, Store, LogicNode } from 'bobe';
 import { cleanCtx, ctx } from './global';
 import { Root, Element, Text, Anchor, SSRNode, SSRNodeType } from './type';
-import { getClassNames } from './set-prop-csr';
+import { normalizeClass } from './set-prop-csr';
 
 const VOID_TAGS = new Set([
   'area',
@@ -78,26 +78,13 @@ const createNode = (name: string) => {
   return new Element(name);
 };
 
-const setClassChunk = (node: Text | Element, key: string, value: any) => {
-  const slots = node._classSlots || (node._classSlots = Object.create(null));
-  const list = node._classList || (node._classList = []);
-  let slot = slots[key];
-  if (slot === undefined) {
-    slot = list.length;
-    slots[key] = slot;
-  }
-  list[slot] = getClassNames(key, value);
-};
-
 const flushId = (node: Text | Element) => {
   const idValue = node.attrs['#id'];
   if (idValue) ctx.root.value += ` id="${escapeAttr(idValue)}"`;
 };
 
 const flushClass = (node: Text | Element) => {
-  const classList = node._classList;
-  if (!classList) return;
-  const classStr = classList.filter(Boolean).join(' ');
+  const classStr = node.attrs.class;
   if (classStr) ctx.root.value += ` class="${escapeAttr(classStr)}"`;
 };
 
@@ -119,12 +106,6 @@ const setProp = (node: Text | Element, key: string, value: any) => {
     return;
   }
 
-  // 2. class — 对齐 Browser：支持对象/字符串/null
-  if (key.startsWith('.')) {
-    if (value) setClassChunk(node, key, value);
-    return;
-  }
-
   if (key.startsWith('#')) {
     if (value) {
       node.attrs['#id'] = key.slice(1);
@@ -135,7 +116,7 @@ const setProp = (node: Text | Element, key: string, value: any) => {
   }
 
   if (key === 'class') {
-    setClassChunk(node, key, value);
+    node.attrs.class = normalizeClass(value);
     return;
   }
 

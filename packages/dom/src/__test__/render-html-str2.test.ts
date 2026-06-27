@@ -89,18 +89,12 @@ describe('renderHtmlStr — attributes', () => {
     expect(renderHtml(App)).toBe('<div class="btn primary">hi</div>');
   });
 
-  it('should render class and dot props in declaration order', () => {
+  it('should render class from a single-level array', () => {
     class App extends Store {
-      ui = bobe`div .foo=true class="base1 base2" .bar=true children="hi"`;
+      cls = ['btn primary', { active: true, hidden: false }, ['nested'], 123];
+      ui = bobe`div class={cls} children="hi"`;
     }
-    expect(renderHtml(App)).toBe('<div class="foo base1 base2 bar">hi</div>');
-  });
-
-  it('should render class with fist dot is false', () => {
-    class App extends Store {
-      ui = bobe`div .foo=false class="base1 base2" .bar=true children="hi"`;
-    }
-    expect(renderHtml(App)).toBe('<div class="base1 base2 bar">hi</div>');
+    expect(renderHtml(App)).toBe('<div class="btn primary active">hi</div>');
   });
 
   it('should render style attribute', () => {

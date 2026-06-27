@@ -108,7 +108,7 @@ export default class App extends Store {
     table class='table table-hover table-striped test-data'
       tbody
         for rows; row; row.id
-          tr .danger={selectedId === row.id} data-label={row.label}
+          tr class={{ danger: selectedId === row.id }} data-label={row.label}
             td {row.id} class='col-md-1'
             td class='col-md-4'
               a {row.label} onclick={() => select(row.id)}

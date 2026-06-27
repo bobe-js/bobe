@@ -1,8 +1,10 @@
 import { createNode, insertAfter, createAnchor, remove, firstChild, nextSib } from '#/render';
-import { setProp } from '#/set-prop-csr';
+import { setProp as _setProp } from '#/set-prop-csr';
+
 
 import { BOBE_MEMO } from '#/global';
 import type { Interpreter } from 'bobe';
+const setProp = _setProp as (node: any, key: string, value: any) => ((isDestroy: boolean) => void) | undefined;
 
 let mockInterpreter: Interpreter;
 
@@ -135,18 +137,24 @@ describe('setProp', () => {
       expect(el.className).toBe('foo bar');
     });
 
-    it('should merge class and dot props in declaration order', () => {
+    it('should ignore dot props without affecting class', () => {
       setProp(el, '.foo', true);
       setProp(el, 'class', 'base1 base2');
       setProp(el, '.bar', true);
-      expect(el.className).toBe('foo base1 base2 bar');
+      expect(el.className).toBe('base1 base2');
+      expect((el as any)['.foo']).toBeUndefined();
+      expect((el as any)['.bar']).toBeUndefined();
+      expect(el.hasAttribute('.foo')).toBe(false);
+      expect(el.hasAttribute('.bar')).toBe(false);
     });
 
-    it('should reuse same class slot without reordering', () => {
+    it('should not let dot props affect class updates', () => {
       setProp(el, '.foo', true);
       setProp(el, 'class', 'base');
-      setProp(el, '.foo', true);
-      expect(el.className).toBe('foo base');
+      setProp(el, '.foo', false);
+      expect(el.className).toBe('base');
+      expect((el as any)['.foo']).toBeUndefined();
+      expect(el.hasAttribute('.foo')).toBe(false);
     });
 
     it('should skip same class string writes', () => {
@@ -163,19 +171,15 @@ describe('setProp', () => {
       spy.mockRestore();
     });
 
-    it('should skip same dot class toggle state', () => {
-      const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'className')!;
-      const setter = vi.fn(descriptor.set!);
-      const spy = vi.spyOn(Element.prototype, 'className', 'set').mockImplementation(setter);
-
+    it('should skip repeated dot props without touching class', () => {
       setProp(el, '.danger', true);
       setProp(el, '.danger', true);
       setProp(el, '.danger', false);
       setProp(el, '.danger', false);
 
-      expect(setter).toHaveBeenCalledTimes(2);
+      expect((el as any)['.danger']).toBeUndefined();
+      expect(el.hasAttribute('.danger')).toBe(false);
       expect(el.classList.contains('danger')).toBe(false);
-      spy.mockRestore();
     });
 
     it('should set class from object', () => {
@@ -183,6 +187,18 @@ describe('setProp', () => {
       expect(el.classList.contains('active')).toBe(true);
       expect(el.classList.contains('inactive')).toBe(false);
       expect(el.classList.contains('bold')).toBe(true);
+    });
+
+    it('should set class from a single-level array of strings and objects', () => {
+      setProp(el, 'class', ['btn primary', { active: true, hidden: false }, ['nested'], 123, null]);
+      expect(el.className).toBe('btn primary active');
+    });
+
+    it('should not create memo for class updates', () => {
+      setProp(el, 'class', ['btn', { active: true }]);
+      setProp(el, 'class', ['btn', { active: true }]);
+
+      expect((el as any)[BOBE_MEMO]).toBeUndefined();
     });
 
     it('should clear class for null', () => {

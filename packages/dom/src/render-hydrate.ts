@@ -1,6 +1,6 @@
 import { customRender, Interpreter, Store } from 'bobe';
 import { createNode as browserCreateNode, remove, firstChild, nextSib } from './render';
-import { setProp as browserSetProp, applyClassMemo } from './set-prop-csr';
+import { setProp as browserSetProp } from './set-prop-csr';
 import { CONTENT_FLAG } from './global';
 
 // ====== TreeCursor ======
@@ -109,10 +109,9 @@ export const hydrate = (ComponentClass: typeof Store, rootEl: Element) => {
     const isHydratingClaimedNode = isFirstRender && cursor.claimed.has(node);
     if (isHydratingClaimedNode && (key === 'children' || key === 'html')) {
       (node as any)[CONTENT_FLAG] = value != null;
-      return;
+      if(value != null) return;
     }
-    if (isHydratingClaimedNode && (key === 'class' || key.startsWith('.'))) {
-      applyClassMemo(node, key, value);
+    if (isHydratingClaimedNode && key === 'class') {
       return;
     }
     return browserSetProp.call(this, node, key, value);

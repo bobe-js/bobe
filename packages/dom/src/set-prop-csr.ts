@@ -1,22 +1,42 @@
 import type { Interpreter } from 'bobe';
 import { delegateEventOnRoot } from './delegate';
-import { BOBE_EVENT, BOBE_MEMO, BOOLEAN_ATTRS, CONTENT_FLAG, MATH_NS, NON_DELEGATED_EVENTS, SVG_NS, VALUE_PROP_TAGS } from './global';
+import {
+  BOBE_EVENT,
+  BOOLEAN_ATTRS,
+  CONTENT_FLAG,
+  MATH_NS,
+  NON_DELEGATED_EVENTS,
+  SVG_NS,
+  VALUE_PROP_TAGS
+} from './global';
 
 const isNS = (el: Element) => el.namespaceURI === SVG_NS || el.namespaceURI === MATH_NS;
 
-type PropMemo = Record<string, any>;
+const normalizeClassObject = (value: Record<string, any>) =>
+  Object.entries(value)
+    .filter(([, v]) => !!v)
+    .map(([k]) => k)
+    .join(' ');
 
-export const getMemo = (target: any): PropMemo => target[BOBE_MEMO] || (target[BOBE_MEMO] = {});
-
-export const getClassNames = (key: string, value: any) => {
-  if (key.startsWith('.')) return value ? key.slice(1) : '';
+export const normalizeClass = (value: any): string => {
   if (value == null) return '';
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    return Object.entries(value as Record<string, any>)
-      .filter(([, v]) => !!v)
-      .map(([k]) => k)
-      .join(' ');
+
+  if (Array.isArray(value)) {
+    const list: string[] = [];
+    for (let i = 0; i < value.length; i++) {
+      const item = value[i];
+      if (typeof item === 'string') {
+        if (item) list.push(item);
+      } else if (item && typeof item === 'object' && !Array.isArray(item)) {
+        const names = normalizeClassObject(item);
+        if (names) list.push(names);
+      }
+    }
+    return list.join(' ');
   }
+
+  if (typeof value === 'object') return normalizeClassObject(value as Record<string, any>);
+
   return String(value);
 };
 
@@ -30,66 +50,49 @@ const setClassName = (el: Element, className: string) => {
   }
 };
 
-export const applyClassMemo = (node: Node, key: string, value: any) => {
-  const memo = getMemo(node);
-  const classList = memo.classList || (memo.classList = []);
-  let slot = memo[key];
-  if (slot === undefined) {
-    slot = classList.length;
-    memo[key] = slot;
-  }
-
-  const names = getClassNames(key, value);
-  if (Object.is(classList[slot], names)) return;
-  classList[slot] = names;
-  return classList.filter(Boolean).join(' ');
-};
-
-const setClassProp = (node: Node, key: string, value: any) => {
-  const className = applyClassMemo(node, key, value);
-  if (className === undefined) return;
-  setClassName(node as Element, className);
-};
-
 const shouldSetAsProp = (el: Element, key: string) =>
   !isNS(el) && !key.startsWith('data-') && !key.startsWith('aria-') && key in el;
 
 const setAttr = (el: Element, key: string, value: any) => {
-  if (value == null) {
-    if (!el.hasAttribute(key)) return;
-    el.removeAttribute(key);
-    return;
-  }
+  try {
+    if (value == null) {
+      if (el.hasAttribute(key)) {
+        el.removeAttribute(key);
+      }
+      return;
+    }
 
-  const str = String(value);
-  if (el.getAttribute(key) === str) return;
-  el.setAttribute(key, str);
+    const str = String(value);
+    if (el.getAttribute(key) === str) return;
+    el.setAttribute(key, str);
+  } catch (error) {
+    console.warn('setAttr 属性设置失败', error, el, key, value);
+  }
 };
 
 const setDOMProp = (el: Element, key: string, value: any) => {
-  const target = el as any;
-  const prev = target[key];
-
-  if (value == null) {
-    const type = typeof prev;
-    const next = type === 'string' ? '' : type === 'number' ? 0 : type === 'boolean' ? false : value;
-
-    if (!Object.is(prev, next)) {
-      try {
-        target[key] = next;
-      } catch {
-        // If a DOM property is readonly, still keep the attribute side consistent.
-      }
-    }
-    setAttr(el, key, null);
-    return;
-  }
-
-  if (Object.is(prev, value)) return;
   try {
+    const target = el as any;
+    const prev = target[key];
+
+    if (value == null) {
+      const type = typeof prev;
+      const next = type === 'string' ? '' : type === 'number' ? 0 : type === 'boolean' ? false : value;
+
+      if (!Object.is(prev, next)) {
+        target[key] = next;
+      }
+      if (el.hasAttribute(key)) {
+        el.removeAttribute(key);
+      }
+      return;
+    }
+
+    if (Object.is(prev, value)) return;
+
     target[key] = value;
-  } catch {
-    setAttr(el, key, value);
+  } catch (error) {
+    console.warn('setDOMProp 属性设置失败', error, el, key, value);
   }
 };
 
@@ -129,13 +132,8 @@ export function setProp(
   }
 
   // 2. class
-  if (key.startsWith('.')) {
-    setClassProp(node, key, value);
-    return;
-  }
-
   if (key === 'class') {
-    setClassProp(node, key, value);
+    setClassName(el, normalizeClass(value));
     return;
   }
 

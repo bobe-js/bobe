@@ -114,12 +114,24 @@ describe('hydrate — basic elements', () => {
     expect(root.outerHTML).toBe('<div>hello</div>');
   });
 
-  it('should hydrate class order from class and dot props', () => {
+  it('should clear claimed children when hydrated value is null', () => {
     class App extends Store {
-      ui = bobe`div .foo=true class="base1 base2" .bar=true children="hi"`;
+      text: any = null;
+      ui = bobe`div children={text}`;
     }
-    const root = renderAndHydrate(App);
-    expect(root.outerHTML).toBe('<div class="foo base1 base2 bar">hi</div>');
+    document.body.innerHTML = '<div>stale</div>';
+    hydrate(App as any, document.body);
+    expect(document.body.firstElementChild!.outerHTML).toBe('<div></div>');
+  });
+
+  it('should clear claimed html when hydrated value is null', () => {
+    class App extends Store {
+      content: any = null;
+      ui = bobe`div html={content}`;
+    }
+    document.body.innerHTML = '<div><b>stale</b></div>';
+    hydrate(App as any, document.body);
+    expect(document.body.firstElementChild!.outerHTML).toBe('<div></div>');
   });
 
   it('should hydrate nested elements', () => {
@@ -141,7 +153,10 @@ describe('hydrate — event binding', () => {
     let clicked = false;
     class App extends Store {
       handleClick = () => { clicked = true; };
-      ui = bobe`div\n  button onclick={handleClick} children="click me"`;
+      ui = bobe`
+        div
+          button onclick={handleClick} children="click me"
+      `;
     }
     const root = renderAndHydrate(App);
     (root.querySelector('button') as HTMLButtonElement).click();
@@ -273,7 +288,10 @@ describe('hydrate — reactive updates', () => {
 
     class App extends Store {
       name = 'Alice';
-      ui = bobe`div\n  span children={name}`;
+      ui = bobe`
+        div 
+          span children={name}
+      `;
     }
     const { root, store } = mountHydrate(App);
     expect(root.querySelector('span')!.textContent).toBe('Alice');
@@ -321,7 +339,10 @@ describe('hydrate — reactive updates', () => {
   it('should update text when reactive value changes', async () => {
     class App extends Store {
       name = 'Alice';
-      ui = bobe`div\n  span children={name}`;
+      ui = bobe`
+        div  
+          span children={name}
+      `;
     }
     const { root, store } = mountHydrate(App);
     expect(root.querySelector('span')!.textContent).toBe('Alice');
@@ -334,7 +355,10 @@ describe('hydrate — reactive updates', () => {
   it('should update attribute when reactive value changes', async () => {
     class App extends Store {
       cls = 'btn-primary';
-      ui = bobe`div\n  button class={cls} children="Submit"`;
+      ui = bobe`
+        div  
+          button class={cls} children="Submit"
+      `;
     }
     const { root, store } = mountHydrate(App);
     expect(root.querySelector('button')!.className).toBe('btn-primary');
@@ -351,7 +375,7 @@ describe('hydrate — reactive updates', () => {
 
     class App extends Store {
       cls = 'foo';
-      ui = bobe`div class={cls} .bar=true children="hi"`;
+      ui = bobe`div class={[cls, { bar: true }]} children="hi"`;
     }
     const { root, store } = mountHydrate(App);
     expect(root.outerHTML).toBe('<div class="foo bar">hi</div>');

@@ -1,13 +1,5 @@
 import { Parser } from 'htmlparser2';
 import { SSRFiber } from './type';
-import { getClassNames } from './set-prop-csr';
-
-const seedClassSlot = (fiber: SSRFiber, value: any) => {
-  const slots = fiber._classSlots || (fiber._classSlots = Object.create(null));
-  const list = fiber._classList || (fiber._classList = []);
-  slots.class = 0;
-  list[0] = getClassNames('class', value);
-};
 
 /**
  * 使用 htmlparser2 将 HTML 字符串解析为 SSRFiber，插入到 root 下。
@@ -43,9 +35,6 @@ export function parseHtmlToFibers(html: string, root: SSRFiber): void {
 
     onopentag(name: string, attribs: Record<string, string>) {
       const fiber = new SSRFiber(name, { ...attribs });
-      if (attribs.class != null) {
-        seedClassSlot(fiber, attribs.class);
-      }
       // onopentagend 在 onopentag 之前触发，已将 endIndex 写入 parser
       fiber.openTagEnd = parserRef.endIndex;
       append(fiber);
