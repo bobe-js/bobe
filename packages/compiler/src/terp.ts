@@ -910,7 +910,7 @@ export class Interpreter {
                 p2: number;
               // 从 s2 开始对比
               for (p1 = s2, p2 = 0; p1 <= e2; p1++) {
-                const oldI = new2oldI[p1];
+                const oldI = new2oldI[p1 - s2];
                 /** 新增 */
                 if (oldI === -1) {
                   const before = p1 === 0 ? forNode.realBefore : newChildren[p1 - 1].realAfter;
