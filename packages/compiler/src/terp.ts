@@ -581,7 +581,9 @@ export class Interpreter {
             scope.dispose();
             scope = new Scope(() => {});
             scope.scope = null;
-            runWithPulling(() => { scope.get(); }, null);
+            runWithPulling(() => {
+              scope.get();
+            }, null);
             node.effect = scope;
           }
         }
@@ -810,8 +812,7 @@ export class Interpreter {
           while (s <= e1 && s <= e2) {
             const child = children[s];
             const old = child.key;
-            const itemData = this.getItemData(forNode, s, data);
-            const key = forNode.getKey(itemData);
+            const key = this.getForKey(forNode, s, data);
             if (old === key) {
               newChildren[s] = child;
               this.reuseForItem(child, arr[s], itemExp, s, indexName, keys?.[s]);
@@ -824,8 +825,7 @@ export class Interpreter {
           while (s <= e1 && s <= e2) {
             const child = children[e1];
             const old = child.key;
-            const itemData = this.getItemData(forNode, e2, data);
-            const key = forNode.getKey(itemData);
+            const key = this.getForKey(forNode, e2, data);
             if (old === key) {
               newChildren[e2] = child;
               this.reuseForItem(child, arr[e2], itemExp, e2, indexName, keys?.[e2]);
@@ -862,9 +862,7 @@ export class Interpreter {
             /** key -> 旧 index */
             const key2new = new Map<any, number>();
             for (let i = s2; i <= e2; i++) {
-              // TODO: 这里只求 key 可以不用响应式
-              const itemData = this.getItemData(forNode, i, data);
-              const key = forNode.getKey(itemData);
+              const key = this.getForKey(forNode, i, data);
               key2new.set(key, i);
             }
             /*----------------- 构建 new2oldI -----------------*/
@@ -961,6 +959,29 @@ export class Interpreter {
       };
     }, ScheduleType.Render);
     return forNode.children[0] || forNode;
+  }
+
+  getForKey(forNode: ForNode, i: number, parentData: any) {
+    const { arr, itemExp, vars, getKey, keys } = forNode;
+    let indexName = forNode.indexName;
+    const data: Record<any, any> = Object.create(parentData);
+    if (typeof itemExp === 'string') {
+      data[itemExp] = arr[i];
+      if (indexName) {
+        data[indexName] = keys?.[i] ?? i;
+      }
+    }
+    // 解构
+    else {
+      indexName = indexName ?? KEY_INDEX;
+      data[indexName] = keys?.[i] ?? i;
+
+      for (let j = 0; j < vars.length; j++) {
+        const name = vars[j];
+        data[name] = arr[i][name];
+      }
+    }
+    return getKey(data);
   }
 
   /** after 锚点，对 fake 节点反引用
@@ -1248,11 +1269,17 @@ export class Interpreter {
     return new Function('data', `with(data){return (${expression})}`).bind(undefined, safe(data));
   }
   getBoolFn(data: any, expression: string | number) {
-    return new Function('data', `with(data){return Boolean(${expression})}`).bind(undefined, safeExclude(data, { 'Boolean': true }));
+    return new Function('data', `with(data){return Boolean(${expression})}`).bind(
+      undefined,
+      safeExclude(data, { Boolean: true })
+    );
   }
   getAssignFn(data: any, expression: string | number) {
     const valueId = `value_bobe_${date32()}`;
-    return new Function('data', valueId, `with(data){${expression}=${valueId}};`).bind(undefined, safeExclude(data, { [valueId]: true }));
+    return new Function('data', valueId, `with(data){${expression}=${valueId}};`).bind(
+      undefined,
+      safeExclude(data, { [valueId]: true })
+    );
   }
   // TODO: 优化代码逻辑，拆分 if elseif else
   condDeclaration(ctx: ProgramCtx) {
@@ -1293,7 +1320,7 @@ export class Interpreter {
           // runWithPulling(() => data[value], null);
           // // 拿到 signal
           // const { cells } = data[Keys.Meta];
-          signal = new Computed(() => Boolean(data[value]))
+          signal = new Computed(() => Boolean(data[value]));
         } else {
           const fn = this.getBoolFn(data, value);
           // 是 getter 使用 computed 计算出一个 signal
@@ -1484,9 +1511,12 @@ export class Interpreter {
     while ((this.tokenizer.token.type & TokenType.NewLine) === 0) {
       // 取 key
       if (key == null) {
-        const keyValue = this.tokenizer.token.value
+        const keyValue = this.tokenizer.token.value;
         // 如果 key 是 children 语法糖指定的类型：字符串 | 静态插值 | 动态插值
-        if (this.tokenizer.token.type & ChildrenSugarType || typeof keyValue === 'string' && keyValue.startsWith(this.tokenizer.HookId)) {
+        if (
+          this.tokenizer.token.type & ChildrenSugarType ||
+          (typeof keyValue === 'string' && keyValue.startsWith(this.tokenizer.HookId))
+        ) {
           key = 'children';
           eq = '=';
           // 将 key 的 token 作为 value 后续循环判断

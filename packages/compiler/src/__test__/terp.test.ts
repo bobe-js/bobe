@@ -945,6 +945,39 @@ describe('集成测试 — for 循环', () => {
     // 第 2 项不受影响
     expect(items2[2].props.class).toBe('');
   });
+
+  it('解构时 keyed for 循环按 key 复用节点', () => {
+    class App extends Store {
+      list = [
+        { id: 'a', name: '香蕉' },
+        { id: 'b', name: '苹果' },
+        { id: 'c', name: '梨' }
+      ];
+      swap = () => {
+        this.list = [this.list[1], this.list[0], this.list[2]];
+      };
+      ui = bobe`
+        div id="list"
+          for list; { id, name } i; id
+            span id={id} children={name}
+      `;
+    }
+
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    const aNode = mustFind(root, 'a');
+    const bNode = mustFind(root, 'b');
+    expect(getMockTree(mustFind(root, 'list')).children.map((item: any) => item.props.id)).toEqual(['a', 'b', 'c']);
+
+    store.swap();
+    flushEffects();
+
+    expect(getMockTree(mustFind(root, 'list')).children.map((item: any) => item.props.id)).toEqual(['b', 'a', 'c']);
+    expect(mustFind(root, 'a')).toBe(aNode);
+    expect(mustFind(root, 'b')).toBe(bNode);
+  });
 });
 
 describe('集成测试 — 动态文本', () => {
