@@ -393,7 +393,7 @@ export class Interpreter {
       ({ old, val }) => {
         let { __logicType: oldLogicType, textNode: oldTextNode } = node;
         // 删除组件旧 dom
-        if (oldLogicType) {
+        if (oldLogicType && (oldLogicType & FakeType.DynamicText) === 0) {
           this.removeLogicNode(node as LogicNode);
           pickInPlace(node, ['realParent', 'realBefore', 'realAfter', 'owner', 'snapshot', 'parentDataProvider']);
         }

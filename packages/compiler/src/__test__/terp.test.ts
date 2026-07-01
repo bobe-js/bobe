@@ -994,6 +994,29 @@ describe('集成测试 — 动态文本', () => {
     const tree = getMockTree(root);
     expect(JSON.stringify(tree)).toContain('hello');
   });
+
+  it('变量更新时动态文本内容同步更新', () => {
+    class App extends Store {
+      name = 'hello';
+      ui = bobe`
+        div
+          {name}
+      `;
+    }
+    const { render, root } = setupMock();
+    const [_, store] = render(App, root);
+    flushEffects();
+
+    const textNode = findSpanText(root, 'hello');
+    expect(textNode).toBeTruthy();
+
+    store.name = 'world';
+    flushEffects();
+
+    expect(findSpanText(root, 'world')).toBe(textNode);
+    expect(findSpanText(root, 'hello')).toBeFalsy();
+    expect(textNode.textContent).toBe('world');
+  });
 });
 
 describe('集成测试 — 动态组件', () => {
