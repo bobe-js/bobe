@@ -486,6 +486,20 @@ export class Interpreter {
         return (isDestroy: boolean) => {
           if (isDestroy) {
             this.removeLogicNode(node as LogicNode);
+            this.remove(node.realAfter, node.realParent, node.realBefore);
+            node.realParent = undefined;
+            node.realBefore = undefined;
+            node.realAfter = undefined;
+            node.owner = undefined;
+            node.snapshot = undefined;
+            node.parentDataProvider = undefined;
+            node.effect = undefined;
+            node.textNode = undefined;
+            node.tokenizer = undefined;
+            node.fragmentSnapshot = undefined;
+            node.resumeSnapshot = undefined;
+            node.__logicType = undefined;
+            node.data = undefined;
           }
         };
       },
@@ -612,6 +626,15 @@ export class Interpreter {
           if (isDestroy) {
             removeTpChild();
             scope.dispose();
+            node.realParent = undefined;
+            node.realBefore = undefined;
+            node.realAfter = undefined;
+            node.contentBefore = undefined;
+            node.contentAfter = undefined;
+            node.snapshot = undefined;
+            node.effect = undefined;
+            node.owner = undefined;
+            node.tpData = undefined;
           }
         };
       },
@@ -978,11 +1001,32 @@ export class Interpreter {
 
       return isDestroy => {
         if (isDestroy) {
+          // 逐项销毁 effect 并释放引用
           for (let i = 0; i < forNode.children.length; i++) {
             const item = forNode.children[i];
-            // TODO: dispose 后确保对 effect 都取消引用
             item.effect.dispose();
+            item.effect = undefined;
+            item.data = undefined;
+            item.context = undefined;
+            item.forNode = undefined;
+            item.realParent = undefined;
+            item.realAfter = undefined;
           }
+          // 释放 forNode 自身引用
+          forNode.children = undefined;
+          forNode.arr = undefined;
+          forNode.reactiveArr = undefined;
+          forNode.keys = undefined;
+          forNode.arrSignal = undefined;
+          forNode.owner = undefined;
+          forNode.prevSibling = undefined;
+          forNode.snapshot = undefined;
+          forNode.getKey = undefined;
+          forNode.vars = undefined;
+          forNode.realBefore = undefined;
+          forNode.realAfter = undefined;
+          forNode.realParent = undefined;
+          forNode.effect = undefined;
         }
       };
     }, ScheduleType.Render);
@@ -1441,6 +1485,21 @@ export class Interpreter {
           }
         }
         ifNode.isFirstRender = false;
+        return (isDestroy: boolean) => {
+          if (isDestroy) {
+            this.removeLogicNode(ifNode);
+            this.remove(ifNode.realAfter, ifNode.realParent, ifNode.realBefore);
+            ifNode.condition = undefined;
+            ifNode.snapshot = undefined;
+            ifNode.effect = undefined;
+            ifNode.preCond = undefined;
+            ifNode.owner = undefined;
+            ifNode.context = undefined;
+            ifNode.realBefore = undefined;
+            ifNode.realAfter = undefined;
+            ifNode.realParent = undefined;
+          }
+        };
       },
       [signal],
       { type: 'render' }
@@ -1601,6 +1660,12 @@ export class Interpreter {
 
             cleanupKeys(prevKeys);
             prevKeys = newKeys;
+            return (isDestroy: boolean) => {
+              if (isDestroy) {
+                prevKeys.clear();
+                savedDefaults.clear();
+              }
+            };
           }, ScheduleType.Render);
         }
         // ref 应该将对应 key 值分配给 ref
