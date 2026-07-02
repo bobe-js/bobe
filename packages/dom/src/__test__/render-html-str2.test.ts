@@ -339,7 +339,7 @@ describe('renderHtmlStr — for loop', () => {
       `;
     }
     expect(renderHtml(App)).toBe(
-      '<ul><!--for-item-before--><li>a</li><!--for-item-after--><!--for-item-before--><li>b</li><!--for-item-after--><!--for-item-before--><li>c</li><!--for-item-after--><!--for-after--></ul>'
+      '<ul><li>a</li><li>b</li><li>c</li><!--for-after--></ul>'
     );
   });
 
@@ -364,7 +364,7 @@ describe('renderHtmlStr — for loop', () => {
             li children={item}
       `;
     }
-    expect(renderHtml(App)).toBe('<ul><!--for-item-before--><li>x</li><!--for-item-after--><!--for-after--></ul>');
+    expect(renderHtml(App)).toBe('<ul><li>x</li><!--for-after--></ul>');
   });
 
   it('should place anchors in correct document order for for loop', () => {
@@ -378,7 +378,7 @@ describe('renderHtmlStr — for loop', () => {
       `;
     }
     expect(renderHtml(App)).toBe(
-      '<ul><!--for-item-before--><li>x</li><!--for-item-after--><!--for-after--><span>after</span></ul>'
+      '<ul><li>x</li><!--for-after--><span>after</span></ul>'
     );
   });
 });

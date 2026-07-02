@@ -42,12 +42,15 @@ import {
   CtxProviderBit,
   FakeNode,
   TpNode,
-  ChildrenSugarType
+  ChildrenSugarType,
+  NewlineOrIndent,
+  Keywords
 } from './type';
-import { date32, hasOwn, jsVarRegexp, pick, pickInPlace } from 'bobe-shared';
+import { date32, hasOwn, jsVarRegexp, pickInPlace } from 'bobe-shared';
 import { MultiTypeStack } from './typed';
-import { InlineFragment, isRenderAble, isUI, macInc, safe, safeExclude } from './util';
+import { InlineFragment, isRenderAble, macInc, safe, safeExclude } from './util';
 import { KEY_INDEX, setCtxStack } from './global';
+import { ForItemProto } from './for';
 
 export class Interpreter {
   opt: TerpConf;
@@ -123,7 +126,20 @@ export class Interpreter {
             // 保证 if 子逻辑节点能被其 effect 管理
             setPulling(ctx.current.effect);
             if (ctx.current.__logicType & FakeType.ForItem) {
-              ctx.prevSibling = ctx.current.realBefore;
+              const forNode: ForNode = ctx.current.forNode;
+              // 第一项是逻辑节点时插入锚点稳定结构
+              if (forNode.isItemFirstChildLogic) {
+                const contentStart = this.createAnchor('for-item-content-start');
+                this.insertAfter(ctx.realParent, contentStart, ctx.prevSibling);
+                ctx.prevSibling = contentStart;
+              } else {
+                /**
+                 * 第一项是普通节点，自然插入
+                 * 1. 第一项时 prevSibling 是 forNode.realBefore
+                 * 2. 后续项时 prevSibling 是 前一项 realAfter
+                 */
+                // ctx.prevSibling = forNode.i === 0 ? forNode.realBefore :forNode.children[forNode.i - 1];
+              }
             }
             if (ctx.current.__logicType & FakeType.Tp) {
               runWithPulling(() => {
@@ -205,6 +221,7 @@ export class Interpreter {
           if (parent.__logicType === FakeType.ForItem) {
             const { forNode } = parent as ForItemNode;
             const { i, arr, snapshot } = forNode;
+            parent.realAfter = ctx.current.realAfter || ctx.current;
             // 每个 for-item 不会走 handleInsert
             this.leaveLogicNode?.(parent, false);
             if (i + 1 < arr.length) {
@@ -212,8 +229,9 @@ export class Interpreter {
               this.tokenizer.resume(snapshot);
               this.tokenizer.nextToken(); // token = \n
               this.tokenizer.nextToken(); // token = Indent
+              // 1. 下一项从上一项 realAfter 开始插入 2. for item after 设置
+              ctx.prevSibling = parent.realAfter;
               ctx.current = forNode.children[++forNode.i];
-              ctx.prevSibling = ctx.current.realBefore;
               continue;
             }
             // 正常弹出 current = for node
@@ -300,6 +318,9 @@ export class Interpreter {
     }
   }
 
+  isLogicToken([type, value]: any) {
+    return Keywords.has(value) || type === 'dynamic' || (type === 'static' && isRenderAble(value));
+  }
   /**
    * 声明部分：
    * 包含首行定义和（可选的）多行属性扩展
@@ -336,7 +357,6 @@ export class Interpreter {
       // 1. 返回基础值，创建文本节点 createNode('text', String(value))，prop key 为 'children'
       // 2. 返回  组件，创建组件节点
       // 3. 返回  片段
-      // TODO: 后续考虑动态组件
       else {
         return this.dynamicDeclaration(data, value, ctx);
         // const val = data[Keys.Raw][value];
@@ -718,7 +738,8 @@ export class Interpreter {
       effect: null,
       owner,
       vars,
-      i: 0
+      i: 0,
+      isItemFirstChildLogic: true
     };
     if (keyExp) {
       const rawGetKey = new Function('data', `with(data){return (${keyExp})}`) as any;
@@ -740,8 +761,18 @@ export class Interpreter {
 
     // 去除 dentStack 和 isFirstToken
     const { dentStack, isFirstToken, ...snapshotForUpdate } = forNode.snapshot;
-
     let isFirstRender = true;
+    // 预检第一个项类型，决定渲染方案
+    do {
+      this.tokenizer.nextToken();
+      if ((this.tokenizer.token.type & NewlineOrIndent) === 0) {
+        const hook = this.tokenizer._hook({});
+        // TODO: 后续改动可能导致 兼容性问题
+        forNode.isItemFirstChildLogic = this.isLogicToken(hook);
+        break;
+      }
+    } while (!this.tokenizer.isEof());
+    this.tokenizer.resume(forNode.snapshot);
     forNode.effect = new this.Effect(() => {
       const collection = arrSignal.get();
       const { arr: formattedArr, keys } = this.formatForCollection(collection);
@@ -761,14 +792,10 @@ export class Interpreter {
         const len = arr.length;
         for (let i = len; i--; ) {
           const item = this.createForItem(forNode, i, data);
-          item.realAfter = this.insertAnchor(item, 'for-item-after');
-          item.realBefore = this.insertAnchor(item, 'for-item-before', true);
-          item.realParent = forNode.realParent;
           children[i] = item;
         }
-        const firstInsert = children[0];
         // 有子项进行计算
-        if (firstInsert) {
+        if (len) {
           this.tokenizer.nextToken(); // 是 NewLine
           this.tokenizer.nextToken(); // 是 Indent
         }
@@ -784,6 +811,11 @@ export class Interpreter {
         const minLen = Math.min(oldLen, newLen);
         const newChildren: ForItemNode[] = [];
         if (!forNode.getKey) {
+          for (let i = minLen; i--; ) {
+            const child = children[i];
+            newChildren[i] = child;
+            this.reuseForItem(child, arr[i], itemExp, i, indexName, keys?.[i]);
+          }
           // 删除
           if (newLen < oldLen) {
             for (let i = oldLen - 1; i >= newLen; i--) {
@@ -792,15 +824,9 @@ export class Interpreter {
           }
           // 新增
           if (oldLen < newLen) {
-            const lastAfter = children.at(-1)?.realAfter || forNode.realBefore;
-            for (let i = newLen - 1; i >= oldLen; i--) {
-              this.insertForItem(forNode, i, data, newChildren, lastAfter, snapshotForUpdate);
+            for (let i = oldLen; i < newLen; i++) {
+              this.insertForItem(forNode, i, data, newChildren, snapshotForUpdate);
             }
-          }
-          for (let i = minLen; i--; ) {
-            const child = children[i];
-            newChildren[i] = child;
-            this.reuseForItem(child, arr[i], itemExp, i, indexName, keys?.[i]);
           }
         }
         // 带 key 列表
@@ -840,9 +866,8 @@ export class Interpreter {
             if (s <= e2) {
               // s > 0 纯尾增
               // 否则 纯尾增
-              const firstBefore = s > 0 ? children[s - 1]?.realAfter || forNode.realBefore : forNode.realBefore;
-              for (let i = e2; i >= s; i--) {
-                this.insertForItem(forNode, i, data, newChildren, firstBefore, snapshotForUpdate);
+              for (let i = s; i <= e2; i++) {
+                this.insertForItem(forNode, i, data, newChildren, snapshotForUpdate);
               }
             }
           }
@@ -854,7 +879,7 @@ export class Interpreter {
               }
             }
           }
-          // 混合
+          // 混合, 混合更新中要引入 prev 才能保证正确获取到前一项的 realAfter
           else {
             let s1 = s,
               s2 = s;
@@ -866,37 +891,42 @@ export class Interpreter {
               key2new.set(key, i);
             }
             /*----------------- 构建 new2oldI -----------------*/
-            let maxIncNewI = -1;
-            let hasMove = false;
+            let minDecNewI = Infinity,
+              hasMove = false;
             const new2oldI = new Array<number>(mixLen).fill(-1);
-            for (let i = s1; i <= e1; i++) {
-              const key = children[i].key;
+            const itemsFirstChild = new Array<any>(children.length);
+            for (let i = e1; i >= s1; i--) {
+              const child = children[i];
+              const key = child.key;
               const newI = key2new.get(key);
+              itemsFirstChild[i] =
+                i === 0
+                  ? forNode.realBefore
+                    ? this.nextSib(forNode.realBefore)
+                    : this.firstChild(forNode.realParent)
+                  : this.nextSib(children[i - 1].realAfter);
               // 不在新列表中，删除
               if (newI == null) {
                 this.removeForItem(children, i);
                 continue;
               }
-              const child = children[i];
-              // 复用
               newChildren[newI] = child;
               this.reuseForItem(child, arr[newI], itemExp, newI, indexName, keys?.[newI]);
               new2oldI[newI - s2] = i;
               // 剩余的 key 是新增
               key2new.delete(key);
-              // 如果 newI 比已处理的最大 newI 要小，说明索引较小的项反而靠后，即发生移动
-              if (newI < maxIncNewI) {
+              // 如果 newI 比已处理的最小 newI 要大，说明索引较大的项反而靠前，即发生移动
+              if (newI > minDecNewI) {
                 hasMove = true;
               } else {
-                maxIncNewI = newI;
+                minDecNewI = newI;
               }
             }
             /*----------------- 纯增删 -----------------*/
             if (!hasMove) {
               // 按顺序从前往后插入即可
               key2new.forEach((i, key) => {
-                const before = i === 0 ? forNode.realBefore : newChildren[i - 1].realAfter;
-                this.insertForItem(forNode, i, data, newChildren, before, snapshotForUpdate);
+                this.insertForItem(forNode, i, data, newChildren, snapshotForUpdate);
               });
             } else {
               /*----------------- 增删移 -----------------*/
@@ -911,8 +941,7 @@ export class Interpreter {
                 const oldI = new2oldI[p1 - s2];
                 /** 新增 */
                 if (oldI === -1) {
-                  const before = p1 === 0 ? forNode.realBefore : newChildren[p1 - 1].realAfter;
-                  this.insertForItem(forNode, p1, data, newChildren, before, snapshotForUpdate);
+                  this.insertForItem(forNode, p1, data, newChildren, snapshotForUpdate);
                   continue;
                 }
 
@@ -925,12 +954,10 @@ export class Interpreter {
                 }
 
                 // p1 点位需要移动, 数据复用在 new2oldI 构建时已完成，这里处理 dom 移动即可
-                let before = p1 === 0 ? forNode.realBefore : newChildren[p1 - 1].realAfter;
-                const child = newChildren[p1];
-
-                const { realBefore, realAfter, realParent } = child;
-
-                let point = realBefore,
+                // 从 itemsFirstChild[oldI] 开始移动，直到，child.realAfter
+                const { realAfter, realParent } = newChildren[p1];
+                let before = p1 === 0 ? forNode.realBefore : newChildren[p1 - 1].realAfter,
+                  point = itemsFirstChild[oldI],
                   next: any;
                 do {
                   next = this.nextSib(point);
@@ -953,6 +980,7 @@ export class Interpreter {
         if (isDestroy) {
           for (let i = 0; i < forNode.children.length; i++) {
             const item = forNode.children[i];
+            // TODO: dispose 后确保对 effect 都取消引用
             item.effect.dispose();
           }
         }
@@ -991,27 +1019,22 @@ export class Interpreter {
     anchor[FakeNode] = node;
   }
 
-  insertForItem(
-    forNode: ForNode,
-    i: number,
-    parentData: any,
-    newChildren: ForItemNode[],
-    before: any,
-    snapshotForUpdate: any
-  ) {
+  insertForItem(forNode: ForNode, i: number, parentData: any, newChildren: ForItemNode[], snapshotForUpdate: any) {
     const item = this.createForItem(forNode, i, parentData);
     newChildren[i] = item;
-    let realAfter = this.createAnchor('for-item-after');
-    this.anchorRefBack(realAfter, item);
-    this.handleInsert(forNode.realParent, realAfter, before);
 
-    let realBefore = this.createAnchor('for-item-before', true);
-    this.handleInsert(forNode.realParent, realBefore, before);
-
-    item.realBefore = realBefore;
-    item.realAfter = realAfter;
-
+    let insertBefore;
+    const prevAfter = i === 0 ? forNode.realBefore : newChildren[i - 1].realAfter;
     this.tokenizer = forNode.owner.tokenizer;
+
+    if (forNode.isItemFirstChildLogic) {
+      const contentStart = this.createAnchor('for-item-content-start');
+      this.insertAfter(forNode.realParent, contentStart, prevAfter);
+      insertBefore = contentStart;
+    } else {
+      insertBefore = prevAfter;
+    }
+
     /**
      * resume 后 token = null, 下个字符是 \n
      */
@@ -1019,26 +1042,25 @@ export class Interpreter {
     this.tokenizer.resume(snapshotForUpdate);
     this.tokenizer.useDedentAsEof = false;
     runWithPulling(() => {
-      this.program(forNode.realParent, forNode.owner, realBefore, item);
+      this.program(forNode.realParent, forNode.owner, insertBefore, item);
+      item.realAfter = this.ctx.current.realAfter || this.ctx.current;
     }, item.effect);
+    return item;
   }
 
   removeForItem(children: ForItemNode[], i: number) {
     const child = children[i];
-    const after = child.realAfter!;
-    this.removeLogicNode(child);
-    this.remove(child.realBefore);
-    this.remove(child.realAfter);
+    const realBefore = i === 0 ? child.forNode.realBefore : children[i - 1].realAfter;
+    this.removeLogicNode(child, realBefore);
+    this.remove(child.realAfter, child.realParent, realBefore);
     // 释放删除项 effect
     child.effect.dispose();
     child.effect = undefined;
     child.data = undefined;
     child.context = undefined;
-    after[FakeNode] = undefined;
     child.forNode = undefined;
     child.realParent = undefined;
     child.realAfter = undefined;
-    child.realBefore = undefined;
   }
 
   reuseForItem(
@@ -1095,18 +1117,15 @@ export class Interpreter {
     // 使得 for effect 依赖原响应式数组，每一项
     data = this.getItemData(forNode, i, parentData);
     const context = this.ctx.stack.peekByType(NodeSort.Context)?.node?.data;
-    forItemNode = {
-      id: this.forItemId++,
-      __logicType: FakeType.ForItem,
-      realParent: this.ctx.realParent,
-      realBefore: null,
-      realAfter: null,
-      forNode,
-      key: forNode.getKey?.(data),
-      effect: null,
-      data,
-      context
-    };
+    forItemNode = Object.create(ForItemProto);
+    forItemNode.id = this.forItemId++;
+    forItemNode.__logicType = FakeType.ForItem;
+    forItemNode.realAfter = null;
+    forItemNode.forNode = forNode;
+    forItemNode.key = forNode.getKey?.(data);
+    forItemNode.effect = null;
+    forItemNode.data = data;
+    forItemNode.context = context;
     forItemNode.effect = scope;
     return forItemNode;
   }
@@ -1430,8 +1449,8 @@ export class Interpreter {
     return ifNode;
   }
 
-  removeLogicNode(node: LogicNode) {
-    const { realBefore, realAfter, realParent } = node;
+  removeLogicNode(node: LogicNode, realBefore = node.realBefore) {
+    const { realAfter, realParent } = node;
     let point = realBefore ? this.nextSib(realBefore) : this.firstChild(realParent);
     while (point !== realAfter) {
       const next = this.nextSib(point);

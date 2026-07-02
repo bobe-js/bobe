@@ -14,7 +14,7 @@ export enum TokenType {
   Eof = 0b0000_0000_0000_0000_0000_0000_0100_0000,
   InsertionExp = 0b0000_0000_0000_0000_0000_0000_1000_0000,
   Semicolon = 0b0000_0000_0000_0000_0000_0001_0000_0000,
-  /** 仅编译时可解析 */
+  /** StaticInsExp 仅编译时可解析 */
   StaticInsExp = 0b0000_0000_0000_0000_0000_0010_0000_0000,
   String = 0b0000_0000_0000_0000_0000_0100_0000_0000,
   Number = 0b0000_0000_0000_0000_0000_1000_0000_0000,
@@ -24,7 +24,15 @@ export enum TokenType {
   Comment = 0b0000_0000_0000_0000_1000_0000_0000_0000,
   TypeArguments = 0b0000_0000_0000_0001_0000_0000_0000_0000
 }
-
+export const Keywords = new Set([
+  'if',
+  'else',
+  'fail',
+  'for',
+  'context',
+  'tp'
+]);
+export const NewlineOrIndent =  TokenType.NewLine | TokenType.Indent;
 export const ChildrenSugarType = __IS_COMPILER__
   ? TokenType.String | TokenType.InsertionExp | TokenType.StaticInsExp
   : TokenType.String | TokenType.InsertionExp;
@@ -254,9 +262,11 @@ export type ForNode = Omit<LogicNode, 'data'> & {
   owner: ComponentNode | FragmentNode;
   prevSibling: any;
   vars: string[];
+  /** for item 第一项是否是逻辑节点 */
+  isItemFirstChildLogic: boolean;
 };
 
-export type ForItemNode = LogicNode & {
+export type ForItemNode = Omit<LogicNode, 'realBefore'> & {
   id: number;
   forNode: ForNode;
   effect: Scope;
